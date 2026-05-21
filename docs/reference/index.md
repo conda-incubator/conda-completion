@@ -25,7 +25,7 @@ The `completion.toml` schema that the Rust binary reads.
 :link: completer-binary
 :link-type: doc
 
-The `_conda_completer` interface, arguments, and output formats.
+The `_cc_completer` interface, arguments, and output formats.
 :::
 
 :::{grid-item-card} {octicon}`browser` Shell support

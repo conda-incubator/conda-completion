@@ -54,8 +54,7 @@ rarely change between keystrokes. The cache exploits this:
    syscall per file, totaling roughly 0.1 ms for 5-8 files.
 2. Compare each file's `(mtime, size)` tuple against the cached values.
 3. If all match (the common case), read the pre-parsed completion
-   candidates from `context_cache.toml`. Skip all TOML/YAML/JSON
-   parsing.
+   candidates from `context_cache.toml`. Skip all TOML/YAML parsing.
 4. If any file changed, re-parse only that file. Merge results with
    the still-valid cached entries. Write the updated cache atomically.
 
@@ -125,8 +124,7 @@ are kept minimal:
 | Dependency | Purpose | Size contribution |
 |---|---|---|
 | `serde` + `toml` | TOML parsing | ~400 KB |
-| `serde-saphyr` | YAML parsing | ~200 KB |
-| `serde_json` | JSON lockfiles | ~100 KB |
+| `serde-saphyr` | YAML parsing (environment.yml, .condarc, lockfiles) | ~200 KB |
 | `fs-err` | Better I/O errors | ~10 KB |
 
 Heavier alternatives were evaluated and rejected:

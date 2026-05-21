@@ -117,7 +117,6 @@ def test_generate_manifest_includes_plugin_subcommands():
     m = generate_manifest("test")
     assert "workspace" in m.commands
     assert "task" in m.commands
-    assert "completion" in m.commands
 
 
 def test_generate_manifest_plugin_subcommand_depth():

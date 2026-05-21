@@ -1,12 +1,12 @@
 # Completer binary
 
-`_conda_completer` is the Rust binary that runs on every TAB press. It
+`_cc_completer` is the Rust binary that runs on every TAB press. It
 reads the completion manifest and project files to produce candidates.
 
 ## Interface
 
 ```text
-_conda_completer --shell <shell> --manifest <path> [--cwd <dir>] -- <words...> <cword>
+_cc_completer --shell <shell> --manifest <path> [--cwd <dir>] -- <words...> <cword>
 ```
 
 `--shell`

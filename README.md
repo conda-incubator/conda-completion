@@ -10,7 +10,8 @@ via a tiny Rust binary.
 
 - Completes all conda commands, flags, and plugin subcommands
 - Contextual completions: environment names, task names, channels from
-  project files (conda.toml, pixi.toml, pyproject.toml, environment.yml)
+  project files (`conda.toml`, `pixi.toml`, `pyproject.toml`, `environment.yml`,
+  `anaconda-project.yml`, `conda-project.yml`, lockfiles)
 - Descriptions shown alongside candidates (zsh, fish, PowerShell)
 - Sub-5ms response time (stat-cached context, no Python on the hot path)
 - Shell support: bash, zsh, PowerShell (fully tested), fish (community-tested)
@@ -23,34 +24,78 @@ This project is in early development. It is not yet published to conda-forge.
 ## Quick start (development)
 
 ```bash
-# clone and set up
+# Clone and set up
 git clone https://github.com/conda-incubator/conda-completion
 cd conda-completion
 pixi install
 pixi run build
 
-# generate the completion manifest
+# Generate the completion manifest
 conda completion generate
 
-# add to your shell (one of):
-conda completion install bash
-conda completion install zsh
-conda completion install powershell
-conda completion install fish
+# Install the shell hook (auto-detects your shell)
+conda completion install
 
-# or use eval directly in your RC file:
+# Or target a specific shell
+conda completion install bash
+
+# Or use eval directly in your RC file
 eval "$(conda completion init bash)"
 ```
 
 ## How it works
 
-1. `conda completion generate` introspects conda's full argparse tree
-   (including all installed plugin subcommands) and writes a TOML manifest.
-2. On every TAB press, a small Rust binary (`_conda_completer`, ~500KB) reads
-   the manifest and walks local project files to produce candidates. No
-   Python runs on the hot path.
-3. A stat-based cache avoids re-parsing files that have not changed since
-   the last TAB press.
+conda-completion splits the work into two phases:
+
+**Phase 1: Generation (Python, runs once).** `conda completion generate`
+calls conda's `generate_parser()`, which loads all registered plugin
+subcommands. The argparse tree is walked recursively to extract commands,
+flags, positional arguments, and help text. The output is a
+`completion.toml` manifest stored in the platform cache directory.
+
+**Phase 2: Completion (Rust, runs on every TAB).** When you press TAB,
+your shell calls `_cc_completer`, a small Rust binary (~850 KB). It
+reads the TOML manifest for static command/flag completions, then walks
+project files in your working directory for dynamic completions
+(environment names, task names, channels). No Python runs on the hot
+path.
+
+A stat-based file cache tracks `(mtime, size)` for every source file.
+If nothing changed since the last TAB press, the binary skips all
+parsing and serves cached results in under 5 ms.
+
+### What files are read
+
+**Project files** (walks upward from cwd, first match wins):
+
+| File | What it provides |
+| --- | --- |
+| `conda.toml` / `pixi.toml` / `pyproject.toml` | Environment names, task names, feature names, channels |
+| `anaconda-project.yml` | Environment names, command names |
+| `conda-project.yml` | Environment names, command names |
+| `environment.yml` | Environment name, channels |
+| `conda.lock` / `pixi.lock` | Locked environment names and channels |
+| `conda-lock.yml` | Channel names |
+
+**Global state** (always read):
+
+| File | What it provides |
+| --- | --- |
+| `~/.conda/environments.txt` | All registered environment names |
+| `~/.condarc` | Configured channel names |
+| `~/.conda/global/global.toml` | Globally installed tool names |
+
+### CLI commands
+
+| Command | Description |
+| --- | --- |
+| `conda completion generate` | Introspect conda's parser, write `completion.toml` |
+| `conda completion install [shell]` | Generate + install shell RC hook (auto-detects shell) |
+| `conda completion uninstall [shell]` | Remove the RC hook |
+| `conda completion init <shell>` | Print the shell script to stdout |
+
+`install` and `uninstall` support `--dry-run` to preview changes and
+`--yes` to skip confirmation.
 
 ## Development
 
