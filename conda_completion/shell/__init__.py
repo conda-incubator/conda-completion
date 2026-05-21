@@ -39,7 +39,7 @@ class Shell:
     @staticmethod
     def posix_quote(path: Path) -> str:
         """Quote a path for safe use in POSIX shells (bash, zsh, fish)."""
-        return "'" + str(path).replace("'", "'\\''") + "'"
+        return "'" + path.as_posix().replace("'", "'\\''") + "'"
 
     @staticmethod
     def powershell_quote(path: Path) -> str:
