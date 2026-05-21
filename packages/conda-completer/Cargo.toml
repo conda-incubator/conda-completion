@@ -7,7 +7,7 @@ description = "Fast completion engine for conda -- reads a TOML manifest and pro
 repository = "https://github.com/conda-incubator/conda-completion"
 
 [[bin]]
-name = "_cc_completer"
+name = "_conda_completer"
 path = "src/main.rs"
 
 [dependencies]

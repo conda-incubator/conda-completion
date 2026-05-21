@@ -32,7 +32,7 @@ Conda has no built-in shell completion since 4.4.0 (which used argcomplete). The
 
 `conda-completion` will be a hybrid Python/Rust conda plugin (same pattern as `conda-global`) that:
 - Introspects conda's full argparse tree (including all plugin subcommands) to generate a JSON completion manifest
-- Ships a tiny Rust binary (`_cc_completer`) that reads the manifest on each TAB press and outputs candidates in <10ms
+- Ships a tiny Rust binary (`_conda_completer`) that reads the manifest on each TAB press and outputs candidates in <10ms
 - Tiered shell support (mirroring conda-spawn's model):
   - **Tier 1** (`shell/`): bash, zsh, PowerShell -- fully tested in CI on every push
   - **Tier 2** (`contrib/`): fish -- best-effort, tested when the shell is installed
@@ -58,7 +58,7 @@ Conda has no built-in shell completion since 4.4.0 (which used argcomplete). The
                     └────────────┬────────────────┘
                                  │
                     ┌────────────▼────────────────┐
-                    │  _cc_completer (Rust)        │  (runs on every TAB)
+                    │  _conda_completer (Rust)        │  (runs on every TAB)
                     │                             │
                     │  1. Read completion.toml     │  static commands/flags
                     │  2. Walk cwd for context:    │
@@ -121,7 +121,7 @@ conda-completion/
 │
 ├── packages/
 │   └── conda-completer/
-│       ├── Cargo.toml                # binary crate: _cc_completer
+│       ├── Cargo.toml                # binary crate: _conda_completer
 │       ├── pyproject.toml            # maturin build
 │       ├── python/
 │       │   └── conda_completer/
@@ -166,7 +166,7 @@ Create the project skeleton following conda-global's exact pattern.
   - Deps: `conda >=25.1`, `conda-completer`, `rich >=13.0`
   - Pixi workspace with rust toolchain, dev/test/docs envs
 - `Cargo.toml` -- workspace root, same release profile as conda-global (LTO fat, opt-level z, strip)
-- `packages/conda-completer/Cargo.toml` -- binary `_cc_completer`, deps: serde, serde_json, fs-err
+- `packages/conda-completer/Cargo.toml` -- binary `_conda_completer`, deps: serde, serde_json, fs-err
 - `packages/conda-completer/pyproject.toml` -- maturin config, same pattern as conda-trampoline
 - `conda_completion/__init__.py`, `_version.py`, `__main__.py`, `exceptions.py`
 - `AGENTS.md` -- coding guidelines adapted from both conda (`/Users/jezdez/Code/git/conda/AGENTS.md`) and conda-workspaces (`/Users/jezdez/Code/git/conda-workspaces/AGENTS.md`). Combine:
@@ -292,7 +292,7 @@ This follows the same pattern as conda's notices cache (`conda/notices/cache.py:
 
 **`packages/conda-completer/src/main.rs`:**
 
-Interface: `_cc_completer --shell <shell> --manifest <path> -- <words...> <cword>`
+Interface: `_conda_completer --shell <shell> --manifest <path> -- <words...> <cword>`
 
 Algorithm:
 1. Parse CLI args to get shell type, manifest path, current words, cursor word index
@@ -363,7 +363,7 @@ Tiered shell support mirroring conda-spawn's model:
 
 Each shell module generates a script that:
 1. Defines a completion function
-2. The function invokes `_cc_completer` with the current command line state
+2. The function invokes `_conda_completer` with the current command line state
 3. Parses the output into the shell's completion system
 
 `shell/__init__.py` provides a base `Shell` class and a registry mapping shell names to implementations (combining both tiers), similar to conda-spawn's `registry.py`.
@@ -459,7 +459,7 @@ docs/
 │   │   ├── manifest.md               # Manifest dataclasses
 │   │   └── cache.md                  # Cache management API
 │   ├── shell-support.md              # Shell support matrix (Tier 1/2, features per shell)
-│   └── completer-binary.md           # _cc_completer interface, args, output formats
+│   └── completer-binary.md           # _conda_completer interface, args, output formats
 │
 ├── explanation/
 │   ├── motivation.md                 # Why conda-completion exists, landscape comparison
@@ -534,7 +534,7 @@ description = "Record demo GIFs"
 - `test_introspect.py` -- build minimal argparse trees, verify walker produces correct manifest structures; parametrize over: nested subcommands, flags with choices, positionals, greedy plugin parsers
 - `test_manifest.py` -- round-trip TOML serialization, version field, schema invariants
 - `test_install.py` -- install writes correct block, uninstall removes it, idempotent
-- `test_completer.py` -- invoke `_cc_completer` as subprocess with sample completion.toml + project files (conda.toml, environment.yml, conda.lock), verify contextual completions per shell
+- `test_completer.py` -- invoke `_conda_completer` as subprocess with sample completion.toml + project files (conda.toml, environment.yml, conda.lock), verify contextual completions per shell
 
 ## Key Reference Files
 
@@ -574,7 +574,7 @@ description = "Record demo GIFs"
 4. **Init**: `conda completion init bash` prints a valid bash completion script
 5. **End-to-end**: Source the generated script, type `conda inst<TAB>` -> completes to `install`; `conda workspace <TAB>` -> lists workspace subcommands; `conda install --name <TAB>` -> lists environment names; `conda spawn <TAB>` -> completes spawn options
 6. **Contextual completions**: In a directory with conda.toml, `conda workspace install -e <TAB>` -> lists environment names from the manifest; `conda task run <TAB>` -> lists task names; in a directory with environment.yml, `conda install --name <TAB>` -> shows the env name from the YAML
-7. **Performance**: Time `_cc_completer` invocation -- should be <20ms
+7. **Performance**: Time `_conda_completer` invocation -- should be <20ms
 8. **Post-command regen**: Install a plugin via `conda self install`, verify manifest is automatically regenerated with new subcommands
 
 ## Post-plan: Store in repo

@@ -54,7 +54,7 @@ flags, positional arguments, and help text. The output is a
 `completion.toml` manifest stored in the platform cache directory.
 
 **Phase 2: Completion (Rust, runs on every TAB).** When you press TAB,
-your shell calls `_cc_completer`, a small Rust binary (~850 KB). It
+your shell calls `_conda_completer`, a small Rust binary (~850 KB). It
 reads the TOML manifest for static command/flag completions, then walks
 project files in your working directory for dynamic completions
 (environment names, task names, channels). No Python runs on the hot
