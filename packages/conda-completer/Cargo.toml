@@ -1,0 +1,20 @@
+[package]
+name = "conda-completer"
+version = "0.1.0"
+edition = "2021"
+license = "BSD-3-Clause"
+description = "Fast completion engine for conda -- reads a TOML manifest and project files to produce TAB candidates"
+repository = "https://github.com/conda-incubator/conda-completion"
+
+[[bin]]
+name = "_cc_completer"
+path = "src/main.rs"
+
+[dependencies]
+fs-err = "3.1"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+serde-saphyr = "0.0"
+
+[dev-dependencies]
+tempfile = "3"
