@@ -47,7 +47,7 @@ def test_execute_init_prints_script(manifest_file, completer_binary, shell, expe
     assert result == 0
     captured = capsys.readouterr()
     assert expected in captured.out
-    assert str(completer_binary) in captured.out
+    assert completer_binary.as_posix() in captured.out
 
 
 def test_execute_init_embeds_manifest_path(manifest_file, completer_binary, capsys):
@@ -55,7 +55,7 @@ def test_execute_init_embeds_manifest_path(manifest_file, completer_binary, caps
     execute_init(args)
 
     captured = capsys.readouterr()
-    assert str(manifest_file) in captured.out
+    assert manifest_file.as_posix() in captured.out
 
 
 def test_execute_init_unsupported_shell(manifest_file, completer_binary):
