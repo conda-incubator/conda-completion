@@ -1,0 +1,25 @@
+[project]
+name = "my-project"
+
+[environments.default]
+channels = ["conda-forge"]
+dependencies = ["python >=3.12"]
+
+[environments.test]
+channels = ["conda-forge"]
+dependencies = ["python >=3.12", "pytest"]
+
+[environments.docs]
+channels = ["conda-forge"]
+dependencies = ["python >=3.12", "sphinx"]
+
+[tasks.test]
+cmd = "pytest tests/"
+environment = "test"
+
+[tasks.build-docs]
+cmd = "sphinx-build docs docs/_build"
+environment = "docs"
+
+[tasks.lint]
+cmd = "ruff check src/"
