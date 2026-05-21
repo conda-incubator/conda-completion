@@ -1,0 +1,162 @@
+[build-system]
+requires = ["hatchling>=1.12.2", "hatch-vcs>=0.2.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "conda-completion"
+description = "Fast shell tab completion for conda and all its plugins"
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "BSD-3-Clause" }
+authors = [{ name = "Jannis Leidel", email = "jannis@leidel.info" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: BSD License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+  "conda >=25.1",
+  "conda-completer",
+  "platformdirs >=4.0",
+  "tomli >=2.0; python_version < '3.11'",
+  "tomli-w >=1.0",
+]
+dynamic = ["version"]
+
+[project.urls]
+repository = "https://github.com/conda-incubator/conda-completion"
+
+[project.entry-points.conda]
+"conda-completion" = "conda_completion.plugin"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "conda_completion/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["conda_completion"]
+
+[tool.ruff]
+line-length = 99
+target-version = "py310"
+exclude = ["conda_completion/_version.py"]
+
+[tool.ruff.lint]
+flake8-type-checking = {exempt-modules = [], strict = true}
+select = [
+  "E",    # pycodestyle errors
+  "F",    # pyflakes
+  "FA",   # flake8-future-annotations
+  "I",    # isort
+  "ISC",  # flake8-implicit-str-concat
+  "RUF100",  # unused noqa directive
+  "T10",  # flake8-debugger
+  "TCH",  # flake8-type-checking
+  "UP",   # pyupgrade
+  "W",    # pycodestyle warnings
+]
+
+[tool.ruff.lint.per-file-ignores]
+"conda_completion/shell/*.py" = ["E501"]
+"conda_completion/contrib/*.py" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -v"
+
+[tool.coverage.run]
+source = ["conda_completion"]
+branch = true
+omit = ["conda_completion/_version.py"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:"]
+show_missing = true
+skip_covered = true
+sort = "Miss"
+
+[tool.ty.environment]
+python-version = "3.10"
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-64", "osx-arm64", "win-64", "linux-aarch64"]
+
+[tool.pixi.dependencies]
+python = ">=3.10"
+conda = ">=25.1"
+rust = ">=1.85"
+platformdirs = ">=4.0"
+tomli-w = ">=1.0"
+
+[tool.pixi.pypi-dependencies]
+conda-completer = { path = "packages/conda-completer" }
+conda-completion = { path = ".", editable = true }
+
+[tool.pixi.feature.dev.dependencies]
+ruff = ">=0.9"
+ty = ">=0.0.1a7"
+pre-commit = ">=4.0"
+cargo-deny = ">=0.16"
+cargo-audit = ">=0.21"
+cargo-vet = ">=0.10"
+
+[tool.pixi.feature.test.dependencies]
+pytest = ">=8.0"
+pytest-cov = ">=4.0"
+platformdirs = ">=4.0"
+tomli-w = ">=1.0"
+conda-workspaces = ">=0.4"
+
+[tool.pixi.feature.docs.dependencies]
+sphinx = ">=7.0"
+conda-sphinx-theme = ">=0.2"
+myst-parser = ">=3.0"
+sphinx-design = ">=0.6"
+sphinx-copybutton = ">=0.5"
+sphinx-reredirects = ">=0.1"
+sphinx-sitemap = ">=2.0"
+sphinxcontrib-mermaid = ">=2.0"
+
+[tool.pixi.environments]
+dev = { features = ["dev"], solve-group = "default" }
+test = { features = ["test"], solve-group = "default" }
+docs = { features = ["docs"], solve-group = "default" }
+
+[tool.pixi.tasks]
+build = "cargo build --release --manifest-path packages/conda-completer/Cargo.toml"
+build-debug = "cargo build --manifest-path packages/conda-completer/Cargo.toml"
+lint = { cmd = "ruff check conda_completion tests", description = "Check code style" }
+format = { cmd = "ruff format conda_completion tests", description = "Auto-format code" }
+format-check = { cmd = "ruff format --check conda_completion tests", description = "Verify formatting" }
+typecheck = { cmd = "ty check conda_completion", description = "Run type checker" }
+test = { cmd = "pytest", description = "Run test suite" }
+test-cov = { cmd = "pytest --cov --cov-report=term-missing --cov-report=html --cov-report=xml", description = "Tests with coverage" }
+clippy = { cmd = "cargo clippy --manifest-path packages/conda-completer/Cargo.toml --all-targets -- -D warnings", description = "Rust linter" }
+cargo-audit = { cmd = "cargo audit --file Cargo.lock", description = "Check for known vulnerabilities" }
+cargo-deny = { cmd = "cargo deny --manifest-path packages/conda-completer/Cargo.toml check", description = "Check licenses, advisories, bans, sources" }
+cargo-vet = { cmd = "cargo vet --manifest-path packages/conda-completer/Cargo.toml", description = "Verify supply-chain audits" }
+
+[tool.pixi.feature.docs.tasks]
+docs = { cmd = "sphinx-build -b dirhtml docs docs/_build/dirhtml", description = "Build documentation" }
+
+[tool.pixi.tasks.security]
+depends-on = ["cargo-audit", "cargo-deny", "cargo-vet"]
+description = "Run Rust supply-chain and vulnerability checks"
+
+[tool.pixi.tasks.check]
+depends-on = ["lint", "format-check", "typecheck", "clippy", "security"]
+description = "Run all checks"
+
+[tool.pixi.tasks.demos]
+cmd = """bash -c 'if [ -n "$1" ]; then vhs "demos/$1.tape"; else for tape in demos/*.tape; do [[ "$(basename "$tape")" == _* ]] && continue; vhs "$tape"; done; fi' -- {{ name }}"""
+args = [{ arg = "name", default = "" }]
+description = "Record demo GIFs"
