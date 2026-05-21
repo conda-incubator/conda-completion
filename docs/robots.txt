@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://conda-incubator.github.io/conda-completion/sitemap.xml
