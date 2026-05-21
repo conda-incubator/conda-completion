@@ -70,7 +70,7 @@ fn try_read_toml_file(
     cache: &mut StatCache,
     extract: fn(&str, &mut ProjectContext),
 ) -> bool {
-    if !path.is_file() {
+    if !crate::cache::is_regular_file(path) {
         return false;
     }
     let path_str = path.to_string_lossy();
@@ -80,7 +80,7 @@ fn try_read_toml_file(
         return true;
     }
 
-    if let Ok(content) = fs_err::read_to_string(path) {
+    if let Some(content) = crate::cache::read_to_string_limited(path) {
         let mut file_ctx = ProjectContext::default();
         extract(&content, &mut file_ctx);
 
@@ -143,7 +143,7 @@ fn try_read_yaml_file<T: serde::de::DeserializeOwned>(
     cache: &mut StatCache,
     extract: fn(&T, &mut ProjectContext),
 ) -> bool {
-    if !path.is_file() {
+    if !crate::cache::is_regular_file(path) {
         return false;
     }
     let path_str = path.to_string_lossy();
@@ -153,7 +153,7 @@ fn try_read_yaml_file<T: serde::de::DeserializeOwned>(
         return true;
     }
 
-    if let Ok(content) = fs_err::read_to_string(path) {
+    if let Some(content) = crate::cache::read_to_string_limited(path) {
         let mut file_ctx = ProjectContext::default();
         if let Ok(value) = serde_saphyr::from_str::<T>(&content) {
             extract(&value, &mut file_ctx);

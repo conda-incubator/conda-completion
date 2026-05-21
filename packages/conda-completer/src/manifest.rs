@@ -73,7 +73,8 @@ pub struct PositionalSpec {
 }
 
 pub fn load_manifest(path: &Path) -> Result<Manifest, Box<dyn std::error::Error>> {
-    let content = fs_err::read_to_string(path)?;
+    let content = crate::cache::read_to_string_limited(path)
+        .ok_or("manifest file not found, is a symlink, or exceeds size limit")?;
     let manifest: Manifest = toml::from_str(&content)?;
     Ok(manifest)
 }

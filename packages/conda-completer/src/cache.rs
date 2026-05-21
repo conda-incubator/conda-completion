@@ -26,7 +26,7 @@ pub struct CachedFile {
 
 impl StatCache {
     pub fn load(path: &Path) -> Self {
-        if let Ok(content) = fs_err::read_to_string(path) {
+        if let Some(content) = read_to_string_limited(path) {
             if let Ok(cache) = toml::from_str(&content) {
                 return cache;
             }
@@ -35,8 +35,15 @@ impl StatCache {
     }
 
     pub fn save(&self, path: &Path) {
+        if std::fs::symlink_metadata(path).map(|m| m.file_type().is_symlink()).unwrap_or(false) {
+            return;
+        }
         if let Ok(content) = toml::to_string(self) {
             let tmp = path.with_extension("toml.tmp");
+            if std::fs::symlink_metadata(&tmp).map(|m| m.file_type().is_symlink()).unwrap_or(false)
+            {
+                return;
+            }
             if fs_err::write(&tmp, &content).is_ok() {
                 let _ = std::fs::rename(&tmp, path);
             }
@@ -45,7 +52,10 @@ impl StatCache {
 
     pub fn get_if_fresh(&self, file_path: &str) -> Option<&CachedFile> {
         let cached = self.files.get(file_path)?;
-        let metadata = std::fs::metadata(file_path).ok()?;
+        let metadata = std::fs::symlink_metadata(file_path).ok()?;
+        if !metadata.file_type().is_file() {
+            return None;
+        }
 
         let mtime = metadata
             .modified()
@@ -66,8 +76,13 @@ impl StatCache {
     }
 }
 
+const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10 MB
+
 pub fn file_stat(path: &Path) -> Option<(u64, u64)> {
-    let metadata = std::fs::metadata(path).ok()?;
+    let metadata = std::fs::symlink_metadata(path).ok()?;
+    if metadata.file_type().is_symlink() {
+        return None;
+    }
     let mtime = metadata
         .modified()
         .ok()?
@@ -75,6 +90,20 @@ pub fn file_stat(path: &Path) -> Option<(u64, u64)> {
         .ok()?
         .as_secs();
     Some((mtime, metadata.len()))
+}
+
+pub fn is_regular_file(path: &Path) -> bool {
+    std::fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_file())
+        .unwrap_or(false)
+}
+
+pub fn read_to_string_limited(path: &Path) -> Option<String> {
+    let metadata = std::fs::symlink_metadata(path).ok()?;
+    if !metadata.file_type().is_file() || metadata.len() > MAX_FILE_SIZE {
+        return None;
+    }
+    fs_err::read_to_string(path).ok()
 }
 
 #[cfg(test)]

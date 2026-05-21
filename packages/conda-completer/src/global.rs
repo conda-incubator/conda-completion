@@ -53,7 +53,7 @@ fn dirs_home() -> Option<PathBuf> {
 
 fn load_environments_txt(home: &Path, ctx: &mut GlobalContext, cache: &mut StatCache) {
     let path = home.join(".conda").join("environments.txt");
-    if !path.is_file() {
+    if !crate::cache::is_regular_file(&path) {
         return;
     }
     let path_str = path.to_string_lossy();
@@ -63,7 +63,7 @@ fn load_environments_txt(home: &Path, ctx: &mut GlobalContext, cache: &mut StatC
         return;
     }
 
-    if let Ok(content) = fs_err::read_to_string(&path) {
+    if let Some(content) = crate::cache::read_to_string_limited(&path) {
         let mut seen = HashSet::new();
         let mut env_names = Vec::new();
         for line in content.lines() {
@@ -104,7 +104,7 @@ fn load_condarc(home: &Path, ctx: &mut GlobalContext, cache: &mut StatCache) {
 
     if let Ok(condarc) = std::env::var("CONDARC") {
         let p = PathBuf::from(&condarc);
-        if p.is_file() && !paths.contains(&p) {
+        if crate::cache::is_regular_file(&p) && !paths.contains(&p) {
             paths.insert(0, p);
         }
     }
@@ -112,13 +112,13 @@ fn load_condarc(home: &Path, ctx: &mut GlobalContext, cache: &mut StatCache) {
     #[cfg(target_os = "windows")]
     {
         let system_path = PathBuf::from(r"C:\ProgramData\conda\.condarc");
-        if system_path.is_file() {
+        if crate::cache::is_regular_file(&system_path) {
             paths.push(system_path);
         }
     }
 
     for path in &paths {
-        if !path.is_file() {
+        if !crate::cache::is_regular_file(path) {
             continue;
         }
         let path_str = path.to_string_lossy();
@@ -128,7 +128,7 @@ fn load_condarc(home: &Path, ctx: &mut GlobalContext, cache: &mut StatCache) {
             continue;
         }
 
-        if let Ok(content) = fs_err::read_to_string(path) {
+        if let Some(content) = crate::cache::read_to_string_limited(path) {
             let mut seen = HashSet::new();
             let mut channels = Vec::new();
             if let Ok(rc) = serde_saphyr::from_str::<Condarc>(&content) {
@@ -161,7 +161,7 @@ fn load_condarc(home: &Path, ctx: &mut GlobalContext, cache: &mut StatCache) {
 
 fn load_global_toml(home: &Path, ctx: &mut GlobalContext, cache: &mut StatCache) {
     let path = home.join(".conda").join("global").join("global.toml");
-    if !path.is_file() {
+    if !crate::cache::is_regular_file(&path) {
         return;
     }
     let path_str = path.to_string_lossy();
@@ -171,7 +171,7 @@ fn load_global_toml(home: &Path, ctx: &mut GlobalContext, cache: &mut StatCache)
         return;
     }
 
-    if let Ok(content) = fs_err::read_to_string(&path) {
+    if let Some(content) = crate::cache::read_to_string_limited(&path) {
         let mut seen = HashSet::new();
         let mut tool_names = Vec::new();
         if let Ok(value) = content.parse::<toml::Value>() {

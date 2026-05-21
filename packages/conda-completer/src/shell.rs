@@ -1,5 +1,11 @@
 use std::fmt::Write;
 
+fn sanitize(s: &str) -> String {
+    s.chars()
+        .filter(|c| !c.is_control())
+        .collect()
+}
+
 pub fn format_candidates(shell: &str, candidates: &[(String, Option<String>)]) -> String {
     let mut out = String::with_capacity(candidates.len() * 32);
     match shell {
@@ -17,7 +23,7 @@ fn format_bash(candidates: &[(String, Option<String>)], out: &mut String) {
         if i > 0 {
             out.push('\n');
         }
-        out.push_str(name);
+        out.push_str(&sanitize(name));
     }
 }
 
@@ -26,10 +32,11 @@ fn format_zsh(candidates: &[(String, Option<String>)], out: &mut String) {
         if i > 0 {
             out.push('\n');
         }
+        let safe_name = sanitize(name);
         if let Some(d) = desc {
-            let _ = write!(out, "{}:{}", name, d.replace(':', "\\:"));
+            let _ = write!(out, "{}:{}", safe_name, sanitize(&d.replace(':', "\\:")));
         } else {
-            out.push_str(name);
+            out.push_str(&safe_name);
         }
     }
 }
@@ -39,10 +46,11 @@ fn format_fish(candidates: &[(String, Option<String>)], out: &mut String) {
         if i > 0 {
             out.push('\n');
         }
+        let safe_name = sanitize(name);
         if let Some(d) = desc {
-            let _ = write!(out, "{}\t{}", name, d);
+            let _ = write!(out, "{}\t{}", safe_name, sanitize(d));
         } else {
-            out.push_str(name);
+            out.push_str(&safe_name);
         }
     }
 }
@@ -52,10 +60,11 @@ fn format_powershell(candidates: &[(String, Option<String>)], out: &mut String) 
         if i > 0 {
             out.push('\n');
         }
+        let safe_name = sanitize(name);
         if let Some(d) = desc {
-            let _ = write!(out, "{}\t{}", name, d);
+            let _ = write!(out, "{}\t{}", safe_name, sanitize(d));
         } else {
-            out.push_str(name);
+            out.push_str(&safe_name);
         }
     }
 }
@@ -122,5 +131,19 @@ mod tests {
     fn unknown_shell_falls_back_to_bash() {
         let out = format_candidates("nushell", &candidates());
         assert_eq!(out, format_candidates("bash", &candidates()));
+    }
+
+    #[test]
+    fn control_characters_stripped_from_candidates() {
+        let items = vec![
+            ("safe\n$(evil)".to_string(), Some("desc\ninjected".to_string())),
+            ("tab\there".to_string(), None),
+        ];
+        let out = format_candidates("bash", &items);
+        assert_eq!(out, "safe$(evil)\ntabhere");
+
+        let out = format_candidates("zsh", &items);
+        assert!(!out.contains('\n') || out.lines().count() == 2);
+        assert!(!out.contains("$(evil)\n"));
     }
 }

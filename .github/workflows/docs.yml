@@ -15,17 +15,22 @@ on:
       - "docs/**"
   workflow_dispatch:
 
+permissions:
+  contents: read # checkout and read source code
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
   docs:
+    name: Build docs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: prefix-dev/setup-pixi@1b2de7f3351f171c8b4dfeb558c639cb58ed4ec0 # v0.9.5
         with:
           environments: docs
@@ -37,14 +42,15 @@ jobs:
           path: "docs/_build/dirhtml"
 
   pages:
+    name: Deploy to GitHub Pages
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     needs: [docs]
 
     permissions:
-      contents: read
-      pages: write
-      id-token: write
+      contents: read # read repo contents
+      pages: write # deploy to GitHub Pages
+      id-token: write # verify deployment origin
 
     environment:
       name: github-pages
