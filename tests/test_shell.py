@@ -47,7 +47,7 @@ def test_script_generation_does_not_raise(shell_name):
     shell = registry[shell_name]
     script = shell.script(
         Path("/usr/local/bin/_conda_completer"),
-        Path("/home/user/.cache/conda/completion/completion.toml"),
+        Path("/home/user/.cache/conda/completion/completion.msgpack"),
     )
     assert len(script) > 0
     assert "_conda_completer" in script or "cc_completer" in script
@@ -65,7 +65,7 @@ def test_script_with_special_paths(shell_name):
     shell = registry[shell_name]
     script = shell.script(
         Path("/path with spaces/bin/_conda_completer"),
-        Path("/path with spaces/cache/completion.toml"),
+        Path("/path with spaces/cache/completion.msgpack"),
     )
     assert len(script) > 0
 
@@ -176,7 +176,7 @@ def test_powershell_script_contains_register(tmp_path):
     from conda_completion.shell.powershell import PowerShellShell
 
     shell = PowerShellShell()
-    script = shell.script(tmp_path / "_conda_completer", tmp_path / "completion.toml")
+    script = shell.script(tmp_path / "_conda_completer", tmp_path / "completion.msgpack")
     assert "Register-ArgumentCompleter" in script
     assert "CompletionResult" in script
     assert str(tmp_path / "_conda_completer") in script

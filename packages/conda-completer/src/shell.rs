@@ -1,9 +1,7 @@
 use std::fmt::Write;
 
 fn sanitize(s: &str) -> String {
-    s.chars()
-        .filter(|c| !c.is_control())
-        .collect()
+    s.chars().filter(|c| !c.is_control()).collect()
 }
 
 pub fn format_candidates(shell: &str, candidates: &[(String, Option<String>)]) -> String {
@@ -98,10 +96,7 @@ mod tests {
 
     #[test]
     fn zsh_escapes_colons_in_descriptions() {
-        let items = vec![(
-            "flag".to_string(),
-            Some("Use format: json".to_string()),
-        )];
+        let items = vec![("flag".to_string(), Some("Use format: json".to_string()))];
         let out = format_candidates("zsh", &items);
         assert_eq!(out, "flag:Use format\\: json");
     }
@@ -136,7 +131,10 @@ mod tests {
     #[test]
     fn control_characters_stripped_from_candidates() {
         let items = vec![
-            ("safe\n$(evil)".to_string(), Some("desc\ninjected".to_string())),
+            (
+                "safe\n$(evil)".to_string(),
+                Some("desc\ninjected".to_string()),
+            ),
             ("tab\there".to_string(), None),
         ];
         let out = format_candidates("bash", &items);
