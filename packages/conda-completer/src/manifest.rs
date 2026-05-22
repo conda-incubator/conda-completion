@@ -74,10 +74,16 @@ pub struct PositionalSpec {
     pub metavar: Option<String>,
 }
 
+const MAX_PACKAGE_NAMES: usize = 500_000;
+const MAX_VERSIONS_ENTRIES: usize = 500_000;
+
 pub fn load_manifest(path: &Path) -> Result<Manifest, Box<dyn std::error::Error>> {
     let bytes = crate::cache::read_to_bytes_limited(path)
         .ok_or("manifest file not found, is a symlink, or exceeds size limit")?;
     let manifest: Manifest = rmp_serde::from_slice(&bytes)?;
+    if manifest.package_names.len() > MAX_PACKAGE_NAMES {
+        return Err("manifest contains too many package names".into());
+    }
     Ok(manifest)
 }
 
@@ -87,6 +93,9 @@ pub fn load_versions(
     let bytes = crate::cache::read_to_bytes_limited(path)
         .ok_or("versions file not found, is a symlink, or exceeds size limit")?;
     let versions: BTreeMap<String, Vec<String>> = rmp_serde::from_slice(&bytes)?;
+    if versions.len() > MAX_VERSIONS_ENTRIES {
+        return Err("versions file contains too many entries".into());
+    }
     Ok(versions)
 }
 

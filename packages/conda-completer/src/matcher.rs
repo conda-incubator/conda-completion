@@ -1,5 +1,7 @@
 use crate::similarity::normalized_damerau_levenshtein;
 
+const MAX_FUZZY_LEN: usize = 128;
+
 pub fn matches(candidate: &str, prefix: &str) -> bool {
     if prefix.is_empty() {
         return true;
@@ -13,6 +15,9 @@ pub fn fuzzy_match(
 ) -> Vec<(String, Option<String>)> {
     if query.is_empty() {
         return candidates.to_vec();
+    }
+    if query.len() > MAX_FUZZY_LEN {
+        return Vec::new();
     }
 
     let mut prefix_hits: Vec<_> = candidates
@@ -37,6 +42,7 @@ pub fn fuzzy_match(
 
     let mut scored: Vec<_> = candidates
         .iter()
+        .filter(|(name, _)| name.len() <= MAX_FUZZY_LEN)
         .map(|(name, desc)| {
             let mut score = normalized_damerau_levenshtein(name, query);
             if name.as_bytes().first() == query.as_bytes().first() {

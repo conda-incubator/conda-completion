@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
+import os
+import tempfile
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -11,6 +14,33 @@ from .exceptions import ManifestError
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Write data to a file atomically via temp-file-then-rename."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".tmp_")
+    try:
+        os.write(fd, data)
+        os.close(fd)
+        fd = -1
+        os.replace(tmp, path)
+    except BaseException:
+        if fd >= 0:
+            os.close(fd)
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+MAX_MANIFEST_SIZE = 50 * 1024 * 1024
+
+_UNPACK_LIMITS = dict(
+    max_str_len=2 * 1024 * 1024,
+    max_bin_len=2 * 1024 * 1024,
+    max_array_len=500_000,
+    max_map_len=500_000,
+)
 
 
 @dataclass(frozen=True)
@@ -179,29 +209,39 @@ class CompletionManifest:
 
 def write_manifest(manifest: CompletionManifest, path: Path) -> None:
     """Serialize a CompletionManifest to a msgpack file."""
-    data = manifest.to_dict()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(msgpack.packb(data))
+    _atomic_write_bytes(path, msgpack.packb(manifest.to_dict()))
+
+
+def _read_msgpack(path: Path) -> dict:
+    """Read and deserialize a msgpack file with size and structure limits."""
+    size = path.stat().st_size
+    if size > MAX_MANIFEST_SIZE:
+        raise ManifestError(f"file too large ({size} bytes)")
+    return msgpack.unpackb(path.read_bytes(), **_UNPACK_LIMITS)
 
 
 def read_manifest(path: Path) -> CompletionManifest:
     """Deserialize a CompletionManifest from a msgpack file."""
     try:
-        data = msgpack.unpackb(path.read_bytes())
+        data = _read_msgpack(path)
     except (msgpack.UnpackException, ValueError) as exc:
         raise ManifestError(str(exc)) from exc
-    return CompletionManifest.from_dict(data)
+    if not isinstance(data, dict):
+        raise ManifestError("manifest root is not a mapping")
+    try:
+        return CompletionManifest.from_dict(data)
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise ManifestError(f"malformed manifest: {exc}") from exc
 
 
 def write_versions(versions: dict[str, list[str]], path: Path) -> None:
     """Serialize package version data to a msgpack file."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(msgpack.packb(versions))
+    _atomic_write_bytes(path, msgpack.packb(versions))
 
 
 def read_versions(path: Path) -> dict[str, list[str]]:
     """Deserialize package version data from a msgpack file."""
     try:
-        return msgpack.unpackb(path.read_bytes())
+        return _read_msgpack(path)
     except (msgpack.UnpackException, ValueError, FileNotFoundError) as exc:
         raise ManifestError(str(exc)) from exc

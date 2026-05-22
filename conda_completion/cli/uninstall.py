@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import re
+import tempfile
 from typing import TYPE_CHECKING
 
 from ..exceptions import ShellNotSupportedError
@@ -50,6 +52,19 @@ def execute_uninstall(args: argparse.Namespace) -> int:
             print("Aborted.")
             return 1
 
-    rc_path.write_text(new_content, encoding="utf-8")
+    fd, tmp = tempfile.mkstemp(dir=rc_path.parent, prefix=".tmp_")
+    try:
+        os.write(fd, new_content.encode("utf-8"))
+        os.close(fd)
+        fd = -1
+        os.replace(tmp, rc_path)
+    except BaseException:
+        if fd >= 0:
+            os.close(fd)
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
     print(f"Completion hook removed from {rc_path}")
     return 0

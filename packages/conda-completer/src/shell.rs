@@ -25,14 +25,18 @@ fn format_bash(candidates: &[(String, Option<String>)], out: &mut String) {
     }
 }
 
+fn zsh_escape(s: &str) -> String {
+    sanitize(s).replace('\\', "\\\\").replace(':', "\\:")
+}
+
 fn format_zsh(candidates: &[(String, Option<String>)], out: &mut String) {
     for (i, (name, desc)) in candidates.iter().enumerate() {
         if i > 0 {
             out.push('\n');
         }
-        let safe_name = sanitize(name);
+        let safe_name = zsh_escape(name);
         if let Some(d) = desc {
-            let _ = write!(out, "{}:{}", safe_name, sanitize(&d.replace(':', "\\:")));
+            let _ = write!(out, "{}:{}", safe_name, zsh_escape(d));
         } else {
             out.push_str(&safe_name);
         }
@@ -143,5 +147,19 @@ mod tests {
         let out = format_candidates("zsh", &items);
         assert!(!out.contains('\n') || out.lines().count() == 2);
         assert!(!out.contains("$(evil)\n"));
+    }
+
+    #[test]
+    fn zsh_escapes_colons_in_names() {
+        let items = vec![("https://conda.anaconda.org".to_string(), None)];
+        let out = format_candidates("zsh", &items);
+        assert_eq!(out, "https\\://conda.anaconda.org");
+    }
+
+    #[test]
+    fn zsh_escapes_backslashes() {
+        let items = vec![("foo\\bar".to_string(), Some("a\\b".to_string()))];
+        let out = format_candidates("zsh", &items);
+        assert_eq!(out, "foo\\\\bar:a\\\\b");
     }
 }

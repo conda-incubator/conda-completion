@@ -43,7 +43,9 @@ fn main() {
 
     stat_cache.save(&cache_path);
 
-    let candidates = complete(&manifest, &versions_path, &ctx, &global_ctx, &parsed.words, parsed.cword);
+    let mut candidates = complete(&manifest, &versions_path, &ctx, &global_ctx, &parsed.words, parsed.cword);
+    const MAX_CANDIDATES: usize = 500;
+    candidates.truncate(MAX_CANDIDATES);
     let output = shell::format_candidates(&parsed.shell, &candidates);
     print!("{}", output);
 }

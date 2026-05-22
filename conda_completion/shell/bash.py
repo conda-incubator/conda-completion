@@ -21,7 +21,7 @@ class BashShell(Shell):
 _conda_completion() {{
     local completer={cp}
     local manifest={mp}
-    COMPREPLY=( $("$completer" --shell bash --manifest "$manifest" -- "${{COMP_WORDS[@]}}" "$COMP_CWORD" 2>/dev/null) )
+    mapfile -t COMPREPLY < <("$completer" --shell bash --manifest "$manifest" -- "${{COMP_WORDS[@]}}" "$COMP_CWORD" 2>/dev/null)
     compopt -o nosort 2>/dev/null
 }}
 COMP_WORDBREAKS="${{COMP_WORDBREAKS//=/}}"
