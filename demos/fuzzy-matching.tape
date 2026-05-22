@@ -1,7 +1,7 @@
 Source demos/_settings.tape
 
-Output demos/subcommand-completion.gif
-Output demos/subcommand-completion.mp4
+Output demos/fuzzy-matching.gif
+Output demos/fuzzy-matching.mp4
 
 Hide
 Type `eval "$(pixi shell-hook -s bash -e dev)"`
@@ -16,41 +16,45 @@ Wait /\$/
 Sleep 500ms
 Show
 
-Type "# Complete conda subcommands"
+Type "# Fuzzy matching handles typos"
 Enter
 Sleep 500ms
 
-Type "conda "
-Sleep 500ms
+Type "conda install numpie"
+Sleep 1s
 Tab
+Sleep 1s
 Tab
 Sleep 2s
 
 Ctrl+C
 Sleep 300ms
 
-Type "# Complete env subcommands"
+Type "# Transpositions too"
 Enter
 Sleep 500ms
 
-Type "conda env "
-Sleep 500ms
+Type "conda install nupmy"
+Sleep 1s
 Tab
+Sleep 1s
 Tab
 Sleep 2s
 
 Ctrl+C
 Sleep 300ms
 
-Type "# Complete self subcommands"
+Type "# Wrong separator"
 Enter
 Sleep 500ms
 
-Type "conda self "
-Sleep 500ms
+Type "conda install scikit_learn"
+Sleep 1s
+Tab
+Sleep 1s
 Tab
 Tab
-Sleep 2s
+Sleep 3s
 
 Ctrl+C
 Sleep 300ms

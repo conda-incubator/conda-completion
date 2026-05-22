@@ -1,7 +1,7 @@
 Source demos/_settings.tape
 
-Output demos/subcommand-completion.gif
-Output demos/subcommand-completion.mp4
+Output demos/version-completion.gif
+Output demos/version-completion.mp4
 
 Hide
 Type `eval "$(pixi shell-hook -s bash -e dev)"`
@@ -16,11 +16,11 @@ Wait /\$/
 Sleep 500ms
 Show
 
-Type "# Complete conda subcommands"
+Type "# Complete versions with = or =="
 Enter
 Sleep 500ms
 
-Type "conda "
+Type "conda install numpy="
 Sleep 500ms
 Tab
 Tab
@@ -29,24 +29,11 @@ Sleep 2s
 Ctrl+C
 Sleep 300ms
 
-Type "# Complete env subcommands"
+Type "# Also works with =="
 Enter
 Sleep 500ms
 
-Type "conda env "
-Sleep 500ms
-Tab
-Tab
-Sleep 2s
-
-Ctrl+C
-Sleep 300ms
-
-Type "# Complete self subcommands"
-Enter
-Sleep 500ms
-
-Type "conda self "
+Type "conda install pandas=="
 Sleep 500ms
 Tab
 Tab

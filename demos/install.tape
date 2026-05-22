@@ -16,6 +16,7 @@ Wait /\$/
 Type "clear"
 Enter
 Wait /\$/
+Sleep 500ms
 Show
 
 Type "# Preview what install will do"

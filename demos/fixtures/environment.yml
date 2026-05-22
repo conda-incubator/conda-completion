@@ -1,0 +1,9 @@
+name: ml-project
+channels:
+  - conda-forge
+  - bioconda
+  - pytorch
+dependencies:
+  - python >=3.12
+  - numpy
+  - pytorch
