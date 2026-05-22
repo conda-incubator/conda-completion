@@ -41,10 +41,10 @@ supports descriptions.
 
 ## How fast is it?
 
-Under 5 ms on a typical cache hit. The Rust binary reads a pre-generated
-msgpack manifest and a stat-based file cache. No Python process starts on
-TAB press. See {doc}`performance` for detailed benchmarks and
-comparisons with other tools.
+Under 1 ms for commands, flags, and package name completion. Version
+completion and fuzzy matching are slower (~35 ms and ~60 ms respectively)
+but still feel responsive. No Python process starts on TAB press. See
+{doc}`performance` for detailed measurements and comparisons.
 
 ## Where is the manifest stored?
 

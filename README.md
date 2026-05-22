@@ -16,7 +16,7 @@ via a tiny Rust binary.
   project files (`conda.toml`, `pixi.toml`, `pyproject.toml`, `environment.yml`,
   `anaconda-project.yml`, `conda-project.yml`, lockfiles)
 - Descriptions shown alongside candidates (zsh, fish, PowerShell)
-- Sub-5ms response time (stat-cached context, no Python on the hot path)
+- Fast response time (stat-cached context, no Python on the hot path)
 - Shell support: bash, zsh, PowerShell (fully tested), fish (community-tested)
 - Auto-regenerates the completion manifest when plugins are installed or removed
 
@@ -68,7 +68,7 @@ substring, then fuzzy similarity) so typos like `numpie` still find
 
 A stat-based file cache tracks `(mtime, size)` for every source file.
 If nothing changed since the last TAB press, the binary skips all
-parsing and serves cached results in under 5 ms.
+parsing and serves cached results in under 1 ms.
 
 ### What files are read
 

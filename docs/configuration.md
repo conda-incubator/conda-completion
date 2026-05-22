@@ -46,7 +46,7 @@ On each TAB press, the completer stats each source file and only re-parses
 files whose mtime or size has changed.
 
 Deleting this file is safe. It will be rebuilt on the next TAB press at the
-cost of one cache-miss cycle (under 20 ms).
+cost of re-parsing all project and global files on the next invocation.
 
 ## Manual regeneration
 

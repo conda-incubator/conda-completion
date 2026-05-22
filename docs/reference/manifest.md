@@ -166,6 +166,6 @@ The versions file is a msgpack-encoded dict mapping package names
 
 ### Size
 
-The versions file is typically 5-10 MB depending on the number of
-configured channels and available versions. It is generated alongside
-the main manifest by `conda completion generate`.
+The versions file is typically 2-5 MB depending on the number of
+configured channels. It is generated alongside the main manifest by
+`conda completion generate`.

@@ -10,7 +10,7 @@ is a bash-only completion tool available on conda-forge. It parses `conda
 |---|---|---|
 | Shells | bash only | bash, zsh, PowerShell, fish |
 | Plugin subcommands | Not supported | Automatic |
-| Completion speed | ~100 ms (runs `conda --help`) | < 5 ms (reads cached manifest) |
+| Completion speed | ~100 ms (runs `conda --help`) | < 1 ms (reads cached manifest) |
 | Contextual completions | No | env names, tasks, channels |
 | Descriptions | No | Yes (zsh, fish, PowerShell) |
 

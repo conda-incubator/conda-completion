@@ -43,7 +43,7 @@ $ conda install --<TAB>
 
 `conda install nump<TAB>` completes package names extracted from
 configured channels during `conda completion generate`. Over 30,000
-package names are searched in under 1 ms.
+package names are searched with prefix matching in under 1 ms.
 
 ## Version completion
 
@@ -71,7 +71,7 @@ The matching uses a three-tier strategy:
 3. **Similarity match** -- handles typos (transpositions, insertions,
    deletions, substitutions) with a 0.6 threshold, capped at 10 results
 
-## Sub-5 ms response time
+## Fast response time
 
 A Rust binary handles every TAB press. No Python process starts on the
 hot path. A stat-based file cache avoids re-parsing files that have not
@@ -79,10 +79,9 @@ changed since the last TAB press.
 
 | Scenario | Typical time |
 |---|---|
-| Cache hit (common case) | < 5 ms |
-| Package name completion | < 7 ms |
-| Version completion | < 15 ms |
-| Cache miss (file changed) | < 20 ms |
+| Commands, flags, package names | < 1 ms |
+| Version completion (`=`) | ~35 ms |
+| Fuzzy matching (typo correction) | ~60 ms |
 
 ## Automatic manifest regeneration
 

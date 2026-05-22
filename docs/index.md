@@ -5,7 +5,7 @@ Fast, plugin-aware shell tab completion for conda.
 conda-completion introspects conda's full command tree, including all installed
 plugin subcommands (workspace, global, spawn, task, and more), and provides
 instant TAB completions with descriptions. A small Rust binary handles every
-TAB press in under 5 ms with no Python on the hot path.
+TAB press with no Python on the hot path.
 
 ```bash
 conda install -c conda-forge conda-completion
@@ -113,7 +113,7 @@ text so you never have to guess what a flag does.
 
 :::{grid-item}
 
-**Sub-5 ms response time**
+**Instant response**
 
 A tiny Rust binary handles every TAB press. A stat-based file cache
 avoids re-parsing files that have not changed. No Python runs on the

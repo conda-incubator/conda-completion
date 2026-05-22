@@ -38,7 +38,8 @@ just from static definitions.
 
 **Speed.** Existing tools either parse `conda --help` on every TAB
 press (~100 ms) or use a hand-maintained static script. conda-completion
-pre-generates a manifest and uses a Rust binary to read it in under 5 ms.
+pre-generates a manifest and uses a Rust binary to read it in under 1 ms
+for the common case.
 
 ## Scope
 

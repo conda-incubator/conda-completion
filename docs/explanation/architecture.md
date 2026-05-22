@@ -59,7 +59,7 @@ press that should feel instant.
 
 By running Python once and caching the result as msgpack, the hot path
 becomes a simple binary file read in Rust. The binary starts in under
-1 ms and produces output in under 5 ms on a cache hit.
+1 ms and produces output in under 1 ms for commands and flags.
 
 ## Plugin awareness
 
@@ -159,7 +159,7 @@ The Rust binary uses a minimal set of dependencies:
 - `serde-saphyr` for YAML files (environment.yml, .condarc, lockfiles; pure Rust, no unsafe)
 - `fs-err` for better I/O error messages
 
-This keeps the binary under 1.5 MB and startup under 1 ms. Heavier
+This keeps the binary under 1 MB and startup under 1 ms. Heavier
 frameworks like `clap_complete` or full conda type libraries (rattler)
 were deliberately avoided to stay within the performance budget.
 
@@ -171,7 +171,7 @@ deserialize than TOML. It is already used in conda's sharded repodata.
 
 **Two-file split for package data.** `completion.msgpack` (~500KB,
 command tree plus package names) is always loaded. `versions.msgpack`
-(~5-10MB, name-to-version mapping) is loaded only when `=` appears in
+(~2-3MB, name-to-version mapping) is loaded only when `=` appears in
 the current word. This keeps the common TAB-press fast while still
 supporting version completion.
 

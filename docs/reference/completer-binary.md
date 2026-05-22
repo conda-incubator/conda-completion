@@ -95,12 +95,14 @@ Regardless of project files, the binary always reads:
 
 ## Performance
 
-| Metric | Target | Typical |
-|---|---|---|
-| Cache hit | < 5 ms | ~4 ms |
-| Cache miss | < 20 ms | ~17 ms |
-| Binary size | < 1.5 MB | ~1 MB |
-| Memory usage | < 15 MB | ~8 MB |
+| Metric | Typical |
+|---|---|
+| Commands, flags, package names | < 1 ms |
+| Version completion (`=`) | ~35 ms |
+| Fuzzy matching | ~60 ms |
+| Binary size | ~900 KB |
+| Memory (without versions) | ~5-7 MB |
+| Memory (with versions loaded) | ~25 MB |
 
 The stat-based cache (`context_cache.msgpack`) uses `(mtime, size)` tuples
 to detect file changes without reading file contents. On a cache hit,
