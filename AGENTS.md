@@ -45,9 +45,9 @@
 ## Dependencies
 
 - Minimize the dependency graph. The Python side depends on `conda`,
-  `conda-completer`, `platformdirs`, `tomli-w`, and `tomli` (3.10 only).
-- The Rust binary uses minimal crates: `serde`, `toml`, `serde-saphyr`,
-  `fs-err`. No rattler crates or heavy frameworks.
+  `conda-completer`, `platformdirs`, and `msgpack`.
+- The Rust binary uses minimal crates: `serde`, `rmp-serde`, `toml`,
+  `serde-saphyr`, `fs-err`. No rattler crates or heavy frameworks.
 - Pin minimum versions in `pyproject.toml` (e.g., `"conda >=25.1"`),
   not exact versions.
 - All packaging and dependency management goes through pixi. Never use
@@ -75,7 +75,7 @@
 - All conda-completion exceptions inherit from `CondaCompletionError`
   (which inherits from conda's `CondaError`). Each exception class
   sets `error_message` and `hints` (a list of actionable suggestions).
-- User-facing messages should use the file name (`completion.toml`)
+- User-facing messages should use the file name (`completion.msgpack`)
   rather than internal concepts (`manifest`). Internal binary names
   (`_conda_completer`) should never appear in error messages.
 - The `_maybe_regenerate` hook in `plugin.py` must never crash conda.
@@ -114,7 +114,7 @@
   `pixi run clippy` runs clippy with `-D warnings`.
 - Keep the dependency count minimal. Every new crate must be justified
   by a clear need that stdlib or existing deps cannot cover.
-- Binary size target: release build should be under 1 MB. The release
+- Binary size target: release build should be under 1.5 MB. The release
   profile uses LTO, opt-level z, and strip.
 - Performance target: static completions under 5 ms (cache hit),
   under 15 ms on cache miss.

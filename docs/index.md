@@ -93,6 +93,17 @@ project files: `conda.toml`, `pixi.toml`, `pyproject.toml`,
 
 :::{grid-item}
 
+**Package name and version completion**
+
+`conda install nump<TAB>` completes package names from repodata.
+`conda install numpy=<TAB>` lists available versions. A three-tier
+matching strategy handles typos: prefix, substring, then fuzzy
+Damerau-Levenshtein similarity.
+
+:::
+
+:::{grid-item}
+
 **Descriptions alongside candidates**
 
 In zsh, fish, and PowerShell, each completion candidate shows its help
@@ -104,9 +115,9 @@ text so you never have to guess what a flag does.
 
 **Sub-5 ms response time**
 
-A tiny Rust binary (under 1 MB) handles every TAB press. A stat-based
-file cache avoids re-parsing files that have not changed. No Python
-runs on the hot path.
+A tiny Rust binary handles every TAB press. A stat-based file cache
+avoids re-parsing files that have not changed. No Python runs on the
+hot path.
 
 :::
 

@@ -18,7 +18,7 @@ orphan: true
 :link: manifest
 :link-type: doc
 
-The `completion.toml` schema that the Rust binary reads.
+The `completion.msgpack` schema that the Rust binary reads.
 :::
 
 :::{grid-item-card} {octicon}`cpu` Completer binary

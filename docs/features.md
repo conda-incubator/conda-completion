@@ -39,15 +39,49 @@ $ conda install --<TAB>
 --prefix      -- Full path to environment location
 ```
 
+## Package name completion
+
+`conda install nump<TAB>` completes package names extracted from
+configured channels during `conda completion generate`. Over 30,000
+package names are searched in under 1 ms.
+
+## Version completion
+
+When `=` or `==` is detected in the current word, the completer loads
+version data and lists available versions:
+
+```text
+$ conda install numpy=<TAB>
+numpy=1.26.4  numpy=2.0.0  numpy=2.1.0  ...
+```
+
+Version data is stored in a separate `versions.msgpack` file that is
+only loaded when needed, keeping the common TAB press fast.
+
+## Fuzzy matching
+
+Misspelled a package name? The completer falls back to fuzzy matching
+using normalized Damerau-Levenshtein similarity. Typos like `numpie`,
+`nupmy`, or `scikitlearn` still find the right package.
+
+The matching uses a three-tier strategy:
+
+1. **Prefix match** -- the common case, essentially free
+2. **Substring match** -- catches partial input anywhere in the name
+3. **Similarity match** -- handles typos (transpositions, insertions,
+   deletions, substitutions) with a 0.6 threshold, capped at 10 results
+
 ## Sub-5 ms response time
 
-A tiny Rust binary (under 1 MB) handles every TAB press. No Python process
-starts on the hot path. A stat-based file cache avoids re-parsing files
-that have not changed since the last TAB press.
+A Rust binary handles every TAB press. No Python process starts on the
+hot path. A stat-based file cache avoids re-parsing files that have not
+changed since the last TAB press.
 
 | Scenario | Typical time |
 |---|---|
 | Cache hit (common case) | < 5 ms |
+| Package name completion | < 7 ms |
+| Version completion | < 15 ms |
 | Cache miss (file changed) | < 20 ms |
 
 ## Automatic manifest regeneration

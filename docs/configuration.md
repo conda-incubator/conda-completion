@@ -21,9 +21,13 @@ The completion manifest is stored in your platform's cache directory:
 
 | Platform | Path |
 |---|---|
-| Linux | `~/.cache/conda/completion/completion.toml` |
-| macOS | `~/Library/Caches/conda/completion/completion.toml` |
-| Windows | `%LOCALAPPDATA%\conda\cache\completion\completion.toml` |
+| Linux | `~/.cache/conda/completion/completion.msgpack` |
+| macOS | `~/Library/Caches/conda/completion/completion.msgpack` |
+| Windows | `%LOCALAPPDATA%\conda\cache\completion\completion.msgpack` |
+
+A separate `versions.msgpack` file in the same directory stores the
+mapping of package names to available versions. It is only loaded when
+`=` is detected in the current word (e.g., `numpy=<TAB>`).
 
 This follows the same pattern as conda's own cache directories, using
 `platformdirs.user_cache_dir("conda")`.
@@ -33,7 +37,7 @@ This follows the same pattern as conda's own cache directories, using
 The stat-based context cache lives alongside the manifest:
 
 ```
-<cache_dir>/completion/context_cache.toml
+<cache_dir>/completion/context_cache.msgpack
 ```
 
 This file maps source file paths to their parsed data (environment names,

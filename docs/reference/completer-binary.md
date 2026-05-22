@@ -6,14 +6,18 @@ reads the completion manifest and project files to produce candidates.
 ## Interface
 
 ```text
-_conda_completer --shell <shell> --manifest <path> [--cwd <dir>] -- <words...> <cword>
+_conda_completer --shell <shell> --manifest <path> [--versions <path>] [--cwd <dir>] -- <words...> <cword>
 ```
 
 `--shell`
 : Output format. One of `bash`, `zsh`, `fish`, `powershell`.
 
 `--manifest`
-: Path to the `completion.toml` manifest file.
+: Path to the `completion.msgpack` manifest file.
+
+`--versions`
+: Path to the `versions.msgpack` file. Defaults to `versions.msgpack` in
+  the same directory as the manifest.
 
 `--cwd`
 : Working directory to search for project files. Defaults to the current
@@ -95,10 +99,10 @@ Regardless of project files, the binary always reads:
 |---|---|---|
 | Cache hit | < 5 ms | ~4 ms |
 | Cache miss | < 20 ms | ~17 ms |
-| Binary size | < 1 MB | ~850 KB |
-| Memory usage | < 10 MB | ~5 MB |
+| Binary size | < 1.5 MB | ~1 MB |
+| Memory usage | < 15 MB | ~8 MB |
 
-The stat-based cache (`context_cache.toml`) uses `(mtime, size)` tuples
+The stat-based cache (`context_cache.msgpack`) uses `(mtime, size)` tuples
 to detect file changes without reading file contents. On a cache hit,
 the binary performs one `stat()` syscall per source file (~0.1 ms total)
 and reads the cached results.

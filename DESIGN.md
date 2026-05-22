@@ -31,53 +31,62 @@ Conda has no built-in shell completion since 4.4.0 (which used argcomplete). The
 - `conda-completion` -- shell tab completion (this project)
 
 `conda-completion` will be a hybrid Python/Rust conda plugin (same pattern as `conda-global`) that:
-- Introspects conda's full argparse tree (including all plugin subcommands) to generate a JSON completion manifest
-- Ships a tiny Rust binary (`_conda_completer`) that reads the manifest on each TAB press and outputs candidates in <10ms
+- Introspects conda's full argparse tree (including all plugin subcommands) to generate a msgpack completion manifest
+- Ships a tiny Rust binary (`_conda_completer`) that reads the manifest on each TAB press and outputs candidates in <5ms
 - Tiered shell support (mirroring conda-spawn's model):
   - **Tier 1** (`shell/`): bash, zsh, PowerShell -- fully tested in CI on every push
   - **Tier 2** (`contrib/`): fish -- best-effort, tested when the shell is installed
-- Provides dynamic completions for environment names, channels, and package names via cached JSON files
+- Provides dynamic completions for environment names, channels, and package names via cached msgpack files
+- Completes package names from repodata with fuzzy matching (prefix > substring > Damerau-Levenshtein similarity)
 - Replaces all of the above with a single, plugin-aware, cross-shell solution
-- Custom Rust completion engine (minimal deps: serde + fs-err) rather than clap_complete/argc/gen-completions -- keeps the binary tiny and avoids framework coupling
+- Custom Rust completion engine (minimal deps: serde + rmp-serde + toml + serde-saphyr + fs-err) rather than clap_complete/argc/gen-completions -- keeps the binary tiny and avoids framework coupling
 
 ## Architecture
 
 ```
-                    ┌─────────────────────────────┐
-                    │  conda completion generate  │  (Python, runs once)
-                    │                             │
-                    │  1. Call generate_parser()   │
-                    │  2. Walk argparse tree       │
-                    │  3. Include plugin commands  │
-                    │  4. Write completion.toml    │
-                    └────────────┬────────────────┘
+                    ┌──────────────────────────────────┐
+                    │  conda completion generate       │  (Python, runs once)
+                    │                                  │
+                    │  1. Call generate_parser()        │
+                    │  2. Walk argparse tree            │
+                    │  3. Include plugin commands       │
+                    │  4. Fetch repodata via SubdirData │  with progress bar
+                    │  5. Extract package names/versions│
+                    │  6. Write completion.msgpack      │  commands + package names
+                    │  7. Write versions.msgpack        │  name -> version list
+                    └────────────┬─────────────────────┘
                                  │
-                    ┌────────────▼────────────────┐
-                    │  <cache_dir>/completion/     │  (platformdirs)
-                    │    completion.toml            │  static command tree
-                    └────────────┬────────────────┘
+                    ┌────────────▼─────────────────────┐
+                    │  <cache_dir>/completion/          │  (platformdirs)
+                    │    completion.msgpack              │  commands + package names
+                    │    versions.msgpack                │  name -> versions
+                    │    context_cache.msgpack           │  stat cache for project files
+                    └────────────┬─────────────────────┘
                                  │
-                    ┌────────────▼────────────────┐
-                    │  _conda_completer (Rust)        │  (runs on every TAB)
-                    │                             │
-                    │  1. Read completion.toml     │  static commands/flags
-                    │  2. Walk cwd for context:    │
-                    │     - conda.toml             │  envs, tasks, features
-                    │     - pixi.toml              │  envs, tasks
-                    │     - pyproject.toml          │  [tool.conda.*]
-                    │  3. Read global state:        │
-                    │     - ~/.conda/global.toml   │  installed tools
-                    │     - environments.txt        │  conda environments
-                    │     - .condarc               │  channels
-                    │  4. Prefix-filter + output   │
-                    └─────────────────────────────┘
+                    ┌────────────▼─────────────────────┐
+                    │  _conda_completer (Rust)          │  (runs on every TAB)
+                    │                                  │
+                    │  1. Read completion.msgpack       │  commands + package names
+                    │  2. Read versions.msgpack         │  only when '=' detected
+                    │  3. Walk cwd for context:         │
+                    │     - conda.toml                  │  envs, tasks, features
+                    │     - pixi.toml                   │  envs, tasks
+                    │     - pyproject.toml              │  [tool.conda.*]
+                    │  4. Read global state:            │
+                    │     - ~/.conda/global.toml        │  installed tools
+                    │     - environments.txt            │  conda environments
+                    │     - .condarc                    │  channels
+                    │  5. Prefix/substring/fuzzy match  │
+                    └──────────────────────────────────┘
 ```
 
 **Key design choices:**
 - **No Python on the hot path.** The Rust binary is the only thing that runs on TAB press. Python only runs during `conda completion generate/install`.
-- **Polyglot file walker with stat cache.** The Rust binary reads the ecosystem's native formats directly -- TOML for manifests and project files, plain text for environments.txt, YAML for .condarc, JSON for repodata. Parsed results are cached alongside mtime+size stat tuples; files are only re-parsed when their stat changes. Common case (no files changed) is sub-5ms.
-- **TOML manifest format.** The generated command tree is `completion.toml`, consistent with conda.toml, pixi.toml, and global.toml. The whole ecosystem speaks TOML.
-- **Custom Rust completion engine.** Minimal deps (serde, toml, serde_json, fs-err), no clap/argc framework dependency. Keeps binary tiny and under our control.
+- **Polyglot file walker with stat cache.** The Rust binary reads the ecosystem's native formats directly: TOML for project files, plain text for environments.txt, YAML for .condarc. Parsed results are cached alongside mtime+size stat tuples; files are only re-parsed when their stat changes. Common case (no files changed) is sub-5ms.
+- **msgpack manifest format.** The generated command tree and package names are stored in `completion.msgpack`. Version data is in a separate `versions.msgpack`, loaded only when `=` is detected. msgpack was chosen over TOML because the manifest is a derived artifact (never hand-edited), and msgpack offers smaller files, faster deserialization, and lower memory. msgpack is already used in conda's stack (sharded repodata).
+- **Two-file split for package data.** `completion.msgpack` (~500KB) is always loaded. `versions.msgpack` (~5-10MB) is loaded only when `=` appears in the current word. This keeps the common TAB-press fast.
+- **Three-tier fuzzy matching.** Prefix > substring > normalized Damerau-Levenshtein similarity (the same algorithm rustc/cargo use for "did you mean?" suggestions). Fires only when no prefix or substring match is found.
+- **Custom Rust completion engine.** Minimal deps (serde, rmp-serde, toml, serde-saphyr, fs-err), no clap/argc framework dependency. Keeps binary tiny and under our control.
 - **Manifest regeneration via `conda_post_commands` hook.** Registers for `install`, `remove`, `update` commands. After these operations, checks if the set of registered plugins has changed (by hashing entry point names) and regenerates the manifest if they differ. This covers the upcoming `conda plugins install/remove/update` commands (conda-self PR #130, issue #124) and the current `conda install/remove` paths. Manual `conda completion generate` is the fallback for edge cases (pip-installed plugins).
 
 **Integration with `conda plugins` (conda-self #124):**
@@ -101,8 +110,9 @@ conda-completion/
 │   ├── plugin.py                     # conda plugin hooks (fast import)
 │   ├── exceptions.py
 │   ├── paths.py                      # manifest/cache path helpers (platformdirs)
-│   ├── introspect.py                 # argparse tree walker -> completion.toml
-│   ├── manifest.py                   # manifest dataclasses + TOML I/O
+│   ├── introspect.py                 # argparse tree walker -> manifest
+│   ├── manifest.py                   # manifest dataclasses + msgpack I/O
+│   ├── repodata.py                   # extract package names/versions from repodata
 │   ├── shell/                        # Tier 1: fully tested in CI
 │   │   ├── __init__.py               # base Shell class + registry
 │   │   ├── bash.py                   # bash completion script template
@@ -128,14 +138,15 @@ conda-completion/
 │       │       └── __init__.py       # find_completer_binary()
 │       └── src/
 │           ├── main.rs               # entry point: parse args, dispatch
-│           ├── manifest.rs           # TOML command tree deserialization
+│           ├── manifest.rs           # msgpack command tree deserialization
 │           ├── context.rs            # project context: walk cwd for workspace/project files
 │           │                         #   conda.toml, pixi.toml, pyproject.toml (TOML)
 │           │                         #   environment.yml, anaconda-project.yml, conda-project.yml (YAML)
 │           │                         #   conda.lock, conda-lock.yml (lockfiles)
 │           ├── global.rs             # global context: global.toml, environments.txt, .condarc
 │           ├── cache.rs              # mtime+size stat cache for parsed file results
-│           ├── matcher.rs            # prefix matching on candidates
+│           ├── matcher.rs            # prefix/substring/fuzzy matching
+│           ├── similarity.rs         # Damerau-Levenshtein distance
 │           └── shell.rs              # shell-specific output formatting
 │
 ├── tests/
@@ -163,10 +174,10 @@ Create the project skeleton following conda-global's exact pattern.
   - Build: hatchling + hatch-vcs
   - Entry points: `[project.entry-points.conda] "conda-completion" = "conda_completion.plugin"`
   - Script: `cc = "conda_completion.__main__:main"`
-  - Deps: `conda >=25.1`, `conda-completer`, `rich >=13.0`
+  - Deps: `conda >=25.1`, `conda-completer`, `platformdirs >=4.0`, `msgpack >=1.0`
   - Pixi workspace with rust toolchain, dev/test/docs envs
 - `Cargo.toml` -- workspace root, same release profile as conda-global (LTO fat, opt-level z, strip)
-- `packages/conda-completer/Cargo.toml` -- binary `_conda_completer`, deps: serde, serde_json, fs-err
+- `packages/conda-completer/Cargo.toml` -- binary `_conda_completer`, deps: serde, rmp-serde, toml, serde-saphyr, fs-err
 - `packages/conda-completer/pyproject.toml` -- maturin config, same pattern as conda-trampoline
 - `conda_completion/__init__.py`, `_version.py`, `__main__.py`, `exceptions.py`
 - `AGENTS.md` -- coding guidelines adapted from both conda (`/Users/jezdez/Code/git/conda/AGENTS.md`) and conda-workspaces (`/Users/jezdez/Code/git/conda-workspaces/AGENTS.md`). Combine:
@@ -280,11 +291,11 @@ class DynamicSource:
     ttl_seconds: int
 ```
 
-Output location: `platformdirs.user_cache_dir("conda") / "completion" / "manifest.json"`
+Output location: `platformdirs.user_cache_dir("conda") / "completion" / "completion.msgpack"`
 
-- Linux: `~/.cache/conda/completion/manifest.json`
-- macOS: `~/Library/Caches/conda/completion/manifest.json`
-- Windows: `%LOCALAPPDATA%\conda\cache\completion\manifest.json`
+- Linux: `~/.cache/conda/completion/completion.msgpack`
+- macOS: `~/Library/Caches/conda/completion/completion.msgpack`
+- Windows: `%LOCALAPPDATA%\conda\cache\completion\completion.msgpack`
 
 This follows the same pattern as conda's notices cache (`conda/notices/cache.py:73-79`). The data is regenerated, not user-authored, so it belongs in the cache directory.
 
@@ -296,7 +307,7 @@ Interface: `_conda_completer --shell <shell> --manifest <path> -- <words...> <cw
 
 Algorithm:
 1. Parse CLI args to get shell type, manifest path, current words, cursor word index
-2. Deserialize `completion.toml` into Rust structs (serde + toml crate)
+2. Deserialize `completion.msgpack` into Rust structs (serde + rmp-serde crate)
 3. Walk the command tree following the words to find current context
 4. Determine what to complete:
    - If expecting a subcommand, list matching subcommand names
@@ -332,23 +343,23 @@ The binary walks upward from cwd to find project files (same search order as con
 **Dependencies** (minimal, like conda-trampoline):
 
 - `serde` -- serialization framework
-- `toml` -- completion.toml manifest + conda.toml/pixi.toml/pyproject.toml parsing
-- `serde_json` -- repodata cache (JSON)
-- `serde_yml` -- environment.yml, anaconda-project.yml, conda-project.yml, .condarc parsing
+- `rmp-serde` -- completion.msgpack manifest and cache deserialization
+- `toml` -- conda.toml/pixi.toml/pyproject.toml project file parsing
+- `serde-saphyr` -- environment.yml, anaconda-project.yml, conda-project.yml, .condarc parsing
 - `fs-err` -- better I/O errors
 
-**Why not rattler crates?** `rattler_conda_types` pulls in nom, regex, simd-json, rayon, purl, fancy-regex; `rattler_lock` adds rattler_solve, pep508_rs, pep440_rs, xxhash. The binary would go from <1MB to 5-10MB and startup from <10ms to ~50ms. For completion, we don't need full schema validation or version solving -- just extracting string lists (env names, task names, package names) from known TOML/YAML paths. A few serde structs per format is sufficient.
+**Why not rattler crates?** `rattler_conda_types` pulls in nom, regex, simd-json, rayon, purl, fancy-regex; `rattler_lock` adds rattler_solve, pep508_rs, pep440_rs, xxhash. The binary would go from <1.5MB to 5-10MB and startup from <10ms to ~50ms. For completion, we don't need full schema validation or version solving -- just extracting string lists (env names, task names, package names) from known TOML/YAML paths. A few serde structs per format is sufficient.
 
 **Stat-based file cache:**
 
 The completer avoids re-parsing files that haven't changed between TAB presses using an mtime+size stat cache:
 
 1. On each invocation, `stat()` every source file (manifest, project files, global files) -- one syscall each, ~0.1ms total
-2. Compare `(path, mtime, size)` tuples against a cached index stored in `context_cache.toml`
+2. Compare `(path, mtime, size)` tuples against a cached index stored in `context_cache.msgpack`
 3. **Cache hit** (common case): all stats match, deserialize pre-parsed candidates from the cache file (~1ms). No TOML/YAML parsing at all.
 4. **Cache miss**: re-parse only the file(s) whose mtime/size changed, merge with cached results for unchanged files, write updated cache
 
-Cache location: `<cache_dir>/completion/context_cache.toml` (alongside the manifest). The cache stores the extracted string lists (env names, task names, channel names, etc.) keyed by source file path, plus the stat tuples for invalidation.
+Cache location: `<cache_dir>/completion/context_cache.msgpack` (alongside the manifest). The cache stores the extracted string lists (env names, task names, channel names, etc.) keyed by source file path, plus the stat tuples for invalidation.
 
 This turns the hot path from "parse 5-8 files" into "5-8 stat syscalls + one small cache read" -- sub-5ms on cache hit. Content hashing is unnecessary; `stat()` is cheaper and sufficient for detecting edits.
 
@@ -452,7 +463,7 @@ docs/
 │
 ├── reference/
 │   ├── cli.md                        # Auto-generated CLI reference (sphinxarg.ext)
-│   ├── manifest.md                   # manifest.json schema reference
+│   ├── manifest.md                   # completion.msgpack schema reference
 │   ├── api.md                        # Python API reference hub
 │   ├── api/
 │   │   ├── introspect.md             # Argparse introspection API
@@ -532,9 +543,9 @@ description = "Record demo GIFs"
 ### Phase 9: Tests
 
 - `test_introspect.py` -- build minimal argparse trees, verify walker produces correct manifest structures; parametrize over: nested subcommands, flags with choices, positionals, greedy plugin parsers
-- `test_manifest.py` -- round-trip TOML serialization, version field, schema invariants
+- `test_manifest.py` -- round-trip msgpack serialization, version field, schema invariants
 - `test_install.py` -- install writes correct block, uninstall removes it, idempotent
-- `test_completer.py` -- invoke `_conda_completer` as subprocess with sample completion.toml + project files (conda.toml, environment.yml, conda.lock), verify contextual completions per shell
+- `test_completer.py` -- invoke `_conda_completer` as subprocess with sample completion.msgpack + project files (conda.toml, environment.yml, conda.lock), verify contextual completions per shell
 
 ## Key Reference Files
 
@@ -558,7 +569,10 @@ description = "Record demo GIFs"
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Rust completion engine | Custom (serde + toml + serde_yml + serde_json + fs-err) | Keeps binary tiny (<1MB). Rattler crates (nom, regex, simd-json, rayon) would balloon to 5-10MB. We only need to extract string lists from known file paths, not full schema validation |
+| Rust completion engine | Custom (serde + rmp-serde + toml + serde-saphyr + fs-err) | Keeps binary tiny (<1.5MB). Rattler crates (nom, regex, simd-json, rayon) would balloon to 5-10MB. We only need to extract string lists from known file paths, not full schema validation |
+| Manifest format | msgpack | Derived artifact, never hand-edited. Smaller files, faster deserialization, lower memory than TOML. Already used in conda's sharded repodata stack |
+| Package data split | Two files: completion.msgpack + versions.msgpack | completion.msgpack (~500KB) is always loaded. versions.msgpack (~5-10MB) is loaded only on `=` detection. Keeps common TAB-press fast |
+| Fuzzy matching | Three-tier: prefix > substring > normalized Damerau-Levenshtein | Prefix/substring cover exact use; similarity fires only on typos. Damerau-Levenshtein handles insertions, deletions, substitutions, and transpositions (what rustc/cargo use). Jaro-Winkler was rejected because it fails on partial matches |
 | Manifest staleness | `conda_post_commands` hook | Covers `conda plugins install/remove/update` (PR #130), `conda install`, `conda remove`. Fallback: manual `conda completion generate` for pip-installed plugins |
 | Scope | conda only | mamba 2.x is purely C++ with its own completion. We complete conda + all its Python plugins |
 | Shell support | Tier 1: bash, zsh, PowerShell; Tier 2: fish | Mirrors conda-spawn's tiered model. PowerShell is Tier 1 because Windows is critical for conda |
@@ -569,8 +583,8 @@ description = "Record demo GIFs"
 ## Verification
 
 1. **Unit tests**: `pixi run test` -- all introspection, manifest tests pass
-2. **Rust binary**: `cargo build --release` compiles, `cargo test` passes, binary is <1MB
-3. **Generate**: `conda completion generate` produces valid `completion.toml` that includes built-in commands + all plugin subcommands (workspace, ws, global, self, spawn, task, completion)
+2. **Rust binary**: `cargo build --release` compiles, `cargo test` passes, binary is <1.5MB
+3. **Generate**: `conda completion generate` produces valid `completion.msgpack` that includes built-in commands + all plugin subcommands (workspace, ws, global, self, spawn, task, completion)
 4. **Init**: `conda completion init bash` prints a valid bash completion script
 5. **End-to-end**: Source the generated script, type `conda inst<TAB>` -> completes to `install`; `conda workspace <TAB>` -> lists workspace subcommands; `conda install --name <TAB>` -> lists environment names; `conda spawn <TAB>` -> completes spawn options
 6. **Contextual completions**: In a directory with conda.toml, `conda workspace install -e <TAB>` -> lists environment names from the manifest; `conda task run <TAB>` -> lists task names; in a directory with environment.yml, `conda install --name <TAB>` -> shows the env name from the YAML

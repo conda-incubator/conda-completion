@@ -12,7 +12,7 @@ conda completion generate
 ```
 
 The manifest is written to the platform's cache directory (e.g.,
-`~/.cache/conda/completion/completion.toml` on Linux). See
+`~/.cache/conda/completion/completion.msgpack` on Linux). See
 {doc}`manifest` for paths on all platforms.
 
 This command runs automatically via the `conda_post_commands` hook when

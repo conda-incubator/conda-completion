@@ -42,7 +42,7 @@ supports descriptions.
 ## How fast is it?
 
 Under 5 ms on a typical cache hit. The Rust binary reads a pre-generated
-TOML manifest and a stat-based file cache. No Python process starts on
+msgpack manifest and a stat-based file cache. No Python process starts on
 TAB press. See {doc}`performance` for detailed benchmarks and
 comparisons with other tools.
 
@@ -52,9 +52,9 @@ In your platform's cache directory:
 
 | Platform | Path |
 |---|---|
-| Linux | `~/.cache/conda/completion/completion.toml` |
-| macOS | `~/Library/Caches/conda/completion/completion.toml` |
-| Windows | `%LOCALAPPDATA%\conda\cache\completion\completion.toml` |
+| Linux | `~/.cache/conda/completion/completion.msgpack` |
+| macOS | `~/Library/Caches/conda/completion/completion.msgpack` |
+| Windows | `%LOCALAPPDATA%\conda\cache\completion\completion.msgpack` |
 
 The manifest is regenerated data (not user configuration), so it
 belongs in the cache directory. Deleting it is safe; run
@@ -66,6 +66,39 @@ You should remove any existing conda completion tools before installing
 conda-completion to avoid conflicts. See the
 {doc}`migration guides <../tutorials/coming-from/index>` for
 step-by-step instructions for each tool.
+
+## Does it complete package names?
+
+Yes. During `conda completion generate`, package names are extracted
+from repodata for all configured channels. After that, `conda install
+nump<TAB>` completes matching package names. Over 30,000 package names
+are searched in under 1 ms.
+
+Package names are stored in `completion.msgpack` alongside the command
+tree, so they are always available without extra file reads.
+
+## Does it complete package versions?
+
+Yes. When you type `=` or `==` after a package name, the completer
+loads version data from a separate `versions.msgpack` file:
+
+```text
+$ conda install numpy=<TAB>
+numpy=1.26.4  numpy=2.0.0  numpy=2.1.0  ...
+```
+
+The versions file is only loaded when `=` is detected, keeping the
+common TAB press fast.
+
+## What if I misspell a package name?
+
+The completer uses a three-tier matching strategy: prefix match first,
+then substring match, then fuzzy similarity via normalized
+Damerau-Levenshtein distance. Typos like `numpie`, `nupmy`, or
+`scikitlearn` (missing hyphen) will suggest the correct package.
+
+The similarity threshold is 0.6 with a cap of 10 results, so you will
+not be flooded with irrelevant suggestions.
 
 ## Does it complete environment names from my project?
 

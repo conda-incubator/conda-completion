@@ -18,6 +18,9 @@ basis. Bug reports and contributions are welcome.
 | Command completion | Yes | Yes | Yes | Yes |
 | Flag completion | Yes | Yes | Yes | Yes |
 | Flag value completion | Yes | Yes | Yes | Yes |
+| Package name completion | Yes | Yes | Yes | Yes |
+| Version completion (`=`) | Yes | Yes | Yes | Yes |
+| Fuzzy matching | Yes | Yes | Yes | Yes |
 | Descriptions | No | Yes | Yes | Yes |
 | `install`/`uninstall` | Yes | Yes | Yes | Yes |
 | Dynamic env names | Yes | Yes | Yes | Yes |

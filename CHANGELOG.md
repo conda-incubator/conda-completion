@@ -1,6 +1,27 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (unreleased)
+
+### Breaking Changes
+
+- Manifest format changed from TOML to msgpack. Regenerate with `conda completion generate` after upgrading.
+- Stat cache format changed from TOML to msgpack (`context_cache.msgpack`). The cache is rebuilt automatically on first TAB press.
+- Python dependencies: `msgpack >=1.0` replaces `tomli` and `tomli-w`.
+- Rust dependencies: `rmp-serde` replaces `serde_json` (which was unused).
+
+### Features
+
+- Package name completion from repodata. `conda install nump<TAB>` completes package names extracted from configured channels during `conda completion generate`.
+- Version completion. `conda install numpy=<TAB>` and `conda install numpy==<TAB>` list available versions. Versions are stored in a separate `versions.msgpack` file, loaded only when `=` is detected in the current word.
+- Three-tier fuzzy matching for package names: prefix > substring > normalized Damerau-Levenshtein similarity. Typos like `numpie` or `nupmy` suggest `numpy`. The similarity threshold is 0.6 with a cap of 10 results.
+- `--versions` CLI argument for the Rust binary to specify the versions file path (defaults to `versions.msgpack` alongside the manifest).
+
+### Performance
+
+- Manifest deserialization is faster with msgpack (binary format, no string parsing).
+- Package name completion uses the pre-built name list from `completion.msgpack` (~500KB), avoiding repodata access on every TAB press.
+- Version completion loads `versions.msgpack` (~5-10MB) only when `=` is detected, keeping the common case fast.
+- Fuzzy matching over 30k+ package names runs in under 1ms (Damerau-Levenshtein is O(nm) per comparison, but for short package names this is ~900 ops each).
 
 ## 0.1.0 (2026-05-21)
 

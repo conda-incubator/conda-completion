@@ -9,6 +9,9 @@ via a tiny Rust binary.
 ## Features
 
 - Completes all conda commands, flags, and plugin subcommands
+- Package name completion from repodata (`conda install nump<TAB>`)
+- Version completion (`conda install numpy=<TAB>` lists available versions)
+- Fuzzy matching for typos (`numpie` or `nupmy` suggest `numpy`)
 - Contextual completions: environment names, task names, channels from
   project files (`conda.toml`, `pixi.toml`, `pyproject.toml`, `environment.yml`,
   `anaconda-project.yml`, `conda-project.yml`, lockfiles)
@@ -50,15 +53,18 @@ conda-completion splits the work into two phases:
 **Phase 1: Generation (Python, runs once).** `conda completion generate`
 calls conda's `generate_parser()`, which loads all registered plugin
 subcommands. The argparse tree is walked recursively to extract commands,
-flags, positional arguments, and help text. The output is a
-`completion.toml` manifest stored in the platform cache directory.
+flags, positional arguments, help text, and package names from repodata.
+The output is a `completion.msgpack` manifest and a `versions.msgpack`
+file stored in the platform cache directory.
 
 **Phase 2: Completion (Rust, runs on every TAB).** When you press TAB,
-your shell calls `_conda_completer`, a small Rust binary (~850 KB). It
-reads the TOML manifest for static command/flag completions, then walks
-project files in your working directory for dynamic completions
+your shell calls `_conda_completer`, a small Rust binary (~1 MB). It
+reads the msgpack manifest for static command/flag/package completions,
+then walks project files in your working directory for dynamic completions
 (environment names, task names, channels). No Python runs on the hot
-path.
+path. Package names are matched using a three-tier strategy (prefix,
+substring, then fuzzy similarity) so typos like `numpie` still find
+`numpy`.
 
 A stat-based file cache tracks `(mtime, size)` for every source file.
 If nothing changed since the last TAB press, the binary skips all
@@ -89,7 +95,7 @@ parsing and serves cached results in under 5 ms.
 
 | Command | Description |
 | --- | --- |
-| `conda completion generate` | Introspect conda's parser, write `completion.toml` |
+| `conda completion generate` | Introspect conda's parser, write `completion.msgpack` |
 | `conda completion install [shell]` | Generate + install shell RC hook (auto-detects shell) |
 | `conda completion uninstall [shell]` | Remove the RC hook |
 | `conda completion init <shell>` | Print the shell script to stdout |
