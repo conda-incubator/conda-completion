@@ -25,7 +25,7 @@ function __conda_complete
     set -l cword (count $tokens)
     $completer --shell fish --manifest $manifest -- $tokens (commandline -t) $cword 2>/dev/null
 end
-complete -c conda -a '(__conda_complete)'
+complete -c conda -a '(__conda_complete)' -k
 """
 
     def hook_line(self) -> str:

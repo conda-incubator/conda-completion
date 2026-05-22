@@ -24,7 +24,7 @@ _conda() {{
     local manifest={mp}
     local -a completions
     completions=("${{(@f)$("$completer" --shell zsh --manifest "$manifest" -- "${{words[@]}}" $CURRENT 2>/dev/null)}}")
-    _describe 'conda' completions
+    _describe -V 'conda' completions
 }}
 """
 
