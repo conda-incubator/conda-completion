@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import os
 import tempfile
 from dataclasses import dataclass, field
@@ -15,32 +14,8 @@ from .exceptions import ManifestError
 if TYPE_CHECKING:
     from pathlib import Path
 
-
-def _atomic_write_bytes(path: Path, data: bytes) -> None:
-    """Write data to a file atomically via temp-file-then-rename."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".tmp_")
-    try:
-        os.write(fd, data)
-        os.close(fd)
-        fd = -1
-        os.replace(tmp, path)
-    except BaseException:
-        if fd >= 0:
-            os.close(fd)
-        with contextlib.suppress(OSError):
-            os.unlink(tmp)
-        raise
-
-
 MAX_MANIFEST_SIZE = 50 * 1024 * 1024
-
-_UNPACK_LIMITS = dict(
-    max_str_len=2 * 1024 * 1024,
-    max_bin_len=2 * 1024 * 1024,
-    max_array_len=500_000,
-    max_map_len=500_000,
-)
+MAX_COLLECTION_SIZE = 2_000_000
 
 
 @dataclass(frozen=True)
@@ -207,23 +182,33 @@ class CompletionManifest:
         )
 
 
+def atomic_write(path: Path, data: bytes) -> None:
+    """Write data to a file atomically via temp-file-then-rename."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as f:
+        f.write(data)
+        tmp = f.name
+    os.replace(tmp, path)
+
+
 def write_manifest(manifest: CompletionManifest, path: Path) -> None:
     """Serialize a CompletionManifest to a msgpack file."""
-    _atomic_write_bytes(path, msgpack.packb(manifest.to_dict()))
-
-
-def _read_msgpack(path: Path) -> dict:
-    """Read and deserialize a msgpack file with size and structure limits."""
-    size = path.stat().st_size
-    if size > MAX_MANIFEST_SIZE:
-        raise ManifestError(f"file too large ({size} bytes)")
-    return msgpack.unpackb(path.read_bytes(), **_UNPACK_LIMITS)
+    atomic_write(path, msgpack.packb(manifest.to_dict()))
 
 
 def read_manifest(path: Path) -> CompletionManifest:
     """Deserialize a CompletionManifest from a msgpack file."""
     try:
-        data = _read_msgpack(path)
+        size = path.stat().st_size
+        if size > MAX_MANIFEST_SIZE:
+            raise ManifestError(f"file too large ({size} bytes)")
+        data = msgpack.unpackb(
+            path.read_bytes(),
+            max_str_len=MAX_MANIFEST_SIZE,
+            max_bin_len=MAX_MANIFEST_SIZE,
+            max_array_len=MAX_COLLECTION_SIZE,
+            max_map_len=MAX_COLLECTION_SIZE,
+        )
     except (msgpack.UnpackException, ValueError) as exc:
         raise ManifestError(str(exc)) from exc
     if not isinstance(data, dict):
@@ -236,12 +221,21 @@ def read_manifest(path: Path) -> CompletionManifest:
 
 def write_versions(versions: dict[str, list[str]], path: Path) -> None:
     """Serialize package version data to a msgpack file."""
-    _atomic_write_bytes(path, msgpack.packb(versions))
+    atomic_write(path, msgpack.packb(versions))
 
 
 def read_versions(path: Path) -> dict[str, list[str]]:
     """Deserialize package version data from a msgpack file."""
     try:
-        return _read_msgpack(path)
+        size = path.stat().st_size
+        if size > MAX_MANIFEST_SIZE:
+            raise ManifestError(f"file too large ({size} bytes)")
+        return msgpack.unpackb(
+            path.read_bytes(),
+            max_str_len=MAX_MANIFEST_SIZE,
+            max_bin_len=MAX_MANIFEST_SIZE,
+            max_array_len=MAX_COLLECTION_SIZE,
+            max_map_len=MAX_COLLECTION_SIZE,
+        )
     except (msgpack.UnpackException, ValueError, FileNotFoundError) as exc:
         raise ManifestError(str(exc)) from exc

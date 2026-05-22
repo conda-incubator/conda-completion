@@ -105,9 +105,8 @@ def plugin_entry_point_hash() -> str:
 def _read_manifest_plugin_hash(path) -> str | None:
     """Read the plugin_hash field from an existing msgpack manifest."""
     try:
-        from .manifest import _read_msgpack
+        from .manifest import read_manifest
 
-        data = _read_msgpack(path)
-        return data.get("plugin_hash") if isinstance(data, dict) else None
+        return read_manifest(path).plugin_hash or None
     except Exception:
         return None

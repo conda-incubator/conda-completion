@@ -74,8 +74,8 @@ pub struct PositionalSpec {
     pub metavar: Option<String>,
 }
 
-const MAX_PACKAGE_NAMES: usize = 500_000;
-const MAX_VERSIONS_ENTRIES: usize = 500_000;
+const MAX_PACKAGE_NAMES: usize = 2_000_000;
+const MAX_VERSIONS_ENTRIES: usize = 2_000_000;
 
 pub fn load_manifest(path: &Path) -> Result<Manifest, Box<dyn std::error::Error>> {
     let bytes = crate::cache::read_to_bytes_limited(path)
