@@ -4,6 +4,7 @@ mod global;
 mod manifest;
 mod matcher;
 mod shell;
+mod similarity;
 
 use std::env;
 use std::path::PathBuf;
@@ -12,17 +13,17 @@ use std::process;
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let (shell_name, manifest_path, words, cword) = match parse_args(&args) {
-        Some(parsed) => parsed,
+    let parsed = match parse_args(&args) {
+        Some(p) => p,
         None => {
             eprintln!(
-                "Usage: _conda_completer --shell <shell> --manifest <path> -- <words...> <cword>"
+                "Usage: _conda_completer --shell <shell> --manifest <path> [--versions <path>] -- <words...> <cword>"
             );
             process::exit(1);
         }
     };
 
-    let manifest = match manifest::load_manifest(&manifest_path) {
+    let manifest = match manifest::load_manifest(&parsed.manifest) {
         Ok(m) => m,
         Err(e) => {
             eprintln!("Failed to load manifest: {}", e);
@@ -30,7 +31,10 @@ fn main() {
         }
     };
 
-    let cache_path = manifest_path.with_file_name("context_cache.toml");
+    let versions_path =
+        parsed.versions.unwrap_or_else(|| parsed.manifest.with_file_name("versions.msgpack"));
+
+    let cache_path = parsed.manifest.with_file_name("context_cache.msgpack");
     let mut stat_cache = cache::StatCache::load(&cache_path);
 
     let cwd = env::current_dir().unwrap_or_default();
@@ -39,14 +43,23 @@ fn main() {
 
     stat_cache.save(&cache_path);
 
-    let candidates = complete(&manifest, &ctx, &global_ctx, &words, cword);
-    let output = shell::format_candidates(&shell_name, &candidates);
+    let candidates = complete(&manifest, &versions_path, &ctx, &global_ctx, &parsed.words, parsed.cword);
+    let output = shell::format_candidates(&parsed.shell, &candidates);
     print!("{}", output);
 }
 
-fn parse_args(args: &[String]) -> Option<(String, PathBuf, Vec<String>, usize)> {
+struct ParsedArgs {
+    shell: String,
+    manifest: PathBuf,
+    versions: Option<PathBuf>,
+    words: Vec<String>,
+    cword: usize,
+}
+
+fn parse_args(args: &[String]) -> Option<ParsedArgs> {
     let mut shell = None;
     let mut manifest_path = None;
+    let mut versions_path = None;
     let mut separator_idx = None;
 
     let mut i = 1;
@@ -59,6 +72,10 @@ fn parse_args(args: &[String]) -> Option<(String, PathBuf, Vec<String>, usize)> 
             "--manifest" => {
                 i += 1;
                 manifest_path = args.get(i).map(PathBuf::from);
+            }
+            "--versions" => {
+                i += 1;
+                versions_path = args.get(i).map(PathBuf::from);
             }
             "--" => {
                 separator_idx = Some(i);
@@ -81,11 +98,18 @@ fn parse_args(args: &[String]) -> Option<(String, PathBuf, Vec<String>, usize)> 
     let cword: usize = remaining.last()?.parse().ok()?;
     let words: Vec<String> = remaining[..remaining.len() - 1].to_vec();
 
-    Some((shell, manifest_path, words, cword))
+    Some(ParsedArgs {
+        shell,
+        manifest: manifest_path,
+        versions: versions_path,
+        words,
+        cword,
+    })
 }
 
 fn complete(
     manifest: &manifest::Manifest,
+    versions_path: &std::path::Path,
     ctx: &context::ProjectContext,
     global_ctx: &global::GlobalContext,
     words: &[String],
@@ -122,7 +146,9 @@ fn complete(
             };
             let flag_name = word.split('=').next().unwrap_or(word);
             let opt = options.get(flag_name).or_else(|| {
-                options.values().find(|o| o.short.as_deref() == Some(flag_name))
+                options
+                    .values()
+                    .find(|o| o.short.as_deref() == Some(flag_name))
             });
             if let Some(opt) = opt {
                 if opt.takes_value() && !word.contains('=') {
@@ -148,7 +174,7 @@ fn complete(
     }
 
     if let Some(opt) = expecting_value_for {
-        return complete_flag_value(opt, ctx, global_ctx, current_word);
+        return complete_flag_value(opt, manifest, versions_path, ctx, global_ctx, current_word);
     }
 
     let mut candidates = Vec::new();
@@ -180,7 +206,14 @@ fn complete(
 
         for pos in &cmd.positionals {
             if let Some(ref comp_type) = pos.completion_type {
-                candidates.extend(resolve_dynamic(comp_type, ctx, global_ctx, current_word));
+                candidates.extend(resolve_dynamic(
+                    comp_type,
+                    manifest,
+                    versions_path,
+                    ctx,
+                    global_ctx,
+                    current_word,
+                ));
             }
             if let Some(ref choices) = pos.choices {
                 for choice in choices {
@@ -203,6 +236,8 @@ fn complete(
 
 fn complete_flag_value(
     opt: &manifest::OptionSpec,
+    manifest: &manifest::Manifest,
+    versions_path: &std::path::Path,
     ctx: &context::ProjectContext,
     global_ctx: &global::GlobalContext,
     current_word: &str,
@@ -216,7 +251,7 @@ fn complete_flag_value(
     }
 
     if let Some(ref comp_type) = opt.completion_type {
-        return resolve_dynamic(comp_type, ctx, global_ctx, current_word);
+        return resolve_dynamic(comp_type, manifest, versions_path, ctx, global_ctx, current_word);
     }
 
     Vec::new()
@@ -241,6 +276,8 @@ fn collect_matching(
 
 fn resolve_dynamic(
     comp_type: &str,
+    manifest: &manifest::Manifest,
+    versions_path: &std::path::Path,
     ctx: &context::ProjectContext,
     global_ctx: &global::GlobalContext,
     current_word: &str,
@@ -260,18 +297,40 @@ fn resolve_dynamic(
             current_word,
             &mut candidates,
         ),
-        "task_name" => collect_matching(
-            &[&ctx.task_names],
-            "task",
-            current_word,
-            &mut candidates,
-        ),
+        "task_name" => collect_matching(&[&ctx.task_names], "task", current_word, &mut candidates),
         "global_tool" => collect_matching(
             &[&global_ctx.tool_names],
             "global tool",
             current_word,
             &mut candidates,
         ),
+        "package_spec" => {
+            if current_word.contains('=') {
+                let sep = if current_word.contains("==") {
+                    "=="
+                } else {
+                    "="
+                };
+                let pkg_name = current_word.split('=').next().unwrap_or("");
+                if let Ok(version_map) = manifest::load_versions(versions_path) {
+                    if let Some(versions) = version_map.get(pkg_name) {
+                        for v in versions {
+                            let candidate = format!("{}{}{}", pkg_name, sep, v);
+                            if matcher::matches(&candidate, current_word) {
+                                candidates.push((candidate, None));
+                            }
+                        }
+                    }
+                }
+            } else {
+                let all_packages: Vec<_> = manifest
+                    .package_names
+                    .iter()
+                    .map(|n| (n.clone(), Some("package".to_string())))
+                    .collect();
+                candidates.extend(matcher::fuzzy_match(&all_packages, current_word));
+            }
+        }
         _ => {}
     }
 
@@ -283,52 +342,145 @@ mod tests {
     use super::*;
 
     fn test_manifest() -> manifest::Manifest {
-        toml::from_str(
-            r#"
-version = 1
-
-[root_options."--debug"]
-description = "Debug mode"
-
-[root_options."--verbose"]
-short = "-v"
-description = "Verbose"
-
-[commands.install]
-summary = "Install packages"
-
-[commands.install.options."--name"]
-short = "-n"
-completion_type = "env_name"
-description = "Environment name"
-
-[commands.install.options."--channel"]
-short = "-c"
-completion_type = "channel"
-description = "Channel"
-
-[commands.install.options."--dry-run"]
-description = "Dry run"
-
-[commands.remove]
-summary = "Remove packages"
-
-[commands.workspace]
-summary = "Workspace commands"
-
-[commands.workspace.subcommands.install]
-summary = "Install workspace"
-
-[commands.workspace.subcommands.install.options."--environment"]
-short = "-e"
-completion_type = "env_name"
-description = "Target environment"
-
-[commands.workspace.subcommands.list]
-summary = "List workspaces"
-"#,
-        )
-        .unwrap()
+        manifest::Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec![],
+            root_options: std::collections::BTreeMap::from([
+                (
+                    "--debug".to_string(),
+                    manifest::OptionSpec {
+                        short: None,
+                        choices: None,
+                        nargs: None,
+                        completion_type: None,
+                        description: Some("Debug mode".to_string()),
+                        metavar: None,
+                        default: None,
+                        required: false,
+                    },
+                ),
+                (
+                    "--verbose".to_string(),
+                    manifest::OptionSpec {
+                        short: Some("-v".to_string()),
+                        choices: None,
+                        nargs: None,
+                        completion_type: None,
+                        description: Some("Verbose".to_string()),
+                        metavar: None,
+                        default: None,
+                        required: false,
+                    },
+                ),
+            ]),
+            commands: std::collections::BTreeMap::from([
+                (
+                    "install".to_string(),
+                    manifest::CommandSpec {
+                        summary: Some("Install packages".to_string()),
+                        options: std::collections::BTreeMap::from([
+                            (
+                                "--name".to_string(),
+                                manifest::OptionSpec {
+                                    short: Some("-n".to_string()),
+                                    choices: None,
+                                    nargs: None,
+                                    completion_type: Some("env_name".to_string()),
+                                    description: Some("Environment name".to_string()),
+                                    metavar: None,
+                                    default: None,
+                                    required: false,
+                                },
+                            ),
+                            (
+                                "--channel".to_string(),
+                                manifest::OptionSpec {
+                                    short: Some("-c".to_string()),
+                                    choices: None,
+                                    nargs: None,
+                                    completion_type: Some("channel".to_string()),
+                                    description: Some("Channel".to_string()),
+                                    metavar: None,
+                                    default: None,
+                                    required: false,
+                                },
+                            ),
+                            (
+                                "--dry-run".to_string(),
+                                manifest::OptionSpec {
+                                    short: None,
+                                    choices: None,
+                                    nargs: None,
+                                    completion_type: None,
+                                    description: Some("Dry run".to_string()),
+                                    metavar: None,
+                                    default: None,
+                                    required: false,
+                                },
+                            ),
+                        ]),
+                        positionals: vec![],
+                        subcommands: std::collections::BTreeMap::new(),
+                        exclusive_groups: vec![],
+                    },
+                ),
+                (
+                    "remove".to_string(),
+                    manifest::CommandSpec {
+                        summary: Some("Remove packages".to_string()),
+                        options: std::collections::BTreeMap::new(),
+                        positionals: vec![],
+                        subcommands: std::collections::BTreeMap::new(),
+                        exclusive_groups: vec![],
+                    },
+                ),
+                (
+                    "workspace".to_string(),
+                    manifest::CommandSpec {
+                        summary: Some("Workspace commands".to_string()),
+                        options: std::collections::BTreeMap::new(),
+                        positionals: vec![],
+                        subcommands: std::collections::BTreeMap::from([
+                            (
+                                "install".to_string(),
+                                manifest::CommandSpec {
+                                    summary: Some("Install workspace".to_string()),
+                                    options: std::collections::BTreeMap::from([(
+                                        "--environment".to_string(),
+                                        manifest::OptionSpec {
+                                            short: Some("-e".to_string()),
+                                            choices: None,
+                                            nargs: None,
+                                            completion_type: Some("env_name".to_string()),
+                                            description: Some("Target environment".to_string()),
+                                            metavar: None,
+                                            default: None,
+                                            required: false,
+                                        },
+                                    )]),
+                                    positionals: vec![],
+                                    subcommands: std::collections::BTreeMap::new(),
+                                    exclusive_groups: vec![],
+                                },
+                            ),
+                            (
+                                "list".to_string(),
+                                manifest::CommandSpec {
+                                    summary: Some("List workspaces".to_string()),
+                                    options: std::collections::BTreeMap::new(),
+                                    positionals: vec![],
+                                    subcommands: std::collections::BTreeMap::new(),
+                                    exclusive_groups: vec![],
+                                },
+                            ),
+                        ]),
+                        exclusive_groups: vec![],
+                    },
+                ),
+            ]),
+        }
     }
 
     fn empty_ctx() -> context::ProjectContext {
@@ -347,20 +499,33 @@ summary = "List workspaces"
         candidates.iter().map(|(n, _)| n.as_str()).collect()
     }
 
+    fn no_versions() -> PathBuf {
+        PathBuf::from("/nonexistent/versions.msgpack")
+    }
+
     #[test]
     fn parse_args_valid() {
         let args: Vec<String> = vec![
-            "bin", "--shell", "bash", "--manifest", "/path/m.toml", "--", "conda", "inst", "2",
+            "bin",
+            "--shell",
+            "bash",
+            "--manifest",
+            "/path/m.toml",
+            "--",
+            "conda",
+            "inst",
+            "2",
         ]
         .into_iter()
         .map(String::from)
         .collect();
 
-        let (shell, manifest, words, cword) = parse_args(&args).unwrap();
-        assert_eq!(shell, "bash");
-        assert_eq!(manifest, PathBuf::from("/path/m.toml"));
-        assert_eq!(words, vec!["conda", "inst"]);
-        assert_eq!(cword, 2);
+        let parsed = parse_args(&args).unwrap();
+        assert_eq!(parsed.shell, "bash");
+        assert_eq!(parsed.manifest, PathBuf::from("/path/m.toml"));
+        assert!(parsed.versions.is_none());
+        assert_eq!(parsed.words, vec!["conda", "inst"]);
+        assert_eq!(parsed.cword, 2);
     }
 
     #[test]
@@ -393,7 +558,7 @@ summary = "List workspaces"
     #[test]
     fn complete_top_level_commands() {
         let m = test_manifest();
-        let result = complete(&m, &empty_ctx(), &empty_global(), &words("conda "), 1);
+        let result = complete(&m, &no_versions(), &empty_ctx(), &empty_global(), &words("conda "), 1);
         let n = names(&result);
         assert!(n.contains(&"install"));
         assert!(n.contains(&"remove"));
@@ -403,7 +568,7 @@ summary = "List workspaces"
     #[test]
     fn complete_top_level_with_prefix() {
         let m = test_manifest();
-        let result = complete(&m, &empty_ctx(), &empty_global(), &words("conda ins"), 1);
+        let result = complete(&m, &no_versions(), &empty_ctx(), &empty_global(), &words("conda ins"), 1);
         let n = names(&result);
         assert!(n.contains(&"install"));
         assert!(!n.contains(&"remove"));
@@ -412,7 +577,14 @@ summary = "List workspaces"
     #[test]
     fn complete_subcommand_flags() {
         let m = test_manifest();
-        let result = complete(&m, &empty_ctx(), &empty_global(), &words("conda install --"), 2);
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda install --"),
+            2,
+        );
         let n = names(&result);
         assert!(n.contains(&"--name"));
         assert!(n.contains(&"--channel"));
@@ -422,7 +594,14 @@ summary = "List workspaces"
     #[test]
     fn complete_flag_short_form() {
         let m = test_manifest();
-        let result = complete(&m, &empty_ctx(), &empty_global(), &words("conda install -"), 2);
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda install -"),
+            2,
+        );
         let n = names(&result);
         assert!(n.contains(&"-n"));
         assert!(n.contains(&"-c"));
@@ -433,6 +612,7 @@ summary = "List workspaces"
         let m = test_manifest();
         let result = complete(
             &m,
+            &no_versions(),
             &empty_ctx(),
             &empty_global(),
             &words("conda workspace "),
@@ -449,7 +629,14 @@ summary = "List workspaces"
         let mut ctx = empty_ctx();
         ctx.env_names = vec!["myenv".to_string(), "test".to_string()];
 
-        let result = complete(&m, &ctx, &empty_global(), &words("conda install --name m"), 3);
+        let result = complete(
+            &m,
+            &no_versions(),
+            &ctx,
+            &empty_global(),
+            &words("conda install --name m"),
+            3,
+        );
         let n = names(&result);
         assert!(n.contains(&"myenv"));
         assert!(!n.contains(&"test"));
@@ -463,6 +650,7 @@ summary = "List workspaces"
 
         let result = complete(
             &m,
+            &no_versions(),
             &ctx,
             &empty_global(),
             &words("conda install --channel c"),
@@ -476,7 +664,7 @@ summary = "List workspaces"
     #[test]
     fn complete_root_flags() {
         let m = test_manifest();
-        let result = complete(&m, &empty_ctx(), &empty_global(), &words("conda --"), 1);
+        let result = complete(&m, &no_versions(), &empty_ctx(), &empty_global(), &words("conda --"), 1);
         let n = names(&result);
         assert!(n.contains(&"--debug"));
         assert!(n.contains(&"--verbose"));
@@ -490,6 +678,7 @@ summary = "List workspaces"
 
         let result = complete(
             &m,
+            &no_versions(),
             &ctx,
             &empty_global(),
             &words("conda install --name dev "),
@@ -507,6 +696,7 @@ summary = "List workspaces"
 
         let result = complete(
             &m,
+            &no_versions(),
             &ctx,
             &empty_global(),
             &words("conda install --channel=conda-forge --name "),
@@ -522,51 +712,74 @@ summary = "List workspaces"
         let mut ctx = empty_ctx();
         ctx.env_names = vec!["myenv".to_string()];
 
-        let result = complete(
-            &m,
-            &ctx,
-            &empty_global(),
-            &words("conda install -n "),
-            3,
-        );
+        let result = complete(&m, &no_versions(), &ctx, &empty_global(), &words("conda install -n "), 3);
         let n = names(&result);
         assert!(n.contains(&"myenv"));
     }
 
     #[test]
     fn complete_greedy_nargs_consumes_multiple_values() {
-        let m: manifest::Manifest = toml::from_str(
-            r#"
-version = 1
-
-[commands.install]
-summary = "Install packages"
-
-[commands.install.options."--packages"]
-nargs = "*"
-metavar = "PKG"
-description = "Packages to install"
-
-[commands.install.options."--name"]
-short = "-n"
-completion_type = "env_name"
-description = "Environment name"
-"#,
-        )
-        .unwrap();
+        let m = manifest::Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec![],
+            root_options: std::collections::BTreeMap::new(),
+            commands: std::collections::BTreeMap::from([(
+                "install".to_string(),
+                manifest::CommandSpec {
+                    summary: Some("Install packages".to_string()),
+                    options: std::collections::BTreeMap::from([
+                        (
+                            "--packages".to_string(),
+                            manifest::OptionSpec {
+                                short: None,
+                                choices: None,
+                                nargs: Some("*".to_string()),
+                                completion_type: None,
+                                description: Some("Packages to install".to_string()),
+                                metavar: Some("PKG".to_string()),
+                                default: None,
+                                required: false,
+                            },
+                        ),
+                        (
+                            "--name".to_string(),
+                            manifest::OptionSpec {
+                                short: Some("-n".to_string()),
+                                choices: None,
+                                nargs: None,
+                                completion_type: Some("env_name".to_string()),
+                                description: Some("Environment name".to_string()),
+                                metavar: None,
+                                default: None,
+                                required: false,
+                            },
+                        ),
+                    ]),
+                    positionals: vec![],
+                    subcommands: std::collections::BTreeMap::new(),
+                    exclusive_groups: vec![],
+                },
+            )]),
+        };
 
         let mut ctx = empty_ctx();
         ctx.env_names = vec!["dev".to_string()];
 
         let result = complete(
             &m,
+            &no_versions(),
             &ctx,
             &empty_global(),
             &words("conda install --packages foo bar --name "),
             6,
         );
         let n = names(&result);
-        assert!(n.contains(&"dev"), "should complete env name after greedy flag ends");
+        assert!(
+            n.contains(&"dev"),
+            "should complete env name after greedy flag ends"
+        );
     }
 
     #[test]
@@ -575,7 +788,14 @@ description = "Environment name"
         let mut global = empty_global();
         global.env_names = vec!["base".to_string(), "globalenv".to_string()];
 
-        let result = complete(&m, &empty_ctx(), &global, &words("conda install --name "), 3);
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &global,
+            &words("conda install --name "),
+            3,
+        );
         let n = names(&result);
         assert!(n.contains(&"base"));
         assert!(n.contains(&"globalenv"));

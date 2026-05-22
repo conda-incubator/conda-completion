@@ -6,8 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import msgpack
 import pytest
-import tomli_w
 
 COMPLETER_BINARY = (
     Path(__file__).parent.parent
@@ -19,7 +19,7 @@ COMPLETER_BINARY = (
 
 @pytest.fixture()
 def sample_manifest(tmp_path):
-    """Create a minimal completion.toml for testing."""
+    """Create a minimal completion.msgpack for testing."""
     manifest = {
         "version": 1,
         "generated_at": "2025-01-01T00:00:00Z",
@@ -64,8 +64,8 @@ def sample_manifest(tmp_path):
             },
         },
     }
-    path = tmp_path / "completion.toml"
-    path.write_text(tomli_w.dumps(manifest), encoding="utf-8")
+    path = tmp_path / "completion.msgpack"
+    path.write_bytes(msgpack.packb(manifest))
     return path
 
 
@@ -85,6 +85,8 @@ def project_dir(tmp_path):
             "lint": "ruff check .",
         },
     }
+    import tomli_w
+
     (tmp_path / "conda.toml").write_text(tomli_w.dumps(conda_toml), encoding="utf-8")
     return tmp_path
 
@@ -200,8 +202,8 @@ def dynamic_manifest(tmp_path):
             },
         },
     }
-    path = tmp_path / "completion.toml"
-    path.write_text(tomli_w.dumps(manifest), encoding="utf-8")
+    path = tmp_path / "completion.msgpack"
+    path.write_bytes(msgpack.packb(manifest))
     return path
 
 

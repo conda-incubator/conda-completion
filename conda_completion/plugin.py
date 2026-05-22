@@ -70,10 +70,20 @@ def _maybe_regenerate(command: str) -> None:
 
         if current_hash != stored_hash:
             log.info("Plugin set changed, regenerating completion manifest")
+            from dataclasses import replace
+
             from .introspect import generate_manifest
-            from .manifest import write_manifest
+            from .manifest import write_manifest, write_versions
+            from .paths import versions_path
+            from .repodata import extract_package_data
 
             manifest = generate_manifest(plugin_hash=current_hash)
+            try:
+                package_names, version_map = extract_package_data()
+                manifest = replace(manifest, package_names=package_names)
+                write_versions(version_map, versions_path())
+            except Exception:
+                log.debug("Failed to refresh package data", exc_info=True)
             write_manifest(manifest, path)
     except PermissionError:
         log.warning("Cannot update completion manifest: permission denied")
@@ -93,16 +103,11 @@ def plugin_entry_point_hash() -> str:
 
 
 def _read_manifest_plugin_hash(path) -> str | None:
-    """Read the plugin_hash field from an existing manifest without full TOML parse."""
+    """Read the plugin_hash field from an existing msgpack manifest."""
     try:
-        text = path.read_text(encoding="utf-8")
-        match = next(
-            (line for line in text.splitlines() if line.strip().startswith("plugin_hash")),
-            None,
-        )
-        if match is None:
-            return None
-        _, _, value = match.strip().partition("=")
-        return value.strip().strip('"').strip("'")
+        import msgpack
+
+        data = msgpack.unpackb(path.read_bytes())
+        return data.get("plugin_hash")
     except Exception:
         return None

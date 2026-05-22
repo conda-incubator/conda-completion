@@ -6,9 +6,10 @@ import logging
 from typing import TYPE_CHECKING
 
 from ..introspect import generate_manifest
-from ..manifest import write_manifest
-from ..paths import manifest_path
+from ..manifest import write_manifest, write_versions
+from ..paths import manifest_path, versions_path
 from ..plugin import plugin_entry_point_hash
+from ..repodata import extract_package_data
 
 if TYPE_CHECKING:
     import argparse
@@ -23,7 +24,17 @@ def execute_generate(args: argparse.Namespace) -> int:
 
     phash = plugin_entry_point_hash()
     manifest = generate_manifest(plugin_hash=phash)
-    write_manifest(manifest, path)
 
+    try:
+        from dataclasses import replace
+
+        package_names, version_map = extract_package_data()
+        manifest = replace(manifest, package_names=package_names)
+        write_versions(version_map, versions_path())
+        log.info("Package versions written to %s", versions_path())
+    except Exception:
+        log.warning("Failed to extract package data from repodata", exc_info=True)
+
+    write_manifest(manifest, path)
     log.info("Completion manifest written to %s", path)
     return 0
