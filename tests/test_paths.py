@@ -13,11 +13,11 @@ def test_completion_cache_dir():
 
 def test_manifest_path():
     result = manifest_path()
-    assert result.name == "completion.toml"
+    assert result.name == "completion.msgpack"
     assert result.parent == completion_cache_dir()
 
 
 def test_context_cache_path():
     result = context_cache_path()
-    assert result.name == "context_cache.toml"
+    assert result.name == "context_cache.msgpack"
     assert result.parent == completion_cache_dir()

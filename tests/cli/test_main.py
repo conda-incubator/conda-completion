@@ -43,7 +43,7 @@ def test_execute_no_subcommand(capsys):
 def test_execute_dispatches_generate(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "conda_completion.paths.manifest_path",
-        lambda: tmp_path / "completion.toml",
+        lambda: tmp_path / "completion.msgpack",
     )
     monkeypatch.setattr(
         "conda_completion.paths.completion_cache_dir",
@@ -53,7 +53,7 @@ def test_execute_dispatches_generate(tmp_path, monkeypatch):
     args = configure_parser().parse_args(["generate"])
     result = execute(args)
     assert result == 0
-    assert (tmp_path / "completion.toml").exists()
+    assert (tmp_path / "completion.msgpack").exists()
 
 
 def test_execute_handles_completion_error(monkeypatch):
@@ -72,7 +72,7 @@ def test_execute_handles_completion_error(monkeypatch):
 def test_main_entry_point(monkeypatch):
     monkeypatch.setattr(
         "conda_completion.paths.manifest_path",
-        lambda: pytest.importorskip("pathlib").Path("/tmp/cc-test-main/completion.toml"),
+        lambda: pytest.importorskip("pathlib").Path("/tmp/cc-test-main/completion.msgpack"),
     )
     monkeypatch.setattr(
         "conda_completion.paths.completion_cache_dir",

@@ -1,4 +1,4 @@
-"""Tests for manifest data model and TOML I/O."""
+"""Tests for manifest data model and msgpack I/O."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from conda_completion.manifest import (
 
 
 def test_round_trip_empty_manifest(tmp_path):
-    path = tmp_path / "completion.toml"
+    path = tmp_path / "completion.msgpack"
     manifest = CompletionManifest(
         version=1,
         generated_at="2025-01-01T00:00:00Z",
@@ -32,7 +32,7 @@ def test_round_trip_empty_manifest(tmp_path):
 
 
 def test_round_trip_with_commands(tmp_path):
-    path = tmp_path / "completion.toml"
+    path = tmp_path / "completion.msgpack"
     manifest = CompletionManifest(
         version=1,
         generated_at="2025-01-01T00:00:00Z",
@@ -94,7 +94,7 @@ def test_round_trip_with_commands(tmp_path):
 
 
 def test_round_trip_with_root_options(tmp_path):
-    path = tmp_path / "completion.toml"
+    path = tmp_path / "completion.msgpack"
     manifest = CompletionManifest(
         version=1,
         root_options={
@@ -121,7 +121,7 @@ def test_round_trip_with_root_options(tmp_path):
 
 
 def test_round_trip_with_choices(tmp_path):
-    path = tmp_path / "completion.toml"
+    path = tmp_path / "completion.msgpack"
     manifest = CompletionManifest(
         version=1,
         commands={
@@ -146,7 +146,7 @@ def test_round_trip_with_choices(tmp_path):
 
 
 def test_round_trip_exclusive_groups(tmp_path):
-    path = tmp_path / "completion.toml"
+    path = tmp_path / "completion.msgpack"
     manifest = CompletionManifest(
         version=1,
         commands={
@@ -174,7 +174,7 @@ def test_round_trip_exclusive_groups(tmp_path):
     ids=["optional", "zero-or-more", "one-or-more", "exactly-two"],
 )
 def test_nargs_round_trip(tmp_path, nargs_in, nargs_out):
-    path = tmp_path / "completion.toml"
+    path = tmp_path / "completion.msgpack"
     manifest = CompletionManifest(
         version=1,
         commands={
@@ -189,11 +189,11 @@ def test_nargs_round_trip(tmp_path, nargs_in, nargs_out):
     assert loaded.commands["test"].options["--flag"].nargs == nargs_out
 
 
-def test_read_invalid_toml_raises_manifest_error(tmp_path):
+def test_read_invalid_msgpack_raises_manifest_error(tmp_path):
     from conda_completion.exceptions import ManifestError
 
-    path = tmp_path / "bad.toml"
-    path.write_text("this is not valid toml [[[", encoding="utf-8")
+    path = tmp_path / "bad.msgpack"
+    path.write_bytes(b"\xff\xfe invalid msgpack bytes")
 
     with pytest.raises(ManifestError):
         read_manifest(path)

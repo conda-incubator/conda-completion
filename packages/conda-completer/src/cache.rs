@@ -26,8 +26,8 @@ pub struct CachedFile {
 
 impl StatCache {
     pub fn load(path: &Path) -> Self {
-        if let Some(content) = read_to_string_limited(path) {
-            if let Ok(cache) = toml::from_str(&content) {
+        if let Some(bytes) = read_to_bytes_limited(path) {
+            if let Ok(cache) = rmp_serde::from_slice(&bytes) {
                 return cache;
             }
         }
@@ -35,16 +35,21 @@ impl StatCache {
     }
 
     pub fn save(&self, path: &Path) {
-        if std::fs::symlink_metadata(path).map(|m| m.file_type().is_symlink()).unwrap_or(false) {
+        if std::fs::symlink_metadata(path)
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false)
+        {
             return;
         }
-        if let Ok(content) = toml::to_string(self) {
-            let tmp = path.with_extension("toml.tmp");
-            if std::fs::symlink_metadata(&tmp).map(|m| m.file_type().is_symlink()).unwrap_or(false)
+        if let Ok(bytes) = rmp_serde::to_vec(self) {
+            let tmp = path.with_extension("msgpack.tmp");
+            if std::fs::symlink_metadata(&tmp)
+                .map(|m| m.file_type().is_symlink())
+                .unwrap_or(false)
             {
                 return;
             }
-            if fs_err::write(&tmp, &content).is_ok() {
+            if fs_err::write(&tmp, &bytes).is_ok() {
                 let _ = std::fs::rename(&tmp, path);
             }
         }
@@ -106,6 +111,14 @@ pub fn read_to_string_limited(path: &Path) -> Option<String> {
     fs_err::read_to_string(path).ok()
 }
 
+pub fn read_to_bytes_limited(path: &Path) -> Option<Vec<u8>> {
+    let metadata = std::fs::symlink_metadata(path).ok()?;
+    if !metadata.file_type().is_file() || metadata.len() > MAX_FILE_SIZE {
+        return None;
+    }
+    fs_err::read(path).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,14 +126,14 @@ mod tests {
 
     #[test]
     fn load_returns_default_for_missing_file() {
-        let cache = StatCache::load(Path::new("/nonexistent/cache.toml"));
+        let cache = StatCache::load(Path::new("/nonexistent/cache.msgpack"));
         assert!(cache.files.is_empty());
     }
 
     #[test]
     fn save_and_reload_round_trip() {
         let dir = tempfile::tempdir().unwrap();
-        let cache_path = dir.path().join("cache.toml");
+        let cache_path = dir.path().join("cache.msgpack");
 
         let mut cache = StatCache::default();
         cache.update(

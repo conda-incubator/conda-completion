@@ -16,8 +16,8 @@ from conda_completion.exceptions import (
 
 @pytest.fixture()
 def manifest_file(tmp_path, monkeypatch):
-    manifest = tmp_path / "completion.toml"
-    manifest.write_text("version = 1\n", encoding="utf-8")
+    manifest = tmp_path / "completion.msgpack"
+    manifest.write_bytes(b"\x81\xa7version\x01")
     monkeypatch.setattr("conda_completion.cli.init.manifest_path", lambda: manifest)
     return manifest
 
@@ -70,7 +70,7 @@ def test_execute_init_unsupported_shell(manifest_file, completer_binary):
 def test_execute_init_missing_manifest(tmp_path, monkeypatch, completer_binary):
     monkeypatch.setattr(
         "conda_completion.cli.init.manifest_path",
-        lambda: tmp_path / "nonexistent.toml",
+        lambda: tmp_path / "nonexistent.msgpack",
     )
     args = argparse.Namespace(shell="bash")
     with pytest.raises(ManifestNotFoundError):

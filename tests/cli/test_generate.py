@@ -9,7 +9,7 @@ from conda_completion.manifest import read_manifest
 
 
 def test_generate_creates_manifest(tmp_path, monkeypatch):
-    manifest_path = tmp_path / "completion.toml"
+    manifest_path = tmp_path / "completion.msgpack"
     monkeypatch.setattr(
         "conda_completion.paths.completion_cache_dir",
         lambda: tmp_path,

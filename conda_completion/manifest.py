@@ -1,17 +1,11 @@
-"""Completion manifest data model and TOML I/O."""
+"""Completion manifest data model and msgpack I/O."""
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
-
-import tomli_w
+import msgpack
 
 from .exceptions import ManifestError
 
@@ -150,6 +144,7 @@ class CompletionManifest:
     plugin_hash: str = ""
     root_options: dict[str, OptionSpec] = field(default_factory=dict)
     commands: dict[str, CommandSpec] = field(default_factory=dict)
+    package_names: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         result: dict = {
@@ -162,6 +157,8 @@ class CompletionManifest:
                 name: opt.to_dict() for name, opt in self.root_options.items()
             }
         result["commands"] = {name: cmd.to_dict() for name, cmd in self.commands.items()}
+        if self.package_names:
+            result["package_names"] = self.package_names
         return result
 
     @classmethod
@@ -176,20 +173,35 @@ class CompletionManifest:
             plugin_hash=data.get("plugin_hash", ""),
             root_options=root_options,
             commands=commands,
+            package_names=data.get("package_names", []),
         )
 
 
 def write_manifest(manifest: CompletionManifest, path: Path) -> None:
-    """Serialize a CompletionManifest to a TOML file."""
+    """Serialize a CompletionManifest to a msgpack file."""
     data = manifest.to_dict()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(tomli_w.dumps(data), encoding="utf-8")
+    path.write_bytes(msgpack.packb(data))
 
 
 def read_manifest(path: Path) -> CompletionManifest:
-    """Deserialize a CompletionManifest from a TOML file."""
+    """Deserialize a CompletionManifest from a msgpack file."""
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as exc:
+        data = msgpack.unpackb(path.read_bytes())
+    except (msgpack.UnpackException, ValueError) as exc:
         raise ManifestError(str(exc)) from exc
     return CompletionManifest.from_dict(data)
+
+
+def write_versions(versions: dict[str, list[str]], path: Path) -> None:
+    """Serialize package version data to a msgpack file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(msgpack.packb(versions))
+
+
+def read_versions(path: Path) -> dict[str, list[str]]:
+    """Deserialize package version data from a msgpack file."""
+    try:
+        return msgpack.unpackb(path.read_bytes())
+    except (msgpack.UnpackException, ValueError, FileNotFoundError) as exc:
+        raise ManifestError(str(exc)) from exc

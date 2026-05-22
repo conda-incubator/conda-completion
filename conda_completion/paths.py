@@ -13,10 +13,15 @@ def completion_cache_dir() -> Path:
 
 
 def manifest_path() -> Path:
-    """Return the path to the completion manifest TOML file."""
-    return completion_cache_dir() / "completion.toml"
+    """Return the path to the completion manifest msgpack file."""
+    return completion_cache_dir() / "completion.msgpack"
 
 
 def context_cache_path() -> Path:
-    """Return the path to the stat-based context cache file."""
-    return completion_cache_dir() / "context_cache.toml"
+    """Return the path to the stat-based context cache msgpack file."""
+    return completion_cache_dir() / "context_cache.msgpack"
+
+
+def versions_path() -> Path:
+    """Return the path to the package versions msgpack file."""
+    return completion_cache_dir() / "versions.msgpack"
