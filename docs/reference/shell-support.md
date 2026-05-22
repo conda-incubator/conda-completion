@@ -27,6 +27,30 @@ basis. Bug reports and contributions are welcome.
 | Dynamic channels | Yes | Yes | Yes | Yes |
 | Dynamic task names | Yes | Yes | Yes | Yes |
 
+## Shell-specific behavior
+
+Each shell has different completion mechanics. The generated scripts
+handle these differences so completions work consistently across shells.
+
+**Completion ordering.** conda-completion returns results in a specific
+order: package names sorted by length (shortest first), versions sorted
+newest-first. Without shell-specific handling, some shells re-sort
+results alphabetically:
+
+- **bash**: `compopt -o nosort` (bash 4.4+) prevents re-sorting
+- **zsh**: `_describe -V` creates an unsorted completion group
+- **fish**: `complete -k` keeps insertion order
+- **PowerShell**: preserves order by default
+
+**Equals sign in version specs.** Typing `conda install numpy=1.26`
+requires the shell to treat `numpy=1.26` as a single token. Bash splits
+on `=` by default via `COMP_WORDBREAKS`, so the generated bash script
+removes `=` from that variable. Other shells do not split on `=`.
+
+**Descriptions.** Zsh, fish, and PowerShell display descriptions
+alongside completion candidates. Bash's COMPREPLY does not support
+descriptions, so the Rust binary omits them for bash output.
+
 ## RC file locations
 
 | Shell | RC file(s) |

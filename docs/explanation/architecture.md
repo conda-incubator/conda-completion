@@ -162,3 +162,32 @@ The Rust binary uses a minimal set of dependencies:
 This keeps the binary under 1.5 MB and startup under 1 ms. Heavier
 frameworks like `clap_complete` or full conda type libraries (rattler)
 were deliberately avoided to stay within the performance budget.
+
+## Design decisions
+
+**msgpack over TOML for the manifest.** The manifest is a derived
+artifact, never hand-edited. msgpack is smaller and faster to
+deserialize than TOML. It is already used in conda's sharded repodata.
+
+**Two-file split for package data.** `completion.msgpack` (~500KB,
+command tree plus package names) is always loaded. `versions.msgpack`
+(~5-10MB, name-to-version mapping) is loaded only when `=` appears in
+the current word. This keeps the common TAB-press fast while still
+supporting version completion.
+
+**Argparse introspection over a new hookspec.** Introspecting conda's
+existing argparse tree works with all registered plugins immediately.
+A dedicated hookspec would require every plugin author to add a new
+hook implementation.
+
+**stat() over content hashing.** `stat()` is one syscall per file.
+Content hashing requires reading the entire file before deciding
+whether to parse it. The only false-negative case (content changes
+without mtime/size changing) is vanishingly rare in editing workflows.
+
+**Damerau-Levenshtein over Jaro-Winkler for fuzzy matching.**
+Damerau-Levenshtein handles insertions, deletions, substitutions, and
+transpositions as single-cost operations. Jaro-Winkler fails on
+partial matches where string lengths differ significantly. The
+three-tier strategy (prefix > substring > similarity) ensures fuzzy
+matching only fires when nothing else matches.
