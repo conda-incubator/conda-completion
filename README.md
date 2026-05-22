@@ -68,7 +68,7 @@ substring, then fuzzy similarity) so typos like `numpie` still find
 
 A stat-based file cache tracks `(mtime, size)` for every source file.
 If nothing changed since the last TAB press, the binary skips all
-parsing and serves cached results in under 1 ms.
+parsing and serves cached results directly.
 
 ### What files are read
 

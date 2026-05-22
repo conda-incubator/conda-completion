@@ -11,4 +11,4 @@
 - Tier 2 shell support: fish.
 - Automatic manifest regeneration via `conda_post_commands` hook.
 - Install/uninstall commands for shell RC file management.
-- Sub-millisecond response time for command, flag, and package name completion.
+- Fast response time for command, flag, and package name completion (no Python on the hot path).

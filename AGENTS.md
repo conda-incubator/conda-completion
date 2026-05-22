@@ -114,9 +114,10 @@
   `pixi run clippy` runs clippy with `-D warnings`.
 - Keep the dependency count minimal. Every new crate must be justified
   by a clear need that stdlib or existing deps cannot cover.
-- Binary size target: release build should be under 1 MB. The release
-  profile uses LTO, opt-level z, and strip.
-- Performance target: command/flag/package completion under 1 ms.
+- Keep the binary small. The release profile uses LTO, opt-level z,
+  and strip.
+- Minimize work on the hot path. No allocations for lookups when
+  possible.
 - Use `&str` comparisons instead of allocating Strings for lookups.
   Prefer `HashSet` over `Vec` when checking membership.
 

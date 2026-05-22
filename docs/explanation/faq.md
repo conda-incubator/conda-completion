@@ -41,10 +41,9 @@ supports descriptions.
 
 ## How fast is it?
 
-Under 1 ms for commands, flags, and package name completion. Version
-completion and fuzzy matching are slower (~35 ms and ~60 ms respectively)
-but still feel responsive. No Python process starts on TAB press. See
-{doc}`performance` for detailed measurements and comparisons.
+Effectively instant for commands, flags, and package names. No Python
+process starts on TAB press. Version completion and fuzzy matching do
+more work but still feel responsive. See {doc}`performance` for details.
 
 ## Where is the manifest stored?
 
@@ -71,8 +70,7 @@ step-by-step instructions for each tool.
 
 Yes. During `conda completion generate`, package names are extracted
 from repodata for all configured channels. After that, `conda install
-nump<TAB>` completes matching package names. Over 30,000 package names
-are searched in under 1 ms.
+nump<TAB>` completes matching package names.
 
 Package names are stored in `completion.msgpack` alongside the command
 tree, so they are always available without extra file reads.

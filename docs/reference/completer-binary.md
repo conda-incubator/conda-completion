@@ -95,19 +95,10 @@ Regardless of project files, the binary always reads:
 
 ## Performance
 
-| Metric | Typical |
-|---|---|
-| Commands, flags, package names | < 1 ms |
-| Version completion (`=`) | ~35 ms |
-| Fuzzy matching | ~60 ms |
-| Binary size | ~900 KB |
-| Memory (without versions) | ~5-7 MB |
-| Memory (with versions loaded) | ~25 MB |
-
 The stat-based cache (`context_cache.msgpack`) uses `(mtime, size)` tuples
 to detect file changes without reading file contents. On a cache hit,
-the binary performs one `stat()` syscall per source file (~0.1 ms total)
-and reads the cached results.
+the binary performs one `stat()` syscall per source file and reads the
+cached results, avoiding all TOML/YAML parsing.
 
 Cache writes are atomic (write to `.tmp`, then rename) to prevent
 corruption if the process is interrupted.

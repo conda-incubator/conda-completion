@@ -37,9 +37,9 @@ channels, and feature names are completed from project files, not
 just from static definitions.
 
 **Speed.** Existing tools either parse `conda --help` on every TAB
-press (~100 ms) or use a hand-maintained static script. conda-completion
-pre-generates a manifest and uses a Rust binary to read it in under 1 ms
-for the common case.
+press (slow due to Python startup) or use a hand-maintained static
+script. conda-completion pre-generates a manifest and uses a Rust binary
+to read it directly, with no Python process on the hot path.
 
 ## Scope
 

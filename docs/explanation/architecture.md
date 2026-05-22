@@ -58,8 +58,7 @@ system. This takes hundreds of milliseconds, far too slow for a TAB
 press that should feel instant.
 
 By running Python once and caching the result as msgpack, the hot path
-becomes a simple binary file read in Rust. The binary starts in under
-1 ms and produces output in under 1 ms for commands and flags.
+becomes a simple binary file read in Rust, with no Python startup cost.
 
 ## Plugin awareness
 
@@ -118,7 +117,7 @@ for every source file.
 
 On each invocation:
 
-1. `stat()` every source file (one syscall each, roughly 0.1 ms total)
+1. `stat()` every source file (one syscall each)
 2. Compare against cached tuples
 3. On a **cache hit** (all stats match): read pre-parsed candidates
    from the cache file. No TOML/YAML parsing at all.
@@ -159,9 +158,9 @@ The Rust binary uses a minimal set of dependencies:
 - `serde-saphyr` for YAML files (environment.yml, .condarc, lockfiles; pure Rust, no unsafe)
 - `fs-err` for better I/O error messages
 
-This keeps the binary under 1 MB and startup under 1 ms. Heavier
-frameworks like `clap_complete` or full conda type libraries (rattler)
-were deliberately avoided to stay within the performance budget.
+This keeps the binary small and startup fast. Heavier frameworks like
+`clap_complete` or full conda type libraries (rattler) were deliberately
+avoided to stay within the performance budget.
 
 ## Design decisions
 
