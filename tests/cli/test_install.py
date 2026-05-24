@@ -299,9 +299,7 @@ def test_execute_uninstall_removes_hook(tmp_path, monkeypatch):
     assert "# after" in content
 
 
-def test_install_warns_when_conda_not_on_path(
-    tmp_path, monkeypatch, capsys, _stub_generate
-):
+def test_install_warns_when_conda_not_on_path(tmp_path, monkeypatch, capsys, _stub_generate):
     from conda_completion.cli.install import execute_install
 
     rc_file = tmp_path / ".bashrc"
@@ -319,9 +317,7 @@ def test_install_warns_when_conda_not_on_path(
     assert "conda is not on PATH" in captured.out
 
 
-def test_install_no_warning_when_conda_on_path(
-    tmp_path, monkeypatch, capsys, _stub_generate
-):
+def test_install_no_warning_when_conda_on_path(tmp_path, monkeypatch, capsys, _stub_generate):
     from conda_completion.cli.install import execute_install
 
     rc_file = tmp_path / ".bashrc"
@@ -330,9 +326,7 @@ def test_install_no_warning_when_conda_on_path(
         "conda_completion.shell.bash.BashShell.default_rc_path",
         lambda self: rc_file,
     )
-    monkeypatch.setattr(
-        "conda_completion.cli.install.shutil.which", lambda _: "/usr/bin/conda"
-    )
+    monkeypatch.setattr("conda_completion.cli.install.shutil.which", lambda _: "/usr/bin/conda")
 
     args = argparse.Namespace(shell=None, yes=True, dry_run=False)
     result = execute_install(args)
