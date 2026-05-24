@@ -1,13 +1,8 @@
 # Manifest format
 
-The completion manifest (`completion.msgpack`) is the central data structure
-that connects the Python introspection step to the Rust completion engine.
-
-The manifest uses msgpack, a compact binary serialization format. Since the
-manifest is a derived artifact (never hand-edited), human readability is not
-needed. msgpack provides smaller files, faster deserialization, and lower
-memory usage compared to TOML. It is also used in conda's sharded repodata
-stack.
+The completion manifest (`completion.msgpack`) connects the Python
+introspection step to the Rust completion engine. It uses msgpack, a
+compact binary format also used in conda's sharded repodata stack.
 
 ## Location
 
@@ -147,25 +142,21 @@ metavar
 ## Versions file
 
 A separate `versions.msgpack` file in the same directory stores the
-mapping of package names to their available versions. It is only loaded
-by the Rust binary when `=` or `==` is detected in the current word
+mapping of package names to available versions. The completion engine
+only loads this file when `=` or `==` is detected in the current word
 (e.g., `numpy=<TAB>`).
 
-### Versions schema
-
-The versions file is a msgpack-encoded dict mapping package names
-(strings) to sorted lists of version strings:
+The file is a msgpack-encoded dict mapping package names to version
+lists:
 
 ```json
 {
-  "numpy": ["1.26.4", "2.0.0", "2.1.0"],
-  "pandas": ["2.1.5", "2.2.0", "2.2.1"],
-  "scipy": ["1.12.0", "1.13.0", "1.14.0"]
+  "numpy": ["2.1.0", "2.0.0", "1.26.4"],
+  "pandas": ["2.2.1", "2.2.0", "2.1.5"]
 }
 ```
 
-### Size
-
-The versions file is typically 2-5 MB depending on the number of
-configured channels. It is generated alongside the main manifest by
-`conda completion generate`.
+For conda-forge scale (~28,000 packages), this file is typically
+2-5 MB. Since version lookups only happen when the user types `=`,
+the full deserialization cost is acceptable and keeps the implementation
+simple.

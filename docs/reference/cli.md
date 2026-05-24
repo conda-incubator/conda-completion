@@ -1,7 +1,6 @@
 # CLI reference
 
-conda-completion adds the `conda completion` subcommand with four
-sub-subcommands.
+`conda completion` has five subcommands.
 
 ## `conda completion generate`
 
@@ -11,14 +10,13 @@ Introspect conda's argparse tree and write the completion manifest.
 conda completion generate
 ```
 
-The manifest is written to the platform's cache directory (e.g.,
+Writes to the platform's cache directory (e.g.,
 `~/.cache/conda/completion/completion.msgpack` on Linux). See
 {doc}`manifest` for paths on all platforms.
 
-This command runs automatically via the `conda_post_commands` hook when
-the set of installed plugins changes after `conda install`, `conda
-remove`, or `conda update`. You only need to run it manually after
-installing a plugin via pip.
+Runs automatically via `conda_post_commands` when the plugin set
+changes after `conda install/remove/update`. Only needed manually
+after installing a plugin via pip.
 
 ## `conda completion install`
 
@@ -30,16 +28,16 @@ conda completion install [shell] [--yes] [--dry-run]
 ```
 
 shell
-: The shell to install for. If omitted, detected from `$SHELL` (or
-  defaults to PowerShell on Windows).
+: Shell to install for. Auto-detected from `$SHELL` if omitted
+  (defaults to PowerShell on Windows).
 
 `--yes`
 : Skip the confirmation prompt.
 
 `--dry-run`
-: Show what would be written without modifying any files.
+: Show what would be written without modifying files.
 
-The command is idempotent: running it twice does not duplicate the hook.
+Idempotent: running it twice does not duplicate the hook.
 
 ## `conda completion uninstall`
 
@@ -50,12 +48,11 @@ conda completion uninstall [shell]
 ```
 
 shell
-: The shell to uninstall for. If omitted, detected from `$SHELL`.
+: Shell to uninstall for. Auto-detected from `$SHELL` if omitted.
 
 ## `conda completion init`
 
-Print the shell completion script to stdout. This is used inside eval
-statements in RC files.
+Print the shell completion script to stdout, for use in eval statements.
 
 ```text
 conda completion init <shell>
@@ -77,17 +74,30 @@ conda completion init powershell | Invoke-Expression
 conda completion init fish | source
 ```
 
-## Standalone entry point
+## `conda completion status`
 
-conda-completion also provides a `cc` command for standalone use outside
-of conda:
+Show diagnostics: manifest location, age, size, command/package counts,
+plugin hash, and completer binary path.
 
 ```text
-cc generate
-cc install [shell] [--yes] [--dry-run]
-cc uninstall [shell]
-cc init <shell>
+conda completion status
 ```
 
-This is useful in environments where conda is not on `PATH` but the
-conda-completion package is installed.
+Example output:
+
+```text
+Cache directory: /home/user/.cache/conda/completion
+Manifest: /home/user/.cache/conda/completion/completion.msgpack
+  Last generated: 3 minutes ago (245760 bytes)
+  Commands: 42
+  Packages: 28540
+  Plugin hash: a1b2c3d4e5f67890
+Versions: /home/user/.cache/conda/completion/versions.msgpack
+  Size: 2621440 bytes
+Current plugin hash: a1b2c3d4e5f67890
+Completer binary: /home/user/.conda/envs/base/bin/_conda_completer
+```
+
+If `Current plugin hash` differs from the manifest's `Plugin hash`,
+the manifest is stale and will regenerate on the next
+`conda install/remove/update`.

@@ -156,6 +156,8 @@ CLI <reference/cli>
 Manifest format <reference/manifest>
 Completer binary <reference/completer-binary>
 Shell support <reference/shell-support>
+Environment variables <reference/environment-variables>
+Errors <reference/errors>
 ```
 
 ```{toctree}
@@ -165,6 +167,8 @@ Shell support <reference/shell-support>
 Motivation <explanation/motivation>
 Architecture <explanation/architecture>
 Performance <explanation/performance>
+Caching <explanation/caching>
+Security <explanation/security>
 FAQ <explanation/faq>
 features
 configuration
@@ -175,6 +179,8 @@ configuration
 :caption: How-to guides
 
 Troubleshooting <how-to/troubleshooting>
+Remote & automated environments <how-to/remote-and-automated-environments>
+Plugin completions <how-to/custom-completions>
 ```
 
 ```{toctree}

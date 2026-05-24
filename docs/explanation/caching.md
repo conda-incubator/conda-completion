@@ -1,0 +1,121 @@
+# Caching
+
+conda-completion has two caching layers: the completion manifest
+(correctness first, regenerated infrequently) and the stat-based context
+cache (speed first, updated on every TAB press).
+
+## Manifest lifecycle
+
+The completion manifest (`completion.msgpack`) is a snapshot of conda's
+full command tree at generation time. It is created by
+`conda completion generate` and changes when:
+
+1. A conda plugin is installed, removed, or updated (detected via plugin
+   entry point hash comparison).
+2. The user explicitly runs `conda completion generate`.
+
+The `conda_post_commands` hook runs after every `conda install`,
+`conda remove`, and `conda update`. It computes a SHA-256 hash of all
+registered conda entry point names and compares it against the hash
+stored in the manifest's `plugin_hash` field. If they differ, the
+manifest is regenerated automatically.
+
+The manifest stays consistent with the installed plugin set without
+user action. The one exception is plugins installed via `pip install`
+directly (not through `conda install` or `conda-pypi`), which bypass
+the conda hook system. See {doc}`/how-to/troubleshooting` for the
+workaround.
+
+## Stat-based context cache
+
+The Rust completer reads project files (conda.toml, pixi.toml,
+pyproject.toml, environment.yml, lockfiles) on every TAB press for
+contextual completions (environment names, task names, channels).
+Parsing files on every keypress would be too slow, so the binary
+maintains a stat cache.
+
+The cache maps file paths to `(mtime, size, extracted_data)` tuples.
+On each TAB press, the binary stats each file and compares mtime and
+size against cached values. If both match, the cached data is reused.
+If either differs, the file is re-read, re-parsed, and the cache
+updated.
+
+```text
+context_cache.msgpack:
+{
+  "/home/user/project/conda.toml": {
+    "mtime_secs": 1716566400,
+    "size": 1234,
+    "env_names": ["dev", "test"],
+    "task_names": ["build", "lint"],
+    "feature_names": ["cuda"],
+    "channels": ["conda-forge"]
+  },
+  "/home/user/.conda/environments.txt": {
+    "mtime_secs": 1716480000,
+    "size": 456,
+    "env_names": ["base", "myproject"]
+  }
+}
+```
+
+Stored at `<cache_dir>/conda/completion/context_cache.msgpack`, next
+to the manifest.
+
+### Eviction
+
+The cache prunes stale entries on every save:
+
+1. Entries for files that no longer exist are removed.
+2. If more than 256 entries remain after pruning, the oldest (by mtime)
+   are evicted until the count is within the limit.
+
+The 256-entry cap is generous for typical usage (most users work in
+fewer than 50 project directories) but prevents unbounded growth from
+deleted or moved files.
+
+### What gets cached
+
+Project context (from the working directory upward):
+
+- `conda.toml` / `pixi.toml`: environments, tasks, features, channels
+- `pyproject.toml`: `[tool.conda]` or `[tool.pixi]` sections
+- `anaconda-project.yml`: env_specs, commands
+- `conda-project.yml`: environments, commands
+- `environment.yml`: name, channels
+- Lockfiles (`conda.lock`, `pixi.lock`, `conda-lock.yml`): environments, channels
+
+Global context (user home):
+
+- `~/.conda/environments.txt`: registered environment names
+- `~/.condarc` (and `$CONDARC`): configured channels
+- `~/.conda/global/global.toml`: globally installed tool names
+
+### Parent directory walk
+
+The binary walks up from the current working directory, checking each
+level for project files. It stops at the first directory containing a
+conda/pixi project file (conda.toml, pixi.toml, pyproject.toml with
+`[tool.conda]` or `[tool.pixi]`, anaconda-project.yml, or
+conda-project.yml). Lockfiles in the same directory are also checked.
+
+The walk also stops at VCS boundaries (`.git`, `.hg`, `.svn`), since
+project files above a repository root are unlikely to be relevant.
+Maximum walk depth is 10 levels.
+
+## Version lookups
+
+Package version data can be large (2-5 MB for conda-forge with ~28,000
+packages). The version file is only loaded when the user types `=` in
+a package spec (e.g., `numpy=<TAB>`), so the full deserialization cost
+does not affect normal completion latency.
+
+See {doc}`/reference/manifest` for the file format.
+
+## Cache files summary
+
+| File | Updated by | Updated when | Purpose |
+| --- | --- | --- | --- |
+| `completion.msgpack` | Python (`generate`) | Plugin set changes or manual `generate` | Command tree, flags, package names |
+| `versions.msgpack` | Python (`generate`) | Same as manifest | Package name to version list mapping |
+| `context_cache.msgpack` | Rust (every TAB) | Every cache miss | Stat-based file cache |
