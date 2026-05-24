@@ -78,7 +78,7 @@
 - User-facing messages should use the file name (`completion.msgpack`)
   rather than internal concepts (`manifest`). Internal binary names
   (`_conda_completer`) should never appear in error messages.
-- The `_maybe_regenerate` hook in `plugin.py` must never crash conda.
+- The `maybe_regenerate` hook in `plugin.py` must never crash conda.
   It catches all exceptions but logs permission errors and I/O failures
   at warning level (not debug) so users can diagnose problems.
 

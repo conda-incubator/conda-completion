@@ -38,12 +38,12 @@ def conda_post_commands() -> Iterable[CondaPostCommand]:
 
     yield CondaPostCommand(
         name="conda-completion-regen",
-        action=_maybe_regenerate,
+        action=maybe_regenerate,
         run_for={"install", "remove", "update"},
     )
 
 
-def _maybe_regenerate(command: str) -> None:
+def maybe_regenerate(command: str) -> None:
     """Regenerate the completion manifest if the plugin set has changed.
 
     Compares a hash of currently registered plugin entry point names
@@ -66,7 +66,7 @@ def _maybe_regenerate(command: str) -> None:
             return
 
         current_hash = plugin_entry_point_hash()
-        stored_hash = _read_manifest_plugin_hash(path)
+        stored_hash = read_manifest_plugin_hash(path)
 
         if current_hash != stored_hash:
             log.info("Plugin set changed, regenerating completion manifest")
@@ -102,7 +102,7 @@ def plugin_entry_point_hash() -> str:
     return hashlib.sha256("|".join(eps).encode()).hexdigest()[:16]
 
 
-def _read_manifest_plugin_hash(path) -> str | None:
+def read_manifest_plugin_hash(path) -> str | None:
     """Read the plugin_hash field from an existing msgpack manifest."""
     try:
         from .manifest import read_manifest

@@ -6,9 +6,9 @@ import msgpack
 import pytest
 
 from conda_completion.plugin import (
-    _maybe_regenerate,
-    _read_manifest_plugin_hash,
+    maybe_regenerate,
     plugin_entry_point_hash,
+    read_manifest_plugin_hash,
 )
 
 
@@ -30,42 +30,42 @@ def test_plugin_entry_point_hash_is_hex():
     int(h, 16)
 
 
-def test_read_manifest_plugin_hash(tmp_path):
+def testread_manifest_plugin_hash(tmp_path):
     manifest = tmp_path / "completion.msgpack"
     _write_msgpack_manifest(manifest, "abc123")
-    assert _read_manifest_plugin_hash(manifest) == "abc123"
+    assert read_manifest_plugin_hash(manifest) == "abc123"
 
 
-def test_read_manifest_plugin_hash_missing_field(tmp_path):
+def testread_manifest_plugin_hash_missing_field(tmp_path):
     manifest = tmp_path / "completion.msgpack"
     manifest.write_bytes(msgpack.packb({"version": 1}))
-    assert _read_manifest_plugin_hash(manifest) is None
+    assert read_manifest_plugin_hash(manifest) is None
 
 
-def test_read_manifest_plugin_hash_missing_file(tmp_path):
+def testread_manifest_plugin_hash_missing_file(tmp_path):
     manifest = tmp_path / "nonexistent.msgpack"
-    assert _read_manifest_plugin_hash(manifest) is None
+    assert read_manifest_plugin_hash(manifest) is None
 
 
-def test_maybe_regenerate_no_manifest(tmp_path, monkeypatch):
+def testmaybe_regenerate_no_manifest(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "conda_completion.paths.manifest_path",
         lambda: tmp_path / "nope.msgpack",
     )
-    _maybe_regenerate("install")
+    maybe_regenerate("install")
 
 
-def test_maybe_regenerate_hash_matches(tmp_path, monkeypatch):
+def testmaybe_regenerate_hash_matches(tmp_path, monkeypatch):
     current_hash = plugin_entry_point_hash()
     manifest = tmp_path / "completion.msgpack"
     _write_msgpack_manifest(manifest, current_hash)
     monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
-    _maybe_regenerate("install")
+    maybe_regenerate("install")
     data = msgpack.unpackb(manifest.read_bytes())
     assert data["plugin_hash"] == current_hash
 
 
-def test_maybe_regenerate_hash_differs(tmp_path, monkeypatch):
+def testmaybe_regenerate_hash_differs(tmp_path, monkeypatch):
     manifest = tmp_path / "completion.msgpack"
     _write_msgpack_manifest(manifest, "stale_hash")
     monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
@@ -87,13 +87,13 @@ def test_maybe_regenerate_hash_differs(tmp_path, monkeypatch):
     monkeypatch.setattr("conda_completion.manifest.write_versions", lambda v, p: None)
     monkeypatch.setattr("conda_completion.repodata.extract_package_data", lambda: ([], {}))
 
-    _maybe_regenerate("install")
+    maybe_regenerate("install")
 
     assert len(generated) == 1
     assert len(written) == 1
 
 
-def test_maybe_regenerate_permission_error(tmp_path, monkeypatch):
+def testmaybe_regenerate_permission_error(tmp_path, monkeypatch):
     manifest = tmp_path / "completion.msgpack"
     _write_msgpack_manifest(manifest, "x")
     monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
@@ -105,10 +105,10 @@ def test_maybe_regenerate_permission_error(tmp_path, monkeypatch):
         "conda_completion.plugin.plugin_entry_point_hash",
         raise_permission_error,
     )
-    _maybe_regenerate("install")
+    maybe_regenerate("install")
 
 
-def test_maybe_regenerate_os_error(monkeypatch):
+def testmaybe_regenerate_os_error(monkeypatch):
     def raise_os_error():
         raise OSError("disk full")
 
@@ -116,10 +116,10 @@ def test_maybe_regenerate_os_error(monkeypatch):
         "conda_completion.paths.manifest_path",
         raise_os_error,
     )
-    _maybe_regenerate("install")
+    maybe_regenerate("install")
 
 
-def test_maybe_regenerate_generic_error(monkeypatch):
+def testmaybe_regenerate_generic_error(monkeypatch):
     def raise_runtime_error():
         raise RuntimeError("oops")
 
@@ -127,7 +127,7 @@ def test_maybe_regenerate_generic_error(monkeypatch):
         "conda_completion.paths.manifest_path",
         raise_runtime_error,
     )
-    _maybe_regenerate("install")
+    maybe_regenerate("install")
 
 
 @pytest.mark.parametrize("command", ["install", "remove", "update"])
