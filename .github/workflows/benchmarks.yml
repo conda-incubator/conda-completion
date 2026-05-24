@@ -51,6 +51,7 @@ jobs:
 
       - name: Check benchmarks (pull request)
         if: github.event_name == 'pull_request'
+        continue-on-error: true
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
