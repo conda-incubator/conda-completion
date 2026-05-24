@@ -1,22 +1,21 @@
-"""Completion manifest data model and TOML I/O."""
+"""Completion manifest data model and msgpack I/O."""
 
 from __future__ import annotations
 
-import sys
+import os
+import tempfile
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
-
-import tomli_w
+import msgpack
 
 from .exceptions import ManifestError
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+MAX_MANIFEST_SIZE = 50 * 1024 * 1024
+MAX_COLLECTION_SIZE = 2_000_000
 
 
 @dataclass(frozen=True)
@@ -150,6 +149,7 @@ class CompletionManifest:
     plugin_hash: str = ""
     root_options: dict[str, OptionSpec] = field(default_factory=dict)
     commands: dict[str, CommandSpec] = field(default_factory=dict)
+    package_names: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         result: dict = {
@@ -162,6 +162,8 @@ class CompletionManifest:
                 name: opt.to_dict() for name, opt in self.root_options.items()
             }
         result["commands"] = {name: cmd.to_dict() for name, cmd in self.commands.items()}
+        if self.package_names:
+            result["package_names"] = self.package_names
         return result
 
     @classmethod
@@ -176,20 +178,69 @@ class CompletionManifest:
             plugin_hash=data.get("plugin_hash", ""),
             root_options=root_options,
             commands=commands,
+            package_names=data.get("package_names", []),
         )
 
 
-def write_manifest(manifest: CompletionManifest, path: Path) -> None:
-    """Serialize a CompletionManifest to a TOML file."""
-    data = manifest.to_dict()
+def atomic_write(path: Path, data: bytes) -> None:
+    """Write data to a file atomically via temp-file-then-rename."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(tomli_w.dumps(data), encoding="utf-8")
+    if path.is_symlink():
+        raise OSError(f"refusing to write through symlink: {path}")
+    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as f:
+        f.write(data)
+        tmp = f.name
+    if path.is_symlink():
+        os.unlink(tmp)
+        raise OSError(f"refusing to write through symlink: {path}")
+    os.replace(tmp, path)
+
+
+def write_manifest(manifest: CompletionManifest, path: Path) -> None:
+    """Serialize a CompletionManifest to a msgpack file."""
+    atomic_write(path, msgpack.packb(manifest.to_dict()))
 
 
 def read_manifest(path: Path) -> CompletionManifest:
-    """Deserialize a CompletionManifest from a TOML file."""
+    """Deserialize a CompletionManifest from a msgpack file."""
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as exc:
+        size = path.stat().st_size
+        if size > MAX_MANIFEST_SIZE:
+            raise ManifestError(f"file too large ({size} bytes)")
+        data = msgpack.unpackb(
+            path.read_bytes(),
+            max_str_len=MAX_MANIFEST_SIZE,
+            max_bin_len=MAX_MANIFEST_SIZE,
+            max_array_len=MAX_COLLECTION_SIZE,
+            max_map_len=MAX_COLLECTION_SIZE,
+        )
+    except (msgpack.UnpackException, ValueError) as exc:
         raise ManifestError(str(exc)) from exc
-    return CompletionManifest.from_dict(data)
+    if not isinstance(data, dict):
+        raise ManifestError("manifest root is not a mapping")
+    try:
+        return CompletionManifest.from_dict(data)
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise ManifestError(f"malformed manifest: {exc}") from exc
+
+
+def write_versions(versions: dict[str, list[str]], path: Path) -> None:
+    """Serialize package version data to a msgpack file."""
+    atomic_write(path, msgpack.packb(versions))
+
+
+def read_versions(path: Path) -> dict[str, list[str]]:
+    """Deserialize package version data from a msgpack file."""
+    try:
+        size = path.stat().st_size
+        if size > MAX_MANIFEST_SIZE:
+            raise ManifestError(f"file too large ({size} bytes)")
+        return msgpack.unpackb(
+            path.read_bytes(),
+            max_str_len=MAX_MANIFEST_SIZE,
+            max_bin_len=MAX_MANIFEST_SIZE,
+            max_array_len=MAX_COLLECTION_SIZE,
+            max_map_len=MAX_COLLECTION_SIZE,
+        )
+    except (msgpack.UnpackException, ValueError, FileNotFoundError) as exc:
+        raise ManifestError(str(exc)) from exc

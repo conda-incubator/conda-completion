@@ -13,6 +13,7 @@ Wait /\$/
 Type "clear"
 Enter
 Wait /\$/
+Sleep 500ms
 Show
 
 Type "# Complete conda subcommands"
@@ -28,11 +29,11 @@ Sleep 2s
 Ctrl+C
 Sleep 300ms
 
-Type "# Complete workspace subcommands"
+Type "# Complete env subcommands"
 Enter
 Sleep 500ms
 
-Type "conda workspace "
+Type "conda env "
 Sleep 500ms
 Tab
 Tab

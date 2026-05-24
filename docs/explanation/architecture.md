@@ -10,20 +10,21 @@ completion step that runs on every TAB press.
 flowchart TD
     subgraph python ["Phase 1: Python (runs once)"]
         direction TB
-        A["conda completion install"] --> B["Call generate_parser()"]
+        A["conda completion generate"] --> B["Call generate_parser()"]
         B --> C["Walk argparse tree"]
         C --> D["Include plugin commands"]
-        D --> E["Write completion.toml"]
+        D --> D2["Fetch repodata"]
+        D2 --> E["Write completion.msgpack\n+ versions.msgpack"]
     end
 
-    E --> F[("completion.toml\n(cache directory)")]
+    E --> F[("completion.msgpack\nversions.msgpack\n(cache directory)")]
 
     subgraph rust ["Phase 2: Rust (runs on every TAB)"]
         direction TB
-        G["_conda_completer"] --> H["Read completion.toml"]
+        G["_conda_completer"] --> H["Read completion.msgpack"]
         H --> I["Walk cwd for project context"]
         I --> J["Read global state"]
-        J --> K["Prefix-filter + output"]
+        J --> K["Prefix/substring/fuzzy match"]
     end
 
     F --> G
@@ -37,14 +38,17 @@ flowchart TD
 conda's `generate_parser()` function, which loads all registered plugin
 subcommands. The resulting argparse tree is walked recursively to extract
 commands, flags, positional arguments, help text, and mutually exclusive
-groups. The output is a `completion.toml` manifest stored in your
-platform's cache directory.
+groups. It also fetches repodata from configured channels via conda's
+`SubdirData` API to extract package names and versions. The output is a
+`completion.msgpack` manifest and a separate `versions.msgpack` file,
+both stored in your platform's cache directory.
 
 **Phase 2: Completion (Rust).** On every TAB press, the shell calls
 `_conda_completer`, a statically linked Rust binary. It reads the
 manifest, examines the current command line, and outputs matching
 candidates in the format your shell expects. No Python process is
-started.
+started. Package name completion uses a three-tier matching strategy
+(prefix, substring, then fuzzy similarity) to handle typos.
 
 ## Why this split?
 
@@ -53,9 +57,8 @@ That means loading Python, resolving imports, and initializing the plugin
 system. This takes hundreds of milliseconds, far too slow for a TAB
 press that should feel instant.
 
-By running Python once and caching the result as TOML, the hot path
-becomes a simple file read in Rust. The binary starts in under 1 ms and
-produces output in under 5 ms on a cache hit.
+By running Python once and caching the result as msgpack, the hot path
+becomes a simple binary file read in Rust, with no Python startup cost.
 
 ## Plugin awareness
 
@@ -109,12 +112,12 @@ for global state.
 
 Parsing TOML and YAML on every TAB press would be wasteful when
 most files rarely change between keystrokes. The binary maintains a
-stat cache (`context_cache.toml`) that stores `(mtime, size)` tuples
+stat cache (`context_cache.msgpack`) that stores `(mtime, size)` tuples
 for every source file.
 
 On each invocation:
 
-1. `stat()` every source file (one syscall each, roughly 0.1 ms total)
+1. `stat()` every source file (one syscall each)
 2. Compare against cached tuples
 3. On a **cache hit** (all stats match): read pre-parsed candidates
    from the cache file. No TOML/YAML parsing at all.
@@ -150,10 +153,40 @@ The output format varies by shell:
 
 The Rust binary uses a minimal set of dependencies:
 
-- `serde` + `toml` for the TOML manifest and project files
+- `serde` + `rmp-serde` for the msgpack manifest and caches
+- `toml` for project files (conda.toml, pixi.toml, pyproject.toml)
 - `serde-saphyr` for YAML files (environment.yml, .condarc, lockfiles; pure Rust, no unsafe)
 - `fs-err` for better I/O error messages
 
-This keeps the binary under 1 MB and startup under 1 ms. Heavier
-frameworks like `clap_complete` or full conda type libraries (rattler)
-were deliberately avoided to stay within the performance budget.
+This keeps the binary small and startup fast. Heavier frameworks like
+`clap_complete` or full conda type libraries (rattler) were deliberately
+avoided to stay within the performance budget.
+
+## Design decisions
+
+**msgpack over TOML for the manifest.** The manifest is a derived
+artifact, never hand-edited. msgpack is smaller and faster to
+deserialize than TOML. It is already used in conda's sharded repodata.
+
+**Two-file split for package data.** `completion.msgpack` (~500KB,
+command tree plus package names) is always loaded. `versions.msgpack`
+(~2-3MB, name-to-version mapping) is loaded only when `=` appears in
+the current word. This keeps the common TAB-press fast while still
+supporting version completion.
+
+**Argparse introspection over a new hookspec.** Introspecting conda's
+existing argparse tree works with all registered plugins immediately.
+A dedicated hookspec would require every plugin author to add a new
+hook implementation.
+
+**stat() over content hashing.** `stat()` is one syscall per file.
+Content hashing requires reading the entire file before deciding
+whether to parse it. The only false-negative case (content changes
+without mtime/size changing) is vanishingly rare in editing workflows.
+
+**Damerau-Levenshtein over Jaro-Winkler for fuzzy matching.**
+Damerau-Levenshtein handles insertions, deletions, substitutions, and
+transpositions as single-cost operations. Jaro-Winkler fails on
+partial matches where string lengths differ significantly. The
+three-tier strategy (prefix > substring > similarity) ensures fuzzy
+matching only fires when nothing else matches.

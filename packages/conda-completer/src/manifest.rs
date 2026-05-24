@@ -1,8 +1,8 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Manifest {
     #[allow(dead_code)]
     pub version: u32,
@@ -11,12 +11,14 @@ pub struct Manifest {
     #[allow(dead_code)]
     pub plugin_hash: Option<String>,
     #[serde(default)]
+    pub package_names: Vec<String>,
+    #[serde(default)]
     pub commands: BTreeMap<String, CommandSpec>,
     #[serde(default)]
     pub root_options: BTreeMap<String, OptionSpec>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CommandSpec {
     pub summary: Option<String>,
     #[serde(default)]
@@ -30,7 +32,7 @@ pub struct CommandSpec {
     pub exclusive_groups: Vec<Vec<String>>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OptionSpec {
     pub short: Option<String>,
     pub choices: Option<Vec<String>>,
@@ -58,7 +60,7 @@ impl OptionSpec {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PositionalSpec {
     #[allow(dead_code)]
     pub name: String,
@@ -72,42 +74,118 @@ pub struct PositionalSpec {
     pub metavar: Option<String>,
 }
 
+const MAX_PACKAGE_NAMES: usize = 2_000_000;
+const MAX_VERSIONS_ENTRIES: usize = 2_000_000;
+
 pub fn load_manifest(path: &Path) -> Result<Manifest, Box<dyn std::error::Error>> {
-    let content = crate::cache::read_to_string_limited(path)
+    let bytes = crate::cache::read_to_bytes_limited(path)
         .ok_or("manifest file not found, is a symlink, or exceeds size limit")?;
-    let manifest: Manifest = toml::from_str(&content)?;
+    let manifest: Manifest = rmp_serde::from_slice(&bytes)?;
+    if manifest.package_names.len() > MAX_PACKAGE_NAMES {
+        return Err("manifest contains too many package names".into());
+    }
     Ok(manifest)
+}
+
+pub fn load_package_versions(
+    path: &Path,
+    package_name: &str,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let bytes = crate::cache::read_to_bytes_limited(path)
+        .ok_or("versions file not found, is a symlink, or exceeds size limit")?;
+    let versions: BTreeMap<String, Vec<String>> = rmp_serde::from_slice(&bytes)?;
+    if versions.len() > MAX_VERSIONS_ENTRIES {
+        return Err("versions file contains too many entries".into());
+    }
+    versions
+        .get(package_name)
+        .cloned()
+        .ok_or_else(|| "package not found in versions file".into())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const MINIMAL_MANIFEST: &str = r#"
-version = 1
-generated_at = "2026-01-01T00:00:00Z"
+    fn minimal_manifest() -> Manifest {
+        Manifest {
+            version: 1,
+            generated_at: Some("2026-01-01T00:00:00Z".to_string()),
+            plugin_hash: None,
+            package_names: vec![],
+            commands: BTreeMap::from([
+                (
+                    "install".to_string(),
+                    CommandSpec {
+                        summary: Some("Install packages".to_string()),
+                        options: BTreeMap::from([
+                            (
+                                "--name".to_string(),
+                                OptionSpec {
+                                    short: Some("-n".to_string()),
+                                    choices: None,
+                                    nargs: None,
+                                    completion_type: Some("env_name".to_string()),
+                                    description: Some("Environment name".to_string()),
+                                    metavar: None,
+                                    default: None,
+                                    required: false,
+                                },
+                            ),
+                            (
+                                "--verbose".to_string(),
+                                OptionSpec {
+                                    short: None,
+                                    choices: None,
+                                    nargs: None,
+                                    completion_type: None,
+                                    description: Some("Be verbose".to_string()),
+                                    metavar: None,
+                                    default: None,
+                                    required: false,
+                                },
+                            ),
+                        ]),
+                        positionals: vec![],
+                        subcommands: BTreeMap::new(),
+                        exclusive_groups: vec![],
+                    },
+                ),
+                (
+                    "remove".to_string(),
+                    CommandSpec {
+                        summary: Some("Remove packages".to_string()),
+                        options: BTreeMap::new(),
+                        positionals: vec![],
+                        subcommands: BTreeMap::new(),
+                        exclusive_groups: vec![],
+                    },
+                ),
+            ]),
+            root_options: BTreeMap::from([(
+                "--debug".to_string(),
+                OptionSpec {
+                    short: None,
+                    choices: None,
+                    nargs: None,
+                    completion_type: None,
+                    description: Some("Debug mode".to_string()),
+                    metavar: None,
+                    default: None,
+                    required: false,
+                },
+            )]),
+        }
+    }
 
-[commands.install]
-summary = "Install packages"
-
-[commands.install.options."--name"]
-short = "-n"
-completion_type = "env_name"
-description = "Environment name"
-
-[commands.install.options."--verbose"]
-description = "Be verbose"
-
-[commands.remove]
-summary = "Remove packages"
-
-[root_options."--debug"]
-description = "Debug mode"
-"#;
+    fn minimal_manifest_bytes() -> Vec<u8> {
+        rmp_serde::to_vec(&minimal_manifest()).unwrap()
+    }
 
     #[test]
     fn parse_minimal_manifest() {
-        let m: Manifest = toml::from_str(MINIMAL_MANIFEST).unwrap();
+        let bytes = minimal_manifest_bytes();
+        let m: Manifest = rmp_serde::from_slice(&bytes).unwrap();
         assert_eq!(m.version, 1);
         assert_eq!(m.commands.len(), 2);
         assert!(m.commands.contains_key("install"));
@@ -116,7 +194,8 @@ description = "Debug mode"
 
     #[test]
     fn parse_command_options() {
-        let m: Manifest = toml::from_str(MINIMAL_MANIFEST).unwrap();
+        let bytes = minimal_manifest_bytes();
+        let m: Manifest = rmp_serde::from_slice(&bytes).unwrap();
         let install = &m.commands["install"];
         assert_eq!(install.summary.as_deref(), Some("Install packages"));
         let name_opt = &install.options["--name"];
@@ -126,7 +205,8 @@ description = "Debug mode"
 
     #[test]
     fn parse_root_options() {
-        let m: Manifest = toml::from_str(MINIMAL_MANIFEST).unwrap();
+        let bytes = minimal_manifest_bytes();
+        let m: Manifest = rmp_serde::from_slice(&bytes).unwrap();
         assert!(m.root_options.contains_key("--debug"));
     }
 
@@ -254,8 +334,9 @@ description = "Debug mode"
     #[test]
     fn load_manifest_from_file() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("manifest.toml");
-        std::fs::write(&path, MINIMAL_MANIFEST).unwrap();
+        let path = dir.path().join("manifest.msgpack");
+        let bytes = minimal_manifest_bytes();
+        std::fs::write(&path, &bytes).unwrap();
 
         let m = load_manifest(&path).unwrap();
         assert_eq!(m.version, 1);
@@ -264,27 +345,52 @@ description = "Debug mode"
 
     #[test]
     fn load_manifest_missing_file() {
-        let result = load_manifest(Path::new("/nonexistent/manifest.toml"));
+        let result = load_manifest(Path::new("/nonexistent/manifest.msgpack"));
         assert!(result.is_err());
     }
 
     #[test]
     fn nested_subcommands() {
-        let toml_str = r#"
-version = 1
-
-[commands.workspace]
-summary = "Workspace commands"
-
-[commands.workspace.subcommands.install]
-summary = "Install workspace"
-
-[commands.workspace.subcommands.install.options."--environment"]
-short = "-e"
-completion_type = "env_name"
-description = "Target environment"
-"#;
-        let m: Manifest = toml::from_str(toml_str).unwrap();
+        let manifest = Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec![],
+            commands: BTreeMap::from([(
+                "workspace".to_string(),
+                CommandSpec {
+                    summary: Some("Workspace commands".to_string()),
+                    options: BTreeMap::new(),
+                    positionals: vec![],
+                    subcommands: BTreeMap::from([(
+                        "install".to_string(),
+                        CommandSpec {
+                            summary: Some("Install workspace".to_string()),
+                            options: BTreeMap::from([(
+                                "--environment".to_string(),
+                                OptionSpec {
+                                    short: Some("-e".to_string()),
+                                    choices: None,
+                                    nargs: None,
+                                    completion_type: Some("env_name".to_string()),
+                                    description: Some("Target environment".to_string()),
+                                    metavar: None,
+                                    default: None,
+                                    required: false,
+                                },
+                            )]),
+                            positionals: vec![],
+                            subcommands: BTreeMap::new(),
+                            exclusive_groups: vec![],
+                        },
+                    )]),
+                    exclusive_groups: vec![],
+                },
+            )]),
+            root_options: BTreeMap::new(),
+        };
+        let bytes = rmp_serde::to_vec(&manifest).unwrap();
+        let m: Manifest = rmp_serde::from_slice(&bytes).unwrap();
         let ws = &m.commands["workspace"];
         assert!(ws.subcommands.contains_key("install"));
         let install = &ws.subcommands["install"];

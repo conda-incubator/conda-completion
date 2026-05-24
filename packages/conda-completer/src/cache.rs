@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::SystemTime;
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StatCache {
     pub files: BTreeMap<String, CachedFile>,
 }
@@ -24,10 +24,12 @@ pub struct CachedFile {
     pub tool_names: Vec<String>,
 }
 
+const MAX_CACHE_ENTRIES: usize = 256;
+
 impl StatCache {
     pub fn load(path: &Path) -> Self {
-        if let Some(content) = read_to_string_limited(path) {
-            if let Ok(cache) = toml::from_str(&content) {
+        if let Some(bytes) = read_to_bytes_limited(path) {
+            if let Ok(cache) = rmp_serde::from_slice(&bytes) {
                 return cache;
             }
         }
@@ -35,17 +37,38 @@ impl StatCache {
     }
 
     pub fn save(&self, path: &Path) {
-        if std::fs::symlink_metadata(path).map(|m| m.file_type().is_symlink()).unwrap_or(false) {
+        if std::fs::symlink_metadata(path)
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false)
+        {
             return;
         }
-        if let Ok(content) = toml::to_string(self) {
-            let tmp = path.with_extension("toml.tmp");
-            if std::fs::symlink_metadata(&tmp).map(|m| m.file_type().is_symlink()).unwrap_or(false)
-            {
+
+        let mut pruned = self.clone();
+        pruned.evict_stale();
+
+        if let Ok(bytes) = rmp_serde::to_vec(&pruned) {
+            let Some(dir) = path.parent() else {
                 return;
+            };
+            let Ok(tmp) = tempfile::NamedTempFile::new_in(dir) else {
+                return;
+            };
+            if std::io::Write::write_all(&mut tmp.as_file(), &bytes).is_ok() {
+                let _ = tmp.persist(path);
             }
-            if fs_err::write(&tmp, &content).is_ok() {
-                let _ = std::fs::rename(&tmp, path);
+        }
+    }
+
+    fn evict_stale(&mut self) {
+        self.files.retain(|path, _| Path::new(path).exists());
+
+        if self.files.len() > MAX_CACHE_ENTRIES {
+            let mut entries: Vec<_> = self.files.iter().map(|(k, v)| (k.clone(), v.mtime_secs)).collect();
+            entries.sort_by_key(|(_, mtime)| *mtime);
+            let to_remove = self.files.len() - MAX_CACHE_ENTRIES;
+            for (key, _) in entries.into_iter().take(to_remove) {
+                self.files.remove(&key);
             }
         }
     }
@@ -106,6 +129,14 @@ pub fn read_to_string_limited(path: &Path) -> Option<String> {
     fs_err::read_to_string(path).ok()
 }
 
+pub fn read_to_bytes_limited(path: &Path) -> Option<Vec<u8>> {
+    let metadata = std::fs::symlink_metadata(path).ok()?;
+    if !metadata.file_type().is_file() || metadata.len() > MAX_FILE_SIZE {
+        return None;
+    }
+    fs_err::read(path).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,18 +144,21 @@ mod tests {
 
     #[test]
     fn load_returns_default_for_missing_file() {
-        let cache = StatCache::load(Path::new("/nonexistent/cache.toml"));
+        let cache = StatCache::load(Path::new("/nonexistent/cache.msgpack"));
         assert!(cache.files.is_empty());
     }
 
     #[test]
     fn save_and_reload_round_trip() {
         let dir = tempfile::tempdir().unwrap();
-        let cache_path = dir.path().join("cache.toml");
+        let cache_path = dir.path().join("cache.msgpack");
+        let real_file = dir.path().join("project.toml");
+        std::fs::write(&real_file, "content").unwrap();
+        let file_key = real_file.to_str().unwrap();
 
         let mut cache = StatCache::default();
         cache.update(
-            "/some/file.toml",
+            file_key,
             CachedFile {
                 mtime_secs: 12345,
                 size: 100,
@@ -138,7 +172,7 @@ mod tests {
         cache.save(&cache_path);
 
         let loaded = StatCache::load(&cache_path);
-        let entry = loaded.files.get("/some/file.toml").unwrap();
+        let entry = loaded.files.get(file_key).unwrap();
         assert_eq!(entry.mtime_secs, 12345);
         assert_eq!(entry.size, 100);
         assert_eq!(entry.env_names, vec!["myenv"]);

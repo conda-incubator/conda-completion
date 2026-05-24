@@ -1,119 +1,98 @@
 # Performance
 
 Shell completion must feel instant. Users press TAB reflexively and any
-perceptible delay breaks flow. conda-completion targets sub-5 ms
-response times on the common path.
+perceptible delay breaks flow.
 
-## Budget
+## Design for speed
 
-| Phase | Target | Typical |
-|---|---|---|
-| Binary startup | < 1 ms | ~0.5 ms |
-| Manifest read | < 2 ms | ~1.5 ms |
-| Context resolution (cache hit) | < 2 ms | ~1.5 ms |
-| Context resolution (cache miss) | < 15 ms | ~12 ms |
-| **Total (cache hit)** | **< 5 ms** | **~4 ms** |
-| **Total (cache miss)** | **< 20 ms** | **~17 ms** |
+conda-completion avoids the two main sources of latency in shell
+completion:
 
-The binary size target is under 1 MB (typical: ~850 KB). Memory usage
-stays under 10 MB (typical: ~5 MB).
+1. **No Python on the hot path.** The Rust binary is the only thing that
+   runs on TAB press. Python startup alone takes 50-100 ms, which is
+   already perceptible.
 
-## Why Rust?
+2. **No file re-parsing on repeat presses.** A stat-based file cache
+   tracks which project and global files have changed. If nothing
+   changed since the last TAB press (the common case), the binary skips
+   all TOML/YAML parsing and reads pre-parsed results from a small
+   cache file.
 
-Shell completion scripts typically use one of two approaches:
+## What happens on each TAB press
 
-**Parse help text on every TAB press.** Tools like
-`conda-bash-completion` run `conda --help` or `conda install --help`
-and parse the output with sed/awk. This starts a Python process on
-every keypress, taking 100-300 ms.
+**Common case (commands, flags, package names):**
 
-**Hand-maintained static scripts.** Tools like `conda-zsh-completion`
-ship a hand-written completion script. Fast, but requires manual
-updates whenever conda adds or changes commands. No plugin awareness.
+1. `stat()` each source file (one syscall per file)
+2. Compare against cached `(mtime, size)` tuples
+3. On cache hit: read pre-parsed results from `context_cache.msgpack`
+4. Read `completion.msgpack` (command tree + package names)
+5. Prefix-filter candidates and output
 
-conda-completion takes a third path: generate once, complete fast. The
-generation step uses Python (necessary for argparse introspection), but
-the completion step uses Rust. This gives us:
+This path is fast because it does no parsing, just binary file reads
+and string comparisons.
 
-- No Python startup cost on TAB press
-- A single statically linked binary with no runtime dependencies
-- Predictable, consistent performance across platforms
-- Tiny binary footprint (under 1 MB)
+**Version completion (when `=` is detected):**
+
+Same as above, plus loading `versions.msgpack` (the package-to-version
+mapping). This file is larger, so version completion is noticeably
+slower than command or package name completion, but still responsive.
+
+**Fuzzy matching (when no prefix or substring match exists):**
+
+Same as the common case, but instead of a simple prefix filter, runs
+normalized Damerau-Levenshtein similarity scoring over all package
+names. This is the slowest path, but only fires when the input is
+genuinely misspelled.
 
 ## The stat cache
 
-The largest performance gain comes from the stat-based file cache. The
-Rust binary reads several files on each invocation: the TOML manifest,
-project files (conda.toml, pixi.toml), global state (environments.txt,
-.condarc), and potentially lockfiles.
+The stat cache is the key optimization. On each invocation:
 
-Parsing all of these on every TAB press takes 12-17 ms. But files
-rarely change between keystrokes. The cache exploits this:
-
-1. On each invocation, call `stat()` on every source file. This is one
-   syscall per file, totaling roughly 0.1 ms for 5-8 files.
-2. Compare each file's `(mtime, size)` tuple against the cached values.
-3. If all match (the common case), read the pre-parsed completion
-   candidates from `context_cache.toml`. Skip all TOML/YAML parsing.
-4. If any file changed, re-parse only that file. Merge results with
-   the still-valid cached entries. Write the updated cache atomically.
-
-Cache writes use a write-to-temp-then-rename pattern to prevent
-corruption if the shell or process is interrupted mid-write.
+1. Call `stat()` on every source file. One syscall per file.
+2. Compare each file's `(mtime, size)` tuple against cached values.
+3. If all match (the common case), read pre-parsed candidates from
+   `context_cache.msgpack`. No TOML/YAML parsing at all.
+4. If any file changed, re-parse only that file. Merge with cached
+   results for unchanged files. Write the updated cache atomically
+   (write to `.tmp`, then rename).
 
 ### Why stat and not content hashing?
 
 Content hashing (e.g., xxhash of file contents) requires reading the
-entire file before deciding whether to parse it. For a 50 KB
-conda.toml, that is 50 KB of I/O just to check freshness.
+entire file before deciding whether to parse it. `stat()` answers the
+same question with a single syscall that reads only filesystem metadata.
+The only false-negative case (content changes without mtime or size
+changing) is vanishingly rare in normal editing workflows.
 
-`stat()` answers the same question with a single syscall that reads
-only filesystem metadata. The only case where stat-based caching gives
-a false negative is when a file's content changes but its mtime and size
-do not, which is vanishingly rare in normal editing workflows.
+## Fuzzy matching
+
+When no prefix or substring match is found, the binary falls back to
+normalized Damerau-Levenshtein similarity. This handles common typos
+like transpositions ("nupmy" for "numpy") and near-misses ("numpie"
+for "numpy").
+
+The matching uses a three-tier strategy to avoid unnecessary work:
+
+1. **Prefix match**: return immediately if any candidates start with the
+   query. This is the common case and is essentially free.
+2. **Substring match**: return if any candidates contain the query.
+   Still fast, one pass over the candidate list.
+3. **Similarity**: only runs when tiers 1 and 2 return nothing. Scores
+   are filtered at a 0.6 threshold and capped at 10 results.
 
 ## Comparison with existing tools
 
-| Tool | Approach | Typical latency |
-|---|---|---|
-| `conda-bash-completion` | Parse `--help` output | 100-300 ms |
-| `conda-zsh-completion` | Static script, 12h package cache | 10-20 ms |
-| Fish built-in `conda.fish` | Static script | 5-10 ms |
-| `argc-completions` | Generic `--help` parser | 50-100 ms |
-| **conda-completion** | **TOML manifest + Rust binary** | **3-5 ms** |
+| Tool | Approach |
+|---|---|
+| `conda-bash-completion` | Runs `conda --help` on every TAB press, parses output with sed/awk |
+| `conda-zsh-completion` | Hand-written static script with 12-hour package cache |
+| Fish built-in `conda.fish` | Static script (based on conda 4.4.11) |
+| `argc-completions` | Generic `--help` parser |
+| **conda-completion** | **Pre-generated msgpack manifest, Rust binary, stat-cached context** |
 
-## Where time is spent
-
-On a cache hit (the common case):
-
-```text
-stat() calls for 6 files      0.1 ms
-read context_cache.toml        1.0 ms
-read completion.toml           1.5 ms
-command-line parsing           0.2 ms
-prefix filtering + output      0.2 ms
-                              ──────
-total                          3.0 ms
-```
-
-On a cache miss (a file was edited):
-
-```text
-stat() calls for 6 files      0.1 ms
-detect changed file            0.1 ms
-parse changed file (TOML)      2.0 ms
-read cached results for rest   1.0 ms
-write context_cache.toml       1.5 ms
-read completion.toml           1.5 ms
-command-line parsing           0.2 ms
-prefix filtering + output      0.2 ms
-                              ──────
-total                          6.6 ms
-```
-
-YAML files (.condarc, environment.yml) take slightly longer to parse
-(3-5 ms) than TOML files (1-2 ms) due to the format's complexity, but
-these files change infrequently.
+The key difference is that conda-completion never starts a Python
+process on TAB press. Tools that run `conda --help` or similar pay
+Python's startup cost on every keypress.
 
 ## Binary size
 
@@ -121,17 +100,18 @@ The Rust binary is compiled with LTO (link-time optimization), size
 optimization (`opt-level = "z"`), and symbol stripping. Dependencies
 are kept minimal:
 
-| Dependency | Purpose | Size contribution |
-|---|---|---|
-| `serde` + `toml` | TOML parsing | ~400 KB |
-| `serde-saphyr` | YAML parsing (environment.yml, .condarc, lockfiles) | ~200 KB |
-| `fs-err` | Better I/O errors | ~10 KB |
+| Dependency | Purpose |
+|---|---|
+| `serde` + `rmp-serde` | msgpack manifest and cache deserialization |
+| `serde` + `toml` | TOML project file parsing (conda.toml, pixi.toml) |
+| `serde-saphyr` | YAML parsing (environment.yml, .condarc, lockfiles) |
+| `fs-err` | Better I/O errors |
 
 Heavier alternatives were evaluated and rejected:
 
 - **rattler crates** (`rattler_conda_types`, `rattler_lock`): pull in
-  nom, regex, simd-json, rayon, purl, fancy-regex. Binary would grow
-  from under 1 MB to 5-10 MB with 50 ms startup overhead.
+  nom, regex, simd-json, rayon, purl, fancy-regex. Significant binary
+  size and startup overhead for functionality we don't need.
 - **clap_complete**: adds clap's full argument parsing framework.
   Unnecessary when the completion engine is custom.
 - **serde_yml**: unmaintained, has a RUSTSEC advisory (RUSTSEC-2025-0068).

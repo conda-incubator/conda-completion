@@ -1,1 +1,12 @@
 /* conda-completion custom styles */
+
+/* sphinxcontrib-mermaid SVGs default to a large fixed height;
+   let the diagram shrink to its actual content instead. */
+.mermaid {
+  text-align: center;
+}
+.mermaid svg {
+  height: auto !important;
+  max-height: 80vh;
+  max-width: 100%;
+}

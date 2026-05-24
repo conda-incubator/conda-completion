@@ -6,7 +6,7 @@ import argparse
 
 import pytest
 
-from conda_completion.introspect import _walk_parser
+from conda_completion.introspect import walk_parser
 
 
 def test_walk_simple_parser():
@@ -15,7 +15,7 @@ def test_walk_simple_parser():
     parser.add_argument("--name", "-n", help="Environment name")
     parser.add_argument("package", help="Package to install")
 
-    cmd = _walk_parser(parser)
+    cmd = walk_parser(parser)
 
     assert "--verbose" in cmd.options
     assert cmd.options["--verbose"].short == "-v"
@@ -35,7 +35,7 @@ def test_walk_parser_with_subcommands():
 
     sub.add_parser("list", help="List packages")
 
-    cmd = _walk_parser(parser)
+    cmd = walk_parser(parser)
 
     assert "install" in cmd.subcommands
     assert "list" in cmd.subcommands
@@ -47,7 +47,7 @@ def test_walk_parser_with_choices():
     parser = argparse.ArgumentParser()
     parser.add_argument("--format", choices=["json", "yaml", "toml"])
 
-    cmd = _walk_parser(parser)
+    cmd = walk_parser(parser)
 
     assert cmd.options["--format"].choices == ["json", "yaml", "toml"]
 
@@ -58,7 +58,7 @@ def test_walk_parser_with_mutual_exclusion():
     group.add_argument("--from-lockfile", action="store_true")
     group.add_argument("--from-prefix", action="store_true")
 
-    cmd = _walk_parser(parser)
+    cmd = walk_parser(parser)
 
     assert len(cmd.exclusive_groups) == 1
     assert set(cmd.exclusive_groups[0]) == {"--from-lockfile", "--from-prefix"}
@@ -74,7 +74,7 @@ def test_walk_nested_subcommands():
     p_install = ws_sub.add_parser("install", help="Install workspace")
     p_install.add_argument("-e", "--environment", help="Target environment")
 
-    cmd = _walk_parser(parser)
+    cmd = walk_parser(parser)
 
     assert "workspace" in cmd.subcommands
     ws = cmd.subcommands["workspace"]
@@ -96,7 +96,7 @@ def test_completion_type_heuristics(flag, expected_type):
     parser = argparse.ArgumentParser()
     parser.add_argument(flag, help="test")
 
-    cmd = _walk_parser(parser)
+    cmd = walk_parser(parser)
     assert cmd.options[flag].completion_type == expected_type
 
 
@@ -105,7 +105,7 @@ def test_suppressed_help_excluded():
     parser.add_argument("--hidden", help=argparse.SUPPRESS)
     parser.add_argument("--visible", help="Visible flag")
 
-    cmd = _walk_parser(parser)
+    cmd = walk_parser(parser)
 
     assert cmd.options["--hidden"].description is None
     assert cmd.options["--visible"].description == "Visible flag"

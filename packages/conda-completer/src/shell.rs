@@ -1,9 +1,17 @@
+use std::borrow::Cow;
 use std::fmt::Write;
 
-fn sanitize(s: &str) -> String {
-    s.chars()
-        .filter(|c| !c.is_control())
-        .collect()
+fn is_allowed(c: char) -> bool {
+    c.is_alphanumeric()
+        || matches!(c, '-' | '.' | '_' | '/' | '=' | '@' | ' ' | ':' | '+' | '~' | '\\')
+}
+
+fn sanitize(s: &str) -> Cow<'_, str> {
+    if s.chars().all(is_allowed) {
+        Cow::Borrowed(s)
+    } else {
+        Cow::Owned(s.chars().filter(|c| is_allowed(*c)).collect())
+    }
 }
 
 pub fn format_candidates(shell: &str, candidates: &[(String, Option<String>)]) -> String {
@@ -27,14 +35,18 @@ fn format_bash(candidates: &[(String, Option<String>)], out: &mut String) {
     }
 }
 
+fn zsh_escape(s: &str) -> String {
+    sanitize(s).replace('\\', "\\\\").replace(':', "\\:")
+}
+
 fn format_zsh(candidates: &[(String, Option<String>)], out: &mut String) {
     for (i, (name, desc)) in candidates.iter().enumerate() {
         if i > 0 {
             out.push('\n');
         }
-        let safe_name = sanitize(name);
+        let safe_name = zsh_escape(name);
         if let Some(d) = desc {
-            let _ = write!(out, "{}:{}", safe_name, sanitize(&d.replace(':', "\\:")));
+            let _ = write!(out, "{}:{}", safe_name, zsh_escape(d));
         } else {
             out.push_str(&safe_name);
         }
@@ -98,10 +110,7 @@ mod tests {
 
     #[test]
     fn zsh_escapes_colons_in_descriptions() {
-        let items = vec![(
-            "flag".to_string(),
-            Some("Use format: json".to_string()),
-        )];
+        let items = vec![("flag".to_string(), Some("Use format: json".to_string()))];
         let out = format_candidates("zsh", &items);
         assert_eq!(out, "flag:Use format\\: json");
     }
@@ -134,16 +143,33 @@ mod tests {
     }
 
     #[test]
-    fn control_characters_stripped_from_candidates() {
+    fn disallowed_characters_stripped_from_candidates() {
         let items = vec![
-            ("safe\n$(evil)".to_string(), Some("desc\ninjected".to_string())),
+            (
+                "safe\n$(evil)".to_string(),
+                Some("desc\ninjected".to_string()),
+            ),
             ("tab\there".to_string(), None),
         ];
         let out = format_candidates("bash", &items);
-        assert_eq!(out, "safe$(evil)\ntabhere");
+        assert_eq!(out, "safeevil\ntabhere");
 
         let out = format_candidates("zsh", &items);
+        assert!(!out.contains("$("));
         assert!(!out.contains('\n') || out.lines().count() == 2);
-        assert!(!out.contains("$(evil)\n"));
+    }
+
+    #[test]
+    fn zsh_escapes_colons_in_names() {
+        let items = vec![("https://conda.anaconda.org".to_string(), None)];
+        let out = format_candidates("zsh", &items);
+        assert_eq!(out, "https\\://conda.anaconda.org");
+    }
+
+    #[test]
+    fn zsh_escapes_backslashes() {
+        let items = vec![("foo\\bar".to_string(), Some("a\\b".to_string()))];
+        let out = format_candidates("zsh", &items);
+        assert_eq!(out, "foo\\\\bar:a\\\\b");
     }
 }

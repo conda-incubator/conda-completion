@@ -11,14 +11,14 @@ from datetime import datetime, timezone
 
 from .manifest import CommandSpec, CompletionManifest, OptionSpec, PositionalSpec
 
-_COMPLETION_TYPE_HEURISTICS: dict[str, str] = {
+COMPLETION_TYPE_HEURISTICS: dict[str, str] = {
     "--name": "env_name",
     "--environment": "env_name",
     "--channel": "channel",
     "--prefix": "directory",
 }
 
-_POSITIONAL_TYPE_HEURISTICS: dict[str, str] = {
+POSITIONAL_TYPE_HEURISTICS: dict[str, str] = {
     "package": "package_spec",
     "packages": "package_spec",
     "task_name": "task_name",
@@ -31,7 +31,7 @@ def generate_manifest(plugin_hash: str = "") -> CompletionManifest:
     from conda.cli.conda_argparse import generate_parser
 
     parser = generate_parser()
-    root_cmd = _walk_parser(parser)
+    root_cmd = walk_parser(parser)
 
     return CompletionManifest(
         version=1,
@@ -42,7 +42,7 @@ def generate_manifest(plugin_hash: str = "") -> CompletionManifest:
     )
 
 
-def _walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
+def walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
     """Recursively walk an argparse parser tree into a CommandSpec."""
     options: dict[str, OptionSpec] = {}
     positionals: list[PositionalSpec] = []
@@ -67,7 +67,7 @@ def _walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
                     (ca.help for ca in action._choices_actions if ca.dest == name),
                     None,
                 )
-                sub_cmd = _walk_parser(subparser)
+                sub_cmd = walk_parser(subparser)
                 subcommands[name] = CommandSpec(
                     summary=sub_help or sub_cmd.summary,
                     options=sub_cmd.options,
@@ -85,7 +85,7 @@ def _walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
             long_name = long_names[0] if long_names else action.option_strings[-1]
             short_name = short_names[0] if short_names else None
 
-            completion_type = _infer_completion_type(action.option_strings)
+            completion_type = infer_completion_type(action.option_strings)
 
             description = action.help if action.help != argparse.SUPPRESS else None
 
@@ -122,7 +122,7 @@ def _walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
             if action.dest in ("cmd", "subcmd", "_plugin_subcommand"):
                 continue
 
-            completion_type = _POSITIONAL_TYPE_HEURISTICS.get(action.dest)
+            completion_type = POSITIONAL_TYPE_HEURISTICS.get(action.dest)
 
             description = action.help if action.help != argparse.SUPPRESS else None
 
@@ -160,13 +160,13 @@ def _walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
     )
 
 
-def _infer_completion_type(option_strings: list[str]) -> str | None:
+def infer_completion_type(option_strings: list[str]) -> str | None:
     """Infer a dynamic completion type from option flag names.
 
     Only matches on the long-form flag (e.g., --name) to avoid false
     positives where unrelated flags share the same short form.
     """
     for opt in option_strings:
-        if opt in _COMPLETION_TYPE_HEURISTICS:
-            return _COMPLETION_TYPE_HEURISTICS[opt]
+        if opt in COMPLETION_TYPE_HEURISTICS:
+            return COMPLETION_TYPE_HEURISTICS[opt]
     return None

@@ -1,16 +1,14 @@
 [project]
 name = "my-project"
+channels = ["conda-forge"]
 
 [environments.default]
-channels = ["conda-forge"]
 dependencies = ["python >=3.12"]
 
 [environments.test]
-channels = ["conda-forge"]
 dependencies = ["python >=3.12", "pytest"]
 
 [environments.docs]
-channels = ["conda-forge"]
 dependencies = ["python >=3.12", "sphinx"]
 
 [tasks.test]

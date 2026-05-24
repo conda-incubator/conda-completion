@@ -1,7 +1,8 @@
 # Manifest format
 
-The completion manifest (`completion.toml`) is the central data structure
-that connects the Python introspection step to the Rust completion engine.
+The completion manifest (`completion.msgpack`) connects the Python
+introspection step to the Rust completion engine. It uses msgpack, a
+compact binary format also used in conda's sharded repodata stack.
 
 ## Location
 
@@ -9,51 +10,48 @@ The manifest is stored in your platform's cache directory:
 
 | Platform | Path |
 | --- | --- |
-| Linux | `~/.cache/conda/completion/completion.toml` |
-| macOS | `~/Library/Caches/conda/completion/completion.toml` |
-| Windows | `%LOCALAPPDATA%\conda\cache\completion\completion.toml` |
+| Linux | `~/.cache/conda/completion/completion.msgpack` |
+| macOS | `~/Library/Caches/conda/completion/completion.msgpack` |
+| Windows | `%LOCALAPPDATA%\conda\cache\completion\completion.msgpack` |
+
+A separate `versions.msgpack` file in the same directory stores the mapping
+of package names to available versions. It is only loaded when `=` is
+detected in the current word (e.g., `numpy=<TAB>`).
 
 ## Schema
 
-```toml
-version = 1
-generated_at = "2026-01-15T10:30:00+00:00"
-plugin_hash = "a1b2c3d4e5f67890"
+The manifest is a msgpack-encoded dict with these top-level keys. Shown
+here as equivalent JSON for readability:
 
-[root_options."--verbose"]
-short = "-v"
-description = "Increase verbosity"
-
-[root_options."--json"]
-description = "Report as JSON"
-
-[commands.install]
-summary = "Install a list of packages"
-
-[commands.install.options."--name"]
-short = "-n"
-completion_type = "env_name"
-description = "Name of environment"
-metavar = "ENVIRONMENT"
-
-[commands.install.options."--channel"]
-short = "-c"
-completion_type = "channel"
-description = "Additional channel to search"
-
-[commands.install.options."--dry-run"]
-description = "Only display what would have been done"
-
-[commands.workspace]
-summary = "Manage project-scoped multi-environment workspaces"
-
-[commands.workspace.subcommands.install]
-summary = "Install workspace environments"
-
-[commands.workspace.subcommands.install.options."--environment"]
-short = "-e"
-completion_type = "env_name"
-description = "Target environment"
+```json
+{
+  "version": 1,
+  "generated_at": "2026-01-15T10:30:00+00:00",
+  "plugin_hash": "a1b2c3d4e5f67890",
+  "package_names": ["numpy", "pandas", "scipy", "..."],
+  "root_options": {
+    "--verbose": {"short": "-v", "description": "Increase verbosity"},
+    "--json": {"description": "Report as JSON"}
+  },
+  "commands": {
+    "install": {
+      "summary": "Install a list of packages",
+      "options": {
+        "--name": {
+          "short": "-n",
+          "completion_type": "env_name",
+          "description": "Name of environment",
+          "metavar": "ENVIRONMENT"
+        },
+        "--channel": {
+          "short": "-c",
+          "completion_type": "channel",
+          "description": "Additional channel to search"
+        }
+      }
+    }
+  }
+}
 ```
 
 ## Field reference
@@ -69,6 +67,12 @@ generated_at
 plugin_hash
 : A hex string hashing the set of registered plugin entry point names.
   Used to detect when plugins have been added or removed.
+
+package_names
+: Deduplicated, sorted list of all package names across configured
+  channels. Extracted from repodata during `conda completion generate`.
+  Used for package name completion in `conda install`, `conda remove`,
+  etc.
 
 ### CommandSpec
 
@@ -134,3 +138,25 @@ description
 
 metavar
 : Display name for the value.
+
+## Versions file
+
+A separate `versions.msgpack` file in the same directory stores the
+mapping of package names to available versions. The completion engine
+only loads this file when `=` or `==` is detected in the current word
+(e.g., `numpy=<TAB>`).
+
+The file is a msgpack-encoded dict mapping package names to version
+lists:
+
+```json
+{
+  "numpy": ["2.1.0", "2.0.0", "1.26.4"],
+  "pandas": ["2.2.1", "2.2.0", "2.1.5"]
+}
+```
+
+For conda-forge scale (~28,000 packages), this file is typically
+2-5 MB. Since version lookups only happen when the user types `=`,
+the full deserialization cost is acceptable and keeps the implementation
+simple.

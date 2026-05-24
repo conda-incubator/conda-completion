@@ -6,6 +6,7 @@ import re
 from typing import TYPE_CHECKING
 
 from ..exceptions import ShellNotSupportedError
+from ..manifest import atomic_write
 from ..shell import Shell, get_shell_registry
 
 if TYPE_CHECKING:
@@ -50,6 +51,6 @@ def execute_uninstall(args: argparse.Namespace) -> int:
             print("Aborted.")
             return 1
 
-    rc_path.write_text(new_content, encoding="utf-8")
+    atomic_write(rc_path, new_content.encode("utf-8"))
     print(f"Completion hook removed from {rc_path}")
     return 0

@@ -24,8 +24,7 @@ dependencies = [
   "conda >=25.1",
   "conda-completer",
   "platformdirs >=4.0",
-  "tomli >=2.0; python_version < '3.11'",
-  "tomli-w >=1.0",
+  "msgpack >=1.0",
 ]
 dynamic = ["version"]
 
@@ -70,7 +69,11 @@ select = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra -v"
+addopts = "-ra -v -m 'not slow and not benchmark and not integration'"
+markers = [
+  "benchmark: performance benchmarks (run with pytest-benchmark)",
+  "integration: integration tests requiring conda repodata (run with pytest -m integration)",
+]
 
 [tool.coverage.run]
 source = ["conda_completion"]
@@ -95,7 +98,7 @@ python = ">=3.10"
 conda = ">=25.1"
 rust = ">=1.85"
 platformdirs = ">=4.0"
-tomli-w = ">=1.0"
+msgpack-python = ">=1.0"
 
 [tool.pixi.pypi-dependencies]
 conda-completer = { path = "packages/conda-completer" }
@@ -108,12 +111,14 @@ pre-commit = ">=4.0"
 cargo-deny = ">=0.16"
 cargo-audit = ">=0.21"
 cargo-vet = ">=0.10"
+conda-workspaces = ">=0.4"
 
 [tool.pixi.feature.test.dependencies]
 pytest = ">=8.0"
+pytest-benchmark = ">=5.0"
 pytest-cov = ">=4.0"
 platformdirs = ">=4.0"
-tomli-w = ">=1.0"
+msgpack-python = ">=1.0"
 conda-workspaces = ">=0.4"
 
 [tool.pixi.feature.docs.dependencies]
@@ -139,6 +144,7 @@ format = { cmd = "ruff format conda_completion tests", description = "Auto-forma
 format-check = { cmd = "ruff format --check conda_completion tests", description = "Verify formatting" }
 typecheck = { cmd = "ty check conda_completion", description = "Run type checker" }
 test = { cmd = "pytest", description = "Run test suite" }
+bench = { cmd = "pytest -m benchmark --benchmark-json benchmark-results.json -v", description = "Run benchmarks" }
 test-cov = { cmd = "pytest --cov --cov-report=term-missing --cov-report=html --cov-report=xml", description = "Tests with coverage" }
 clippy = { cmd = "cargo clippy --manifest-path packages/conda-completer/Cargo.toml --all-targets -- -D warnings", description = "Rust linter" }
 cargo-audit = { cmd = "cargo audit --file Cargo.lock", description = "Check for known vulnerabilities" }

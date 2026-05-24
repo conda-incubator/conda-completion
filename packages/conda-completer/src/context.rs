@@ -37,6 +37,9 @@ impl ProjectContext {
                 break;
             }
             try_read_environment_yml(d, &mut ctx, cache);
+            if is_vcs_root(d) {
+                break;
+            }
             dir = d.parent();
             depth += 1;
         }
@@ -45,10 +48,15 @@ impl ProjectContext {
     }
 }
 
+fn is_vcs_root(dir: &Path) -> bool {
+    dir.join(".git").exists() || dir.join(".hg").exists() || dir.join(".svn").exists()
+}
+
 fn apply_cached_to_project(cached: &CachedFile, ctx: &mut ProjectContext) {
     ctx.env_names.extend(cached.env_names.iter().cloned());
     ctx.task_names.extend(cached.task_names.iter().cloned());
-    ctx.feature_names.extend(cached.feature_names.iter().cloned());
+    ctx.feature_names
+        .extend(cached.feature_names.iter().cloned());
     ctx.channels.extend(cached.channels.iter().cloned());
 }
 
@@ -118,23 +126,18 @@ fn try_read_pixi_toml(dir: &Path, ctx: &mut ProjectContext, cache: &mut StatCach
 }
 
 fn try_read_pyproject_toml(dir: &Path, ctx: &mut ProjectContext, cache: &mut StatCache) -> bool {
-    try_read_toml_file(
-        &dir.join("pyproject.toml"),
-        ctx,
-        cache,
-        |content, ctx| {
-            if let Ok(value) = content.parse::<toml::Value>() {
-                if let Some(tool) = value.get("tool") {
-                    for prefix in &["conda", "pixi"] {
-                        if let Some(section) = tool.get(prefix) {
-                            extract_toml_value(section, ctx);
-                            return;
-                        }
+    try_read_toml_file(&dir.join("pyproject.toml"), ctx, cache, |content, ctx| {
+        if let Ok(value) = content.parse::<toml::Value>() {
+            if let Some(tool) = value.get("tool") {
+                for prefix in &["conda", "pixi"] {
+                    if let Some(section) = tool.get(prefix) {
+                        extract_toml_value(section, ctx);
+                        return;
                     }
                 }
             }
-        },
-    )
+        }
+    })
 }
 
 fn try_read_yaml_file<T: serde::de::DeserializeOwned>(
@@ -245,17 +248,12 @@ struct RattlerLockChannel {
 // -- YAML extractors ------------------------------------------------------
 
 fn try_read_environment_yml(dir: &Path, ctx: &mut ProjectContext, cache: &mut StatCache) {
-    try_read_yaml_file::<EnvironmentYml>(
-        &dir.join("environment.yml"),
-        ctx,
-        cache,
-        |doc, ctx| {
-            if let Some(name) = &doc.name {
-                ctx.env_names.push(name.clone());
-            }
-            ctx.channels.extend(doc.channels.iter().cloned());
-        },
-    );
+    try_read_yaml_file::<EnvironmentYml>(&dir.join("environment.yml"), ctx, cache, |doc, ctx| {
+        if let Some(name) = &doc.name {
+            ctx.env_names.push(name.clone());
+        }
+        ctx.channels.extend(doc.channels.iter().cloned());
+    });
 }
 
 fn try_read_anaconda_project_yml(
@@ -274,48 +272,25 @@ fn try_read_anaconda_project_yml(
     )
 }
 
-fn try_read_conda_project_yml(
-    dir: &Path,
-    ctx: &mut ProjectContext,
-    cache: &mut StatCache,
-) -> bool {
-    try_read_yaml_file::<CondaProjectYml>(
-        &dir.join("conda-project.yml"),
-        ctx,
-        cache,
-        |doc, ctx| {
-            ctx.env_names.extend(doc.environments.keys().cloned());
-            ctx.task_names.extend(doc.commands.keys().cloned());
-        },
-    )
+fn try_read_conda_project_yml(dir: &Path, ctx: &mut ProjectContext, cache: &mut StatCache) -> bool {
+    try_read_yaml_file::<CondaProjectYml>(&dir.join("conda-project.yml"), ctx, cache, |doc, ctx| {
+        ctx.env_names.extend(doc.environments.keys().cloned());
+        ctx.task_names.extend(doc.commands.keys().cloned());
+    })
 }
 
 fn try_read_conda_lock_yml(dir: &Path, ctx: &mut ProjectContext, cache: &mut StatCache) {
-    try_read_yaml_file::<CondaLockYml>(
-        &dir.join("conda-lock.yml"),
-        ctx,
-        cache,
-        |doc, ctx| {
-            for ch in &doc.metadata.channels {
-                ctx.channels.push(ch.url.clone());
-            }
-        },
-    );
+    try_read_yaml_file::<CondaLockYml>(&dir.join("conda-lock.yml"), ctx, cache, |doc, ctx| {
+        for ch in &doc.metadata.channels {
+            ctx.channels.push(ch.url.clone());
+        }
+    });
 }
 
 fn try_read_rattler_lock(dir: &Path, ctx: &mut ProjectContext, cache: &mut StatCache) {
-    if !try_read_yaml_file::<RattlerLock>(
-        &dir.join("conda.lock"),
-        ctx,
-        cache,
-        extract_rattler_lock,
-    ) {
-        try_read_yaml_file::<RattlerLock>(
-            &dir.join("pixi.lock"),
-            ctx,
-            cache,
-            extract_rattler_lock,
-        );
+    if !try_read_yaml_file::<RattlerLock>(&dir.join("conda.lock"), ctx, cache, extract_rattler_lock)
+    {
+        try_read_yaml_file::<RattlerLock>(&dir.join("pixi.lock"), ctx, cache, extract_rattler_lock);
     }
 }
 
@@ -349,6 +324,11 @@ fn extract_toml_value(value: &toml::Value, ctx: &mut ProjectContext) {
             if seen_envs.insert(key.as_str()) {
                 ctx.env_names.push(key.clone());
             }
+            if let Some(env) = table.get(key).and_then(|v| v.as_table()) {
+                if let Some(channels) = env.get("channels") {
+                    extract_channel_list(channels, ctx, &mut seen_channels);
+                }
+            }
         }
     }
 
@@ -368,9 +348,11 @@ fn extract_toml_value(value: &toml::Value, ctx: &mut ProjectContext) {
         }
     }
 
-    if let Some(workspace) = value.get("workspace") {
-        if let Some(channels) = workspace.get("channels") {
-            extract_channel_list(channels, ctx, &mut seen_channels);
+    for section in &["workspace", "project"] {
+        if let Some(parent) = value.get(section) {
+            if let Some(channels) = parent.get("channels") {
+                extract_channel_list(channels, ctx, &mut seen_channels);
+            }
         }
     }
     if let Some(channels) = value.get("channels") {
@@ -495,8 +477,12 @@ cuda = {}
         let mut cache = StatCache::default();
         let ctx = ProjectContext::from_cwd(dir.path(), &mut cache);
 
-        assert!(ctx.channels.contains(&"https://conda.anaconda.org/conda-forge".to_string()));
-        assert!(ctx.channels.contains(&"https://conda.anaconda.org/bioconda".to_string()));
+        assert!(ctx
+            .channels
+            .contains(&"https://conda.anaconda.org/conda-forge".to_string()));
+        assert!(ctx
+            .channels
+            .contains(&"https://conda.anaconda.org/bioconda".to_string()));
     }
 
     #[test]
@@ -514,7 +500,9 @@ cuda = {}
 
         assert!(ctx.env_names.contains(&"default".to_string()));
         assert!(ctx.env_names.contains(&"test".to_string()));
-        assert!(ctx.channels.contains(&"https://conda.anaconda.org/conda-forge".to_string()));
+        assert!(ctx
+            .channels
+            .contains(&"https://conda.anaconda.org/conda-forge".to_string()));
     }
 
     #[test]
@@ -541,11 +529,7 @@ cuda = {}
             "[environments]\nfromtoml = {}\n",
         )
         .unwrap();
-        std::fs::write(
-            dir.path().join("environment.yml"),
-            "name: fromyml\n",
-        )
-        .unwrap();
+        std::fs::write(dir.path().join("environment.yml"), "name: fromyml\n").unwrap();
 
         let mut cache = StatCache::default();
         let ctx = ProjectContext::from_cwd(dir.path(), &mut cache);

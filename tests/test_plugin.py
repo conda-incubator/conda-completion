@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import msgpack
 import pytest
 
 from conda_completion.plugin import (
-    _maybe_regenerate,
-    _read_manifest_plugin_hash,
+    maybe_regenerate,
     plugin_entry_point_hash,
+    read_manifest_plugin_hash,
 )
+
+
+def write_msgpack_manifest(path, plugin_hash):
+    """Write a minimal msgpack manifest with the given plugin_hash."""
+    data = {"version": 1, "plugin_hash": plugin_hash, "commands": {}}
+    path.write_bytes(msgpack.packb(data))
 
 
 def test_plugin_entry_point_hash_is_deterministic():
@@ -23,49 +30,44 @@ def test_plugin_entry_point_hash_is_hex():
     int(h, 16)
 
 
-def test_read_manifest_plugin_hash_double_quoted(tmp_path):
-    manifest = tmp_path / "completion.toml"
-    manifest.write_text('plugin_hash = "abc123"\n', encoding="utf-8")
-    assert _read_manifest_plugin_hash(manifest) == "abc123"
-
-
-def test_read_manifest_plugin_hash_single_quoted(tmp_path):
-    manifest = tmp_path / "completion.toml"
-    manifest.write_text("plugin_hash = 'def456'\n", encoding="utf-8")
-    assert _read_manifest_plugin_hash(manifest) == "def456"
+def test_read_manifest_plugin_hash(tmp_path):
+    manifest = tmp_path / "completion.msgpack"
+    write_msgpack_manifest(manifest, "abc123")
+    assert read_manifest_plugin_hash(manifest) == "abc123"
 
 
 def test_read_manifest_plugin_hash_missing_field(tmp_path):
-    manifest = tmp_path / "completion.toml"
-    manifest.write_text("version = 1\n", encoding="utf-8")
-    assert _read_manifest_plugin_hash(manifest) is None
+    manifest = tmp_path / "completion.msgpack"
+    manifest.write_bytes(msgpack.packb({"version": 1}))
+    assert read_manifest_plugin_hash(manifest) is None
 
 
 def test_read_manifest_plugin_hash_missing_file(tmp_path):
-    manifest = tmp_path / "nonexistent.toml"
-    assert _read_manifest_plugin_hash(manifest) is None
+    manifest = tmp_path / "nonexistent.msgpack"
+    assert read_manifest_plugin_hash(manifest) is None
 
 
 def test_maybe_regenerate_no_manifest(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "conda_completion.paths.manifest_path",
-        lambda: tmp_path / "nope.toml",
+        lambda: tmp_path / "nope.msgpack",
     )
-    _maybe_regenerate("install")
+    maybe_regenerate("install")
 
 
 def test_maybe_regenerate_hash_matches(tmp_path, monkeypatch):
     current_hash = plugin_entry_point_hash()
-    manifest = tmp_path / "completion.toml"
-    manifest.write_text(f'plugin_hash = "{current_hash}"\n', encoding="utf-8")
+    manifest = tmp_path / "completion.msgpack"
+    write_msgpack_manifest(manifest, current_hash)
     monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
-    _maybe_regenerate("install")
-    assert manifest.read_text(encoding="utf-8").count(current_hash) == 1
+    maybe_regenerate("install")
+    data = msgpack.unpackb(manifest.read_bytes())
+    assert data["plugin_hash"] == current_hash
 
 
 def test_maybe_regenerate_hash_differs(tmp_path, monkeypatch):
-    manifest = tmp_path / "completion.toml"
-    manifest.write_text('plugin_hash = "stale_hash"\n', encoding="utf-8")
+    manifest = tmp_path / "completion.msgpack"
+    write_msgpack_manifest(manifest, "stale_hash")
     monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
 
     generated = []
@@ -82,48 +84,35 @@ def test_maybe_regenerate_hash_differs(tmp_path, monkeypatch):
 
     monkeypatch.setattr("conda_completion.introspect.generate_manifest", fake_generate)
     monkeypatch.setattr("conda_completion.manifest.write_manifest", fake_write)
+    monkeypatch.setattr("conda_completion.manifest.write_versions", lambda v, p: None)
+    monkeypatch.setattr("conda_completion.repodata.extract_package_data", lambda: ([], {}))
 
-    _maybe_regenerate("install")
+    maybe_regenerate("install")
 
     assert len(generated) == 1
     assert len(written) == 1
 
 
-def test_maybe_regenerate_permission_error(tmp_path, monkeypatch):
-    manifest = tmp_path / "completion.toml"
-    manifest.write_text('plugin_hash = "x"\n', encoding="utf-8")
-    monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
+@pytest.mark.parametrize(
+    "target,exc_class,exc_msg",
+    [
+        ("conda_completion.plugin.plugin_entry_point_hash", PermissionError, "denied"),
+        ("conda_completion.paths.manifest_path", OSError, "disk full"),
+        ("conda_completion.paths.manifest_path", RuntimeError, "oops"),
+    ],
+    ids=["permission-error", "os-error", "generic-error"],
+)
+def test_maybe_regenerate_swallows_errors(tmp_path, monkeypatch, target, exc_class, exc_msg):
+    if target == "conda_completion.plugin.plugin_entry_point_hash":
+        manifest = tmp_path / "completion.msgpack"
+        write_msgpack_manifest(manifest, "x")
+        monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
 
-    def raise_permission_error():
-        raise PermissionError("denied")
+    def raiser():
+        raise exc_class(exc_msg)
 
-    monkeypatch.setattr(
-        "conda_completion.plugin.plugin_entry_point_hash",
-        raise_permission_error,
-    )
-    _maybe_regenerate("install")
-
-
-def test_maybe_regenerate_os_error(monkeypatch):
-    def raise_os_error():
-        raise OSError("disk full")
-
-    monkeypatch.setattr(
-        "conda_completion.paths.manifest_path",
-        raise_os_error,
-    )
-    _maybe_regenerate("install")
-
-
-def test_maybe_regenerate_generic_error(monkeypatch):
-    def raise_runtime_error():
-        raise RuntimeError("oops")
-
-    monkeypatch.setattr(
-        "conda_completion.paths.manifest_path",
-        raise_runtime_error,
-    )
-    _maybe_regenerate("install")
+    monkeypatch.setattr(target, raiser)
+    maybe_regenerate("install")
 
 
 @pytest.mark.parametrize("command", ["install", "remove", "update"])

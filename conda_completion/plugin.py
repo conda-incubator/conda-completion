@@ -38,12 +38,12 @@ def conda_post_commands() -> Iterable[CondaPostCommand]:
 
     yield CondaPostCommand(
         name="conda-completion-regen",
-        action=_maybe_regenerate,
+        action=maybe_regenerate,
         run_for={"install", "remove", "update"},
     )
 
 
-def _maybe_regenerate(command: str) -> None:
+def maybe_regenerate(command: str) -> None:
     """Regenerate the completion manifest if the plugin set has changed.
 
     Compares a hash of currently registered plugin entry point names
@@ -63,17 +63,33 @@ def _maybe_regenerate(command: str) -> None:
 
         path = manifest_path()
         if not path.exists():
+            import sys
+
+            print(
+                "Run 'conda completion install' to enable tab completions.",
+                file=sys.stderr,
+            )
             return
 
         current_hash = plugin_entry_point_hash()
-        stored_hash = _read_manifest_plugin_hash(path)
+        stored_hash = read_manifest_plugin_hash(path)
 
         if current_hash != stored_hash:
             log.info("Plugin set changed, regenerating completion manifest")
+            from dataclasses import replace
+
             from .introspect import generate_manifest
-            from .manifest import write_manifest
+            from .manifest import write_manifest, write_versions
+            from .paths import versions_path
+            from .repodata import extract_package_data
 
             manifest = generate_manifest(plugin_hash=current_hash)
+            try:
+                package_names, version_map = extract_package_data()
+                manifest = replace(manifest, package_names=package_names)
+                write_versions(version_map, versions_path())
+            except Exception:
+                log.debug("Failed to refresh package data", exc_info=True)
             write_manifest(manifest, path)
     except PermissionError:
         log.warning("Cannot update completion manifest: permission denied")
@@ -92,17 +108,11 @@ def plugin_entry_point_hash() -> str:
     return hashlib.sha256("|".join(eps).encode()).hexdigest()[:16]
 
 
-def _read_manifest_plugin_hash(path) -> str | None:
-    """Read the plugin_hash field from an existing manifest without full TOML parse."""
+def read_manifest_plugin_hash(path) -> str | None:
+    """Read the plugin_hash field from an existing msgpack manifest."""
     try:
-        text = path.read_text(encoding="utf-8")
-        match = next(
-            (line for line in text.splitlines() if line.strip().startswith("plugin_hash")),
-            None,
-        )
-        if match is None:
-            return None
-        _, _, value = match.strip().partition("=")
-        return value.strip().strip('"').strip("'")
+        from .manifest import read_manifest
+
+        return read_manifest(path).plugin_hash or None
     except Exception:
         return None

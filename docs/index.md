@@ -5,7 +5,7 @@ Fast, plugin-aware shell tab completion for conda.
 conda-completion introspects conda's full command tree, including all installed
 plugin subcommands (workspace, global, spawn, task, and more), and provides
 instant TAB completions with descriptions. A small Rust binary handles every
-TAB press in under 5 ms with no Python on the hot path.
+TAB press with no Python on the hot path.
 
 ```bash
 conda install -c conda-forge conda-completion
@@ -57,6 +57,13 @@ Why conda-completion exists, how the hybrid architecture works, and performance 
 Customizing shell detection, manifest paths, and cache behavior.
 :::
 
+:::{grid-item-card} {octicon}`tools` Troubleshooting
+:link: how-to/troubleshooting
+:link-type: doc
+
+Common issues and how to fix them.
+:::
+
 :::{grid-item-card} {octicon}`zap` Features
 :link: features
 :link-type: doc
@@ -93,6 +100,17 @@ project files: `conda.toml`, `pixi.toml`, `pyproject.toml`,
 
 :::{grid-item}
 
+**Package name and version completion**
+
+`conda install nump<TAB>` completes package names from repodata.
+`conda install numpy=<TAB>` lists available versions. A three-tier
+matching strategy handles typos: prefix, substring, then fuzzy
+Damerau-Levenshtein similarity.
+
+:::
+
+:::{grid-item}
+
 **Descriptions alongside candidates**
 
 In zsh, fish, and PowerShell, each completion candidate shows its help
@@ -102,11 +120,11 @@ text so you never have to guess what a flag does.
 
 :::{grid-item}
 
-**Sub-5 ms response time**
+**Instant response**
 
-A tiny Rust binary (under 1 MB) handles every TAB press. A stat-based
-file cache avoids re-parsing files that have not changed. No Python
-runs on the hot path.
+A tiny Rust binary handles every TAB press. A stat-based file cache
+avoids re-parsing files that have not changed. No Python runs on the
+hot path.
 
 :::
 
@@ -138,6 +156,8 @@ CLI <reference/cli>
 Manifest format <reference/manifest>
 Completer binary <reference/completer-binary>
 Shell support <reference/shell-support>
+Environment variables <reference/environment-variables>
+Errors <reference/errors>
 ```
 
 ```{toctree}
@@ -147,9 +167,20 @@ Shell support <reference/shell-support>
 Motivation <explanation/motivation>
 Architecture <explanation/architecture>
 Performance <explanation/performance>
+Caching <explanation/caching>
+Security <explanation/security>
 FAQ <explanation/faq>
 features
 configuration
+```
+
+```{toctree}
+:hidden:
+:caption: How-to guides
+
+Troubleshooting <how-to/troubleshooting>
+Remote & automated environments <how-to/remote-and-automated-environments>
+Plugin completions <how-to/custom-completions>
 ```
 
 ```{toctree}

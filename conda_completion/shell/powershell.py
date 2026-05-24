@@ -38,7 +38,7 @@ Register-ArgumentCompleter -Native -CommandName conda -ScriptBlock {{
 """
 
     def hook_line(self) -> str:
-        return "conda completion init powershell | Invoke-Expression"
+        return "if (Get-Command conda -ErrorAction SilentlyContinue) { conda completion init powershell | Invoke-Expression }"
 
     def default_rc_path(self) -> Path | None:
         home = Path.home()

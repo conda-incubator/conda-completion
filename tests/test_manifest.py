@@ -1,4 +1,4 @@
-"""Tests for manifest data model and TOML I/O."""
+"""Tests for manifest data model and msgpack I/O."""
 
 from __future__ import annotations
 
@@ -11,11 +11,12 @@ from conda_completion.manifest import (
     PositionalSpec,
     read_manifest,
     write_manifest,
+    write_versions,
 )
 
 
 def test_round_trip_empty_manifest(tmp_path):
-    path = tmp_path / "completion.toml"
+    path = tmp_path / "completion.msgpack"
     manifest = CompletionManifest(
         version=1,
         generated_at="2025-01-01T00:00:00Z",
@@ -32,7 +33,7 @@ def test_round_trip_empty_manifest(tmp_path):
 
 
 def test_round_trip_with_commands(tmp_path):
-    path = tmp_path / "completion.toml"
+    path = tmp_path / "completion.msgpack"
     manifest = CompletionManifest(
         version=1,
         generated_at="2025-01-01T00:00:00Z",
@@ -94,7 +95,7 @@ def test_round_trip_with_commands(tmp_path):
 
 
 def test_round_trip_with_root_options(tmp_path):
-    path = tmp_path / "completion.toml"
+    path = tmp_path / "completion.msgpack"
     manifest = CompletionManifest(
         version=1,
         root_options={
@@ -121,7 +122,7 @@ def test_round_trip_with_root_options(tmp_path):
 
 
 def test_round_trip_with_choices(tmp_path):
-    path = tmp_path / "completion.toml"
+    path = tmp_path / "completion.msgpack"
     manifest = CompletionManifest(
         version=1,
         commands={
@@ -146,7 +147,7 @@ def test_round_trip_with_choices(tmp_path):
 
 
 def test_round_trip_exclusive_groups(tmp_path):
-    path = tmp_path / "completion.toml"
+    path = tmp_path / "completion.msgpack"
     manifest = CompletionManifest(
         version=1,
         commands={
@@ -174,7 +175,7 @@ def test_round_trip_exclusive_groups(tmp_path):
     ids=["optional", "zero-or-more", "one-or-more", "exactly-two"],
 )
 def test_nargs_round_trip(tmp_path, nargs_in, nargs_out):
-    path = tmp_path / "completion.toml"
+    path = tmp_path / "completion.msgpack"
     manifest = CompletionManifest(
         version=1,
         commands={
@@ -189,11 +190,94 @@ def test_nargs_round_trip(tmp_path, nargs_in, nargs_out):
     assert loaded.commands["test"].options["--flag"].nargs == nargs_out
 
 
-def test_read_invalid_toml_raises_manifest_error(tmp_path):
+def test_read_invalid_msgpack_raises_manifest_error(tmp_path):
     from conda_completion.exceptions import ManifestError
 
-    path = tmp_path / "bad.toml"
-    path.write_text("this is not valid toml [[[", encoding="utf-8")
+    path = tmp_path / "bad.msgpack"
+    path.write_bytes(b"\xff\xfe invalid msgpack bytes")
 
     with pytest.raises(ManifestError):
         read_manifest(path)
+
+
+def test_read_manifest_non_dict_raises(tmp_path):
+    from conda_completion.exceptions import ManifestError
+
+    path = tmp_path / "list.msgpack"
+    import msgpack
+
+    path.write_bytes(msgpack.packb([1, 2, 3]))
+
+    with pytest.raises(ManifestError, match="not a mapping"):
+        read_manifest(path)
+
+
+def test_read_versions_round_trip(tmp_path):
+    from conda_completion.manifest import read_versions
+
+    versions = {"numpy": ["2.0", "1.26"], "scipy": ["1.13"]}
+    path = tmp_path / "versions.msgpack"
+    write_versions(versions, path)
+
+    loaded = read_versions(path)
+    assert loaded == versions
+
+
+@pytest.mark.parametrize(
+    "setup",
+    [
+        pytest.param("invalid", id="corrupt-data"),
+        pytest.param("missing", id="missing-file"),
+    ],
+)
+def test_read_versions_error_cases(tmp_path, setup):
+    from conda_completion.exceptions import ManifestError
+    from conda_completion.manifest import read_versions
+
+    if setup == "invalid":
+        path = tmp_path / "bad_versions.msgpack"
+        path.write_bytes(b"\xff\xfe bad")
+    else:
+        path = tmp_path / "nonexistent.msgpack"
+
+    with pytest.raises(ManifestError):
+        read_versions(path)
+
+
+def test_atomic_write_rejects_symlink(tmp_path):
+    from conda_completion.manifest import atomic_write
+
+    target = tmp_path / "real_file"
+    target.write_bytes(b"original")
+    link = tmp_path / "link_file"
+    link.symlink_to(target)
+
+    with pytest.raises(OSError, match="symlink"):
+        atomic_write(link, b"injected")
+
+    assert target.read_bytes() == b"original"
+
+
+def test_option_spec_default_and_required_round_trip(tmp_path):
+    manifest = CompletionManifest(
+        version=1,
+        commands={
+            "test": CommandSpec(
+                options={
+                    "--output": OptionSpec(
+                        default="/tmp",
+                        required=True,
+                        metavar="PATH",
+                    ),
+                },
+            ),
+        },
+    )
+    path = tmp_path / "test.msgpack"
+    write_manifest(manifest, path)
+    loaded = read_manifest(path)
+
+    opt = loaded.commands["test"].options["--output"]
+    assert opt.default == "/tmp"
+    assert opt.required is True
+    assert opt.metavar == "PATH"

@@ -19,6 +19,7 @@ Wait /\$/
 Type "clear"
 Enter
 Wait /\$/
+Sleep 500ms
 Show
 
 Type "# Install completion for your shell"

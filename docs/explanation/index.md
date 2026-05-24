@@ -30,6 +30,20 @@ How the hybrid Python/Rust design works and why it was chosen.
 Why Rust, benchmarks, and the stat-based caching strategy.
 :::
 
+:::{grid-item-card} {octicon}`database` Caching
+:link: caching
+:link-type: doc
+
+Stat-based file cache, manifest lifecycle, and version lookups.
+:::
+
+:::{grid-item-card} {octicon}`shield` Security
+:link: security
+:link-type: doc
+
+Trust boundaries, output sanitization, symlink protection, and atomic writes.
+:::
+
 :::{grid-item-card} {octicon}`question` FAQ
 :link: faq
 :link-type: doc

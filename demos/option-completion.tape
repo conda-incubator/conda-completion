@@ -13,9 +13,10 @@ Wait /\$/
 Type "clear"
 Enter
 Wait /\$/
+Sleep 500ms
 Show
 
-Type "# Complete flags with descriptions"
+Type "# Complete install flags"
 Enter
 Sleep 500ms
 
@@ -28,11 +29,11 @@ Sleep 2s
 Ctrl+C
 Sleep 300ms
 
-Type "# Complete workspace install flags"
+Type "# Complete create flags"
 Enter
 Sleep 500ms
 
-Type "conda workspace install --"
+Type "conda create --"
 Sleep 500ms
 Tab
 Tab

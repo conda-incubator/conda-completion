@@ -47,7 +47,7 @@ def test_script_generation_does_not_raise(shell_name):
     shell = registry[shell_name]
     script = shell.script(
         Path("/usr/local/bin/_conda_completer"),
-        Path("/home/user/.cache/conda/completion/completion.toml"),
+        Path("/home/user/.cache/conda/completion/completion.msgpack"),
     )
     assert len(script) > 0
     assert "_conda_completer" in script or "cc_completer" in script
@@ -65,7 +65,7 @@ def test_script_with_special_paths(shell_name):
     shell = registry[shell_name]
     script = shell.script(
         Path("/path with spaces/bin/_conda_completer"),
-        Path("/path with spaces/cache/completion.toml"),
+        Path("/path with spaces/cache/completion.msgpack"),
     )
     assert len(script) > 0
 
@@ -82,26 +82,32 @@ def test_get_shell_registry_includes_fish():
     assert "fish" in registry
 
 
-def test_detect_shell_from_env(monkeypatch):
-    monkeypatch.setenv("SHELL", "/usr/bin/zsh")
-    assert Shell.detect_shell() == "zsh"
+@pytest.mark.parametrize(
+    "shell_env,expected",
+    [
+        ("/usr/bin/zsh", "zsh"),
+        ("/usr/local/bin/fish", "fish"),
+        ("/bin/bash", "bash"),
+    ],
+    ids=["zsh", "fish", "bash"],
+)
+def test_detect_shell_from_env(monkeypatch, shell_env, expected):
+    monkeypatch.setenv("SHELL", shell_env)
+    assert Shell.detect_shell() == expected
 
 
-def test_detect_shell_basename(monkeypatch):
-    monkeypatch.setenv("SHELL", "/usr/local/bin/fish")
-    assert Shell.detect_shell() == "fish"
-
-
-def test_detect_shell_empty_env_non_win(monkeypatch):
+@pytest.mark.parametrize(
+    "platform,expected",
+    [
+        ("linux", "bash"),
+        ("win32", "powershell"),
+    ],
+    ids=["linux-fallback", "win32-fallback"],
+)
+def test_detect_shell_empty_env(monkeypatch, platform, expected):
     monkeypatch.delenv("SHELL", raising=False)
-    monkeypatch.setattr("conda_completion.shell.sys.platform", "linux")
-    assert Shell.detect_shell() == "bash"
-
-
-def test_detect_shell_empty_env_win32(monkeypatch):
-    monkeypatch.delenv("SHELL", raising=False)
-    monkeypatch.setattr("conda_completion.shell.sys.platform", "win32")
-    assert Shell.detect_shell() == "powershell"
+    monkeypatch.setattr("conda_completion.shell.sys.platform", platform)
+    assert Shell.detect_shell() == expected
 
 
 def test_default_rc_path_existing_file(tmp_path, monkeypatch):
@@ -176,7 +182,7 @@ def test_powershell_script_contains_register(tmp_path):
     from conda_completion.shell.powershell import PowerShellShell
 
     shell = PowerShellShell()
-    script = shell.script(tmp_path / "_conda_completer", tmp_path / "completion.toml")
+    script = shell.script(tmp_path / "_conda_completer", tmp_path / "completion.msgpack")
     assert "Register-ArgumentCompleter" in script
     assert "CompletionResult" in script
     assert str(tmp_path / "_conda_completer") in script

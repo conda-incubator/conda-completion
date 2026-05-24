@@ -43,7 +43,7 @@ def test_execute_no_subcommand(capsys):
 def test_execute_dispatches_generate(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "conda_completion.paths.manifest_path",
-        lambda: tmp_path / "completion.toml",
+        lambda: tmp_path / "completion.msgpack",
     )
     monkeypatch.setattr(
         "conda_completion.paths.completion_cache_dir",
@@ -53,7 +53,7 @@ def test_execute_dispatches_generate(tmp_path, monkeypatch):
     args = configure_parser().parse_args(["generate"])
     result = execute(args)
     assert result == 0
-    assert (tmp_path / "completion.toml").exists()
+    assert (tmp_path / "completion.msgpack").exists()
 
 
 def test_execute_handles_completion_error(monkeypatch):
@@ -69,10 +69,56 @@ def test_execute_handles_completion_error(monkeypatch):
     assert result == 1
 
 
+def test_execute_dispatches_status(tmp_path, monkeypatch, capsys):
+    import msgpack
+
+    manifest = tmp_path / "completion.msgpack"
+    manifest.write_bytes(msgpack.packb({"version": 1, "commands": {}}))
+    monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
+    monkeypatch.setattr("conda_completion.paths.versions_path", lambda: tmp_path / "v.msgpack")
+    monkeypatch.setattr("conda_completion.paths.completion_cache_dir", lambda: tmp_path)
+
+    args = configure_parser().parse_args(["status"])
+    result = execute(args)
+    assert result == 0
+    assert "Manifest:" in capsys.readouterr().out
+
+
+def test_execute_dispatches_install(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "conda_completion.cli.generate.execute_generate",
+        lambda args: 0,
+    )
+    monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
+    rc_file = tmp_path / ".bashrc"
+    monkeypatch.setattr(
+        "conda_completion.shell.bash.BashShell.default_rc_path",
+        lambda self: rc_file,
+    )
+
+    args = configure_parser().parse_args(["install", "--yes"])
+    result = execute(args)
+    assert result == 0
+
+
+def test_execute_dispatches_uninstall(tmp_path, monkeypatch):
+    monkeypatch.setattr("conda_completion.cli.uninstall.Shell.detect_shell", lambda: "bash")
+    rc_file = tmp_path / ".bashrc"
+    rc_file.write_text("nothing here\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "conda_completion.shell.bash.BashShell.default_rc_path",
+        lambda self: rc_file,
+    )
+
+    args = configure_parser().parse_args(["uninstall", "--yes"])
+    result = execute(args)
+    assert result == 0
+
+
 def test_main_entry_point(monkeypatch):
     monkeypatch.setattr(
         "conda_completion.paths.manifest_path",
-        lambda: pytest.importorskip("pathlib").Path("/tmp/cc-test-main/completion.toml"),
+        lambda: pytest.importorskip("pathlib").Path("/tmp/cc-test-main/completion.msgpack"),
     )
     monkeypatch.setattr(
         "conda_completion.paths.completion_cache_dir",

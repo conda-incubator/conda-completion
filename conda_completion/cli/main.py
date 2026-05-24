@@ -79,6 +79,11 @@ def configure_parser(
         help="Shell to generate the script for",
     )
 
+    sub.add_parser(
+        "status",
+        help="Show completion system status and diagnostics",
+    )
+
     return parser
 
 
@@ -108,6 +113,10 @@ def execute(args: argparse.Namespace) -> int:
             from .init import execute_init
 
             return execute_init(args)
+        elif subcmd == "status":
+            from .status import execute_status
+
+            return execute_status(args)
         else:
             configure_parser().print_help()
             return 1
