@@ -62,4 +62,12 @@ def execute_install(args: argparse.Namespace) -> int:
         f.write(f"\n{block}")
 
     print(f"Completion hook installed in {rc_path}")
+    source_cmd = _source_command(shell_name, rc_path)
+    print(f"To activate, restart your shell or run:\n  {source_cmd}")
     return 0
+
+
+def _source_command(shell_name: str, rc_path) -> str:
+    if shell_name == "powershell":
+        return ". $PROFILE"
+    return f"source {rc_path}"

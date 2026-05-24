@@ -122,6 +122,7 @@ fn complete(
     let mut current_cmd: Option<&manifest::CommandSpec> = None;
     let mut expecting_value_for: Option<&manifest::OptionSpec> = None;
     let mut greedy_flag: bool = false;
+    let mut used_flags: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for (i, word) in words.iter().enumerate().skip(1) {
         if i >= cword {
@@ -147,6 +148,7 @@ fn complete(
                 None => &manifest.root_options,
             };
             let flag_name = word.split('=').next().unwrap_or(word);
+            used_flags.insert(flag_name.to_string());
             let opt = options.get(flag_name).or_else(|| {
                 options
                     .values()
@@ -186,12 +188,20 @@ fn complete(
             Some(cmd) => &cmd.options,
             None => &manifest.root_options,
         };
+        let exclusive_groups = match current_cmd {
+            Some(cmd) => &cmd.exclusive_groups,
+            None => &Vec::new(),
+        };
+        let excluded = excluded_flags(&used_flags, exclusive_groups);
         for (name, opt) in options {
+            if excluded.contains(name.as_str()) {
+                continue;
+            }
             if matcher::matches(name, current_word) {
                 candidates.push((name.clone(), opt.description.clone()));
             }
             if let Some(short) = &opt.short {
-                if matcher::matches(short, current_word) {
+                if !excluded.contains(short.as_str()) && matcher::matches(short, current_word) {
                     candidates.push((short.clone(), opt.description.clone()));
                 }
             }
@@ -257,6 +267,21 @@ fn complete_flag_value(
     }
 
     Vec::new()
+}
+
+fn excluded_flags<'a>(
+    used: &'a std::collections::HashSet<String>,
+    exclusive_groups: &'a [Vec<String>],
+) -> std::collections::HashSet<&'a str> {
+    let mut excluded: std::collections::HashSet<&str> = used.iter().map(|s| s.as_str()).collect();
+    for group in exclusive_groups {
+        if group.iter().any(|f| used.contains(f.as_str())) {
+            for f in group {
+                excluded.insert(f.as_str());
+            }
+        }
+    }
+    excluded
 }
 
 fn collect_matching(
@@ -331,6 +356,7 @@ fn resolve_dynamic(
                 candidates.extend(matcher::fuzzy_match(&all_packages, current_word));
             }
         }
+        "directory" => {}
         _ => {}
     }
 

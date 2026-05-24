@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 class FishShell(Shell):
     name = "fish"
-    rc_files = [".config/fish/config.fish"]
+    rc_files = [".config/fish/completions/conda.fish"]
 
     def script(self, completer_path: Path, manifest_path: Path) -> str:
         cp = self.posix_quote(completer_path)

@@ -63,6 +63,12 @@ def maybe_regenerate(command: str) -> None:
 
         path = manifest_path()
         if not path.exists():
+            import sys
+
+            print(
+                "Run 'conda completion install' to enable tab completions.",
+                file=sys.stderr,
+            )
             return
 
         current_hash = plugin_entry_point_hash()
