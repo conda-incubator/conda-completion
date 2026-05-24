@@ -185,9 +185,14 @@ class CompletionManifest:
 def atomic_write(path: Path, data: bytes) -> None:
     """Write data to a file atomically via temp-file-then-rename."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink():
+        raise OSError(f"refusing to write through symlink: {path}")
     with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as f:
         f.write(data)
         tmp = f.name
+    if path.is_symlink():
+        os.unlink(tmp)
+        raise OSError(f"refusing to write through symlink: {path}")
     os.replace(tmp, path)
 
 

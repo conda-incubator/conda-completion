@@ -37,12 +37,19 @@ impl ProjectContext {
                 break;
             }
             try_read_environment_yml(d, &mut ctx, cache);
+            if is_vcs_root(d) {
+                break;
+            }
             dir = d.parent();
             depth += 1;
         }
 
         ctx
     }
+}
+
+fn is_vcs_root(dir: &Path) -> bool {
+    dir.join(".git").exists() || dir.join(".hg").exists() || dir.join(".svn").exists()
 }
 
 fn apply_cached_to_project(cached: &CachedFile, ctx: &mut ProjectContext) {

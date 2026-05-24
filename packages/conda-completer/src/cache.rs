@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::SystemTime;
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StatCache {
     pub files: BTreeMap<String, CachedFile>,
 }
@@ -24,6 +24,8 @@ pub struct CachedFile {
     pub tool_names: Vec<String>,
 }
 
+const MAX_CACHE_ENTRIES: usize = 256;
+
 impl StatCache {
     pub fn load(path: &Path) -> Self {
         if let Some(bytes) = read_to_bytes_limited(path) {
@@ -41,16 +43,32 @@ impl StatCache {
         {
             return;
         }
-        if let Ok(bytes) = rmp_serde::to_vec(self) {
-            let tmp = path.with_extension("msgpack.tmp");
-            if std::fs::symlink_metadata(&tmp)
-                .map(|m| m.file_type().is_symlink())
-                .unwrap_or(false)
-            {
+
+        let mut pruned = self.clone();
+        pruned.evict_stale();
+
+        if let Ok(bytes) = rmp_serde::to_vec(&pruned) {
+            let Some(dir) = path.parent() else {
                 return;
+            };
+            let Ok(tmp) = tempfile::NamedTempFile::new_in(dir) else {
+                return;
+            };
+            if std::io::Write::write_all(&mut tmp.as_file(), &bytes).is_ok() {
+                let _ = tmp.persist(path);
             }
-            if fs_err::write(&tmp, &bytes).is_ok() {
-                let _ = std::fs::rename(&tmp, path);
+        }
+    }
+
+    fn evict_stale(&mut self) {
+        self.files.retain(|path, _| Path::new(path).exists());
+
+        if self.files.len() > MAX_CACHE_ENTRIES {
+            let mut entries: Vec<_> = self.files.iter().map(|(k, v)| (k.clone(), v.mtime_secs)).collect();
+            entries.sort_by_key(|(_, mtime)| *mtime);
+            let to_remove = self.files.len() - MAX_CACHE_ENTRIES;
+            for (key, _) in entries.into_iter().take(to_remove) {
+                self.files.remove(&key);
             }
         }
     }
@@ -134,10 +152,13 @@ mod tests {
     fn save_and_reload_round_trip() {
         let dir = tempfile::tempdir().unwrap();
         let cache_path = dir.path().join("cache.msgpack");
+        let real_file = dir.path().join("project.toml");
+        std::fs::write(&real_file, "content").unwrap();
+        let file_key = real_file.to_str().unwrap();
 
         let mut cache = StatCache::default();
         cache.update(
-            "/some/file.toml",
+            file_key,
             CachedFile {
                 mtime_secs: 12345,
                 size: 100,
@@ -151,7 +172,7 @@ mod tests {
         cache.save(&cache_path);
 
         let loaded = StatCache::load(&cache_path);
-        let entry = loaded.files.get("/some/file.toml").unwrap();
+        let entry = loaded.files.get(file_key).unwrap();
         assert_eq!(entry.mtime_secs, 12345);
         assert_eq!(entry.size, 100);
         assert_eq!(entry.env_names, vec!["myenv"]);

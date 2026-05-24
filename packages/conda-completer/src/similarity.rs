@@ -13,28 +13,32 @@ pub fn damerau_levenshtein(a: &str, b: &str) -> usize {
         return len_a;
     }
 
-    let mut d = vec![vec![0usize; len_b + 1]; len_a + 1];
-
-    for (i, row) in d.iter_mut().enumerate().take(len_a + 1) {
-        row[0] = i;
-    }
-    #[allow(clippy::needless_range_loop)]
-    for j in 0..=len_b {
-        d[0][j] = j;
+    let w = len_b + 1;
+    let mut rows = vec![0usize; w * 3];
+    for j in 0..w {
+        rows[j] = j;
     }
 
     for i in 1..=len_a {
-        for j in 1..=len_b {
+        let cur = i % 3 * w;
+        let prev = ((i + 2) % 3) * w;
+        let prev2 = ((i + 1) % 3) * w;
+        rows[cur] = i;
+
+        for j in 1..w {
             let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
-            d[i][j] = min(min(d[i - 1][j] + 1, d[i][j - 1] + 1), d[i - 1][j - 1] + cost);
+            rows[cur + j] = min(
+                min(rows[prev + j] + 1, rows[cur + j - 1] + 1),
+                rows[prev + j - 1] + cost,
+            );
 
             if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
-                d[i][j] = min(d[i][j], d[i - 2][j - 2] + 1);
+                rows[cur + j] = min(rows[cur + j], rows[prev2 + j - 2] + 1);
             }
         }
     }
 
-    d[len_a][len_b]
+    rows[len_a % 3 * w + len_b]
 }
 
 pub fn normalized_damerau_levenshtein(a: &str, b: &str) -> f64 {

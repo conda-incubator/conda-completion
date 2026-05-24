@@ -1,7 +1,17 @@
+use std::borrow::Cow;
 use std::fmt::Write;
 
-fn sanitize(s: &str) -> String {
-    s.chars().filter(|c| !c.is_control()).collect()
+fn is_allowed(c: char) -> bool {
+    c.is_alphanumeric()
+        || matches!(c, '-' | '.' | '_' | '/' | '=' | '@' | ' ' | ':' | '+' | '~' | '\\')
+}
+
+fn sanitize(s: &str) -> Cow<'_, str> {
+    if s.chars().all(is_allowed) {
+        Cow::Borrowed(s)
+    } else {
+        Cow::Owned(s.chars().filter(|c| is_allowed(*c)).collect())
+    }
 }
 
 pub fn format_candidates(shell: &str, candidates: &[(String, Option<String>)]) -> String {
@@ -133,7 +143,7 @@ mod tests {
     }
 
     #[test]
-    fn control_characters_stripped_from_candidates() {
+    fn disallowed_characters_stripped_from_candidates() {
         let items = vec![
             (
                 "safe\n$(evil)".to_string(),
@@ -142,11 +152,11 @@ mod tests {
             ("tab\there".to_string(), None),
         ];
         let out = format_candidates("bash", &items);
-        assert_eq!(out, "safe$(evil)\ntabhere");
+        assert_eq!(out, "safeevil\ntabhere");
 
         let out = format_candidates("zsh", &items);
+        assert!(!out.contains("$("));
         assert!(!out.contains('\n') || out.lines().count() == 2);
-        assert!(!out.contains("$(evil)\n"));
     }
 
     #[test]
