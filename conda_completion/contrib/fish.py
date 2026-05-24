@@ -29,4 +29,4 @@ complete -c conda -a '(__conda_complete)' -k
 """
 
     def hook_line(self) -> str:
-        return "conda completion init fish | source"
+        return "command -q conda; and conda completion init fish | source"

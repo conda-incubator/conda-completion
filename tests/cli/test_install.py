@@ -21,7 +21,7 @@ def test_uninstall_removes_block(tmp_path):
     rc_file.write_text(
         'export PATH="/usr/bin:$PATH"\n'
         f"\n{_BLOCK_START}\n"
-        'eval "$(conda completion init bash)"\n'
+        'command -v conda &>/dev/null && eval "$(conda completion init bash)"\n'
         f"{_BLOCK_END}\n"
         "\nalias ll='ls -la'\n",
         encoding="utf-8",
@@ -40,7 +40,8 @@ def test_uninstall_removes_block(tmp_path):
 
 def test_install_idempotent(tmp_path):
     rc_file = tmp_path / ".bashrc"
-    block = f'\n{_BLOCK_START}\neval "$(conda completion init bash)"\n{_BLOCK_END}\n'
+    hook = 'command -v conda &>/dev/null && eval "$(conda completion init bash)"'
+    block = f"\n{_BLOCK_START}\n{hook}\n{_BLOCK_END}\n"
     rc_file.write_text(f"# existing content{block}", encoding="utf-8")
 
     content = rc_file.read_text(encoding="utf-8")
@@ -50,10 +51,14 @@ def test_install_idempotent(tmp_path):
 @pytest.mark.parametrize(
     "shell_name,expected_hook",
     [
-        ("bash", 'eval "$(conda completion init bash)"'),
-        ("zsh", 'eval "$(conda completion init zsh)"'),
-        ("powershell", "conda completion init powershell | Invoke-Expression"),
-        ("fish", "conda completion init fish | source"),
+        ("bash", 'command -v conda &>/dev/null && eval "$(conda completion init bash)"'),
+        ("zsh", 'command -v conda &>/dev/null && eval "$(conda completion init zsh)"'),
+        (
+            "powershell",
+            "if (Get-Command conda -ErrorAction SilentlyContinue)"
+            " { conda completion init powershell | Invoke-Expression }",
+        ),
+        ("fish", "command -q conda; and conda completion init fish | source"),
     ],
     ids=["bash", "zsh", "powershell", "fish"],
 )
@@ -292,3 +297,45 @@ def test_execute_uninstall_removes_hook(tmp_path, monkeypatch):
     assert _BLOCK_END not in content
     assert "# before" in content
     assert "# after" in content
+
+
+def test_install_warns_when_conda_not_on_path(
+    tmp_path, monkeypatch, capsys, _stub_generate
+):
+    from conda_completion.cli.install import execute_install
+
+    rc_file = tmp_path / ".bashrc"
+    monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
+    monkeypatch.setattr(
+        "conda_completion.shell.bash.BashShell.default_rc_path",
+        lambda self: rc_file,
+    )
+    monkeypatch.setattr("conda_completion.cli.install.shutil.which", lambda _: None)
+
+    args = argparse.Namespace(shell=None, yes=True, dry_run=False)
+    result = execute_install(args)
+    assert result == 0
+    captured = capsys.readouterr()
+    assert "conda is not on PATH" in captured.out
+
+
+def test_install_no_warning_when_conda_on_path(
+    tmp_path, monkeypatch, capsys, _stub_generate
+):
+    from conda_completion.cli.install import execute_install
+
+    rc_file = tmp_path / ".bashrc"
+    monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
+    monkeypatch.setattr(
+        "conda_completion.shell.bash.BashShell.default_rc_path",
+        lambda self: rc_file,
+    )
+    monkeypatch.setattr(
+        "conda_completion.cli.install.shutil.which", lambda _: "/usr/bin/conda"
+    )
+
+    args = argparse.Namespace(shell=None, yes=True, dry_run=False)
+    result = execute_install(args)
+    assert result == 0
+    captured = capsys.readouterr()
+    assert "conda is not on PATH" not in captured.out

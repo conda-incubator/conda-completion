@@ -29,4 +29,4 @@ complete -o default -F _conda_completion conda
 """
 
     def hook_line(self) -> str:
-        return 'eval "$(conda completion init bash)"'
+        return 'command -v conda &>/dev/null && eval "$(conda completion init bash)"'

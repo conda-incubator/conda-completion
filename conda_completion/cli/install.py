@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 from typing import TYPE_CHECKING
 
 from ..exceptions import ShellNotSupportedError
@@ -64,6 +65,15 @@ def execute_install(args: argparse.Namespace) -> int:
     print(f"Completion hook installed in {rc_path}")
     source_cmd = _source_command(shell_name, rc_path)
     print(f"To activate, restart your shell or run:\n  {source_cmd}")
+
+    if not shutil.which("conda"):
+        print(
+            "\nNote: conda is not on PATH."
+            " The completion hook requires conda to be available at shell startup."
+            "\nEither run 'conda init' or add conda to your PATH in"
+            f" {rc_path} before the completion hook."
+        )
+
     return 0
 
 
