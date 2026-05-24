@@ -57,6 +57,13 @@ Why conda-completion exists, how the hybrid architecture works, and performance 
 Customizing shell detection, manifest paths, and cache behavior.
 :::
 
+:::{grid-item-card} {octicon}`tools` Troubleshooting
+:link: how-to/troubleshooting
+:link-type: doc
+
+Common issues and how to fix them.
+:::
+
 :::{grid-item-card} {octicon}`zap` Features
 :link: features
 :link-type: doc
@@ -161,6 +168,13 @@ Performance <explanation/performance>
 FAQ <explanation/faq>
 features
 configuration
+```
+
+```{toctree}
+:hidden:
+:caption: How-to guides
+
+Troubleshooting <how-to/troubleshooting>
 ```
 
 ```{toctree}
