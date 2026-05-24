@@ -15,8 +15,8 @@ pub fn damerau_levenshtein(a: &str, b: &str) -> usize {
 
     let w = len_b + 1;
     let mut rows = vec![0usize; w * 3];
-    for j in 0..w {
-        rows[j] = j;
+    for (j, slot) in rows.iter_mut().take(w).enumerate() {
+        *slot = j;
     }
 
     for i in 1..=len_a {
@@ -53,45 +53,28 @@ pub fn normalized_damerau_levenshtein(a: &str, b: &str) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_case::test_case;
+
+    #[test_case("numpy", "numpy", 0 ; "identical")]
+    #[test_case("", "", 0 ; "both empty")]
+    #[test_case("abc", "", 3 ; "left empty")]
+    #[test_case("", "abc", 3 ; "right empty")]
+    #[test_case("numpy", "numpx", 1 ; "single substitution")]
+    #[test_case("numpy", "nupmy", 1 ; "transposition")]
+    #[test_case("scikit-learn", "scikitlearn", 1 ; "missing hyphen")]
+    fn distance(a: &str, b: &str, expected: usize) {
+        assert_eq!(damerau_levenshtein(a, b), expected);
+    }
+
+    #[test_case("numpy", "numpie", 2 ; "numpie typo")]
+    #[test_case("beautifulsoup4", "beutifulsoup", 3 ; "prefix typo")]
+    fn distance_upper_bound(a: &str, b: &str, max_dist: usize) {
+        assert!(damerau_levenshtein(a, b) <= max_dist);
+    }
 
     #[test]
-    fn identical_strings() {
-        assert_eq!(damerau_levenshtein("numpy", "numpy"), 0);
+    fn normalized_identical() {
         assert_eq!(normalized_damerau_levenshtein("numpy", "numpy"), 1.0);
-    }
-
-    #[test]
-    fn empty_strings() {
-        assert_eq!(damerau_levenshtein("", ""), 0);
-        assert_eq!(damerau_levenshtein("abc", ""), 3);
-        assert_eq!(damerau_levenshtein("", "abc"), 3);
-    }
-
-    #[test]
-    fn single_substitution() {
-        assert_eq!(damerau_levenshtein("numpy", "numpx"), 1);
-    }
-
-    #[test]
-    fn transposition() {
-        assert_eq!(damerau_levenshtein("numpy", "nupmy"), 1);
-    }
-
-    #[test]
-    fn typo_numpie() {
-        let dist = damerau_levenshtein("numpy", "numpie");
-        assert!(dist <= 2);
-    }
-
-    #[test]
-    fn missing_hyphen() {
-        assert_eq!(damerau_levenshtein("scikit-learn", "scikitlearn"), 1);
-    }
-
-    #[test]
-    fn prefix_typo() {
-        let dist = damerau_levenshtein("beautifulsoup4", "beutifulsoup");
-        assert!(dist <= 3);
     }
 
     #[test]
@@ -100,10 +83,15 @@ mod tests {
         assert!(score > 0.0 && score < 1.0);
     }
 
-    #[test]
-    fn normalized_threshold_realistic() {
-        assert!(normalized_damerau_levenshtein("numpy", "numpie") > 0.6);
-        assert!(normalized_damerau_levenshtein("numpy", "nupmy") > 0.6);
-        assert!(normalized_damerau_levenshtein("numpy", "zzzzz") < 0.6);
+    #[test_case("numpy", "numpie", true ; "numpie above threshold")]
+    #[test_case("numpy", "nupmy", true ; "transposition above threshold")]
+    #[test_case("numpy", "zzzzz", false ; "unrelated below threshold")]
+    fn normalized_threshold(a: &str, b: &str, above_06: bool) {
+        let score = normalized_damerau_levenshtein(a, b);
+        if above_06 {
+            assert!(score > 0.6);
+        } else {
+            assert!(score < 0.6);
+        }
     }
 }

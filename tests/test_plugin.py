@@ -93,40 +93,25 @@ def testmaybe_regenerate_hash_differs(tmp_path, monkeypatch):
     assert len(written) == 1
 
 
-def testmaybe_regenerate_permission_error(tmp_path, monkeypatch):
-    manifest = tmp_path / "completion.msgpack"
-    _write_msgpack_manifest(manifest, "x")
-    monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
+@pytest.mark.parametrize(
+    "target,exc_class,exc_msg",
+    [
+        ("conda_completion.plugin.plugin_entry_point_hash", PermissionError, "denied"),
+        ("conda_completion.paths.manifest_path", OSError, "disk full"),
+        ("conda_completion.paths.manifest_path", RuntimeError, "oops"),
+    ],
+    ids=["permission-error", "os-error", "generic-error"],
+)
+def test_maybe_regenerate_swallows_errors(tmp_path, monkeypatch, target, exc_class, exc_msg):
+    if target == "conda_completion.plugin.plugin_entry_point_hash":
+        manifest = tmp_path / "completion.msgpack"
+        _write_msgpack_manifest(manifest, "x")
+        monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
 
-    def raise_permission_error():
-        raise PermissionError("denied")
+    def raiser():
+        raise exc_class(exc_msg)
 
-    monkeypatch.setattr(
-        "conda_completion.plugin.plugin_entry_point_hash",
-        raise_permission_error,
-    )
-    maybe_regenerate("install")
-
-
-def testmaybe_regenerate_os_error(monkeypatch):
-    def raise_os_error():
-        raise OSError("disk full")
-
-    monkeypatch.setattr(
-        "conda_completion.paths.manifest_path",
-        raise_os_error,
-    )
-    maybe_regenerate("install")
-
-
-def testmaybe_regenerate_generic_error(monkeypatch):
-    def raise_runtime_error():
-        raise RuntimeError("oops")
-
-    monkeypatch.setattr(
-        "conda_completion.paths.manifest_path",
-        raise_runtime_error,
-    )
+    monkeypatch.setattr(target, raiser)
     maybe_regenerate("install")
 
 

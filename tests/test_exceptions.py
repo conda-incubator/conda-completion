@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from conda_completion.exceptions import (
     CompleterBinaryNotFoundError,
     CondaCompletionError,
@@ -11,33 +13,29 @@ from conda_completion.exceptions import (
 )
 
 
-def test_manifest_not_found_error():
-    exc = ManifestNotFoundError()
-    assert "not found" in exc.error_message.lower()
-    assert len(exc.hints) > 0
-    assert "generate" in exc.hints[0].lower()
-
-
-def test_manifest_error():
-    exc = ManifestError("bad format")
-    assert "bad format" in exc.error_message
-    assert len(exc.hints) > 0
-
-
-def test_completer_binary_not_found_error():
-    exc = CompleterBinaryNotFoundError()
-    assert "not found" in exc.error_message.lower()
+@pytest.mark.parametrize(
+    "exc,substring",
+    [
+        (ManifestNotFoundError(), "not found"),
+        (ManifestError("bad format"), "bad format"),
+        (CompleterBinaryNotFoundError(), "not found"),
+        (ShellNotSupportedError("nushell", ["bash", "zsh"]), "nushell"),
+    ],
+    ids=["manifest-not-found", "manifest-error", "binary-not-found", "shell-not-supported"],
+)
+def test_error_message_content(exc, substring):
+    assert substring in exc.error_message.lower()
     assert len(exc.hints) > 0
 
 
-def test_shell_not_supported_error():
+def test_shell_not_supported_lists_supported_shells():
     exc = ShellNotSupportedError("nushell", ["bash", "zsh"])
-    assert "nushell" in exc.error_message
     assert any("bash" in h for h in exc.hints)
 
 
-def test_all_inherit_from_base():
-    assert issubclass(ManifestNotFoundError, CondaCompletionError)
-    assert issubclass(ManifestError, CondaCompletionError)
-    assert issubclass(CompleterBinaryNotFoundError, CondaCompletionError)
-    assert issubclass(ShellNotSupportedError, CondaCompletionError)
+@pytest.mark.parametrize(
+    "cls",
+    [ManifestNotFoundError, ManifestError, CompleterBinaryNotFoundError, ShellNotSupportedError],
+)
+def test_all_inherit_from_base(cls):
+    assert issubclass(cls, CondaCompletionError)

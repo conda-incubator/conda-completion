@@ -63,33 +63,18 @@ pub fn fuzzy_match(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_case::test_case;
 
-    #[test]
-    fn empty_prefix_matches_everything() {
-        assert!(matches("install", ""));
-        assert!(matches("--verbose", ""));
-    }
-
-    #[test]
-    fn exact_match() {
-        assert!(matches("install", "install"));
-    }
-
-    #[test]
-    fn prefix_match() {
-        assert!(matches("install", "ins"));
-        assert!(matches("--verbose", "--v"));
-    }
-
-    #[test]
-    fn no_match() {
-        assert!(!matches("install", "rem"));
-        assert!(!matches("install", "installs"));
-    }
-
-    #[test]
-    fn case_sensitive() {
-        assert!(!matches("install", "Install"));
+    #[test_case("install", "", true ; "empty prefix matches")]
+    #[test_case("--verbose", "", true ; "empty prefix matches flag")]
+    #[test_case("install", "install", true ; "exact match")]
+    #[test_case("install", "ins", true ; "prefix match")]
+    #[test_case("--verbose", "--v", true ; "flag prefix match")]
+    #[test_case("install", "rem", false ; "no match")]
+    #[test_case("install", "installs", false ; "longer than candidate")]
+    #[test_case("install", "Install", false ; "case sensitive")]
+    fn prefix_matches(candidate: &str, prefix: &str, expected: bool) {
+        assert_eq!(matches(candidate, prefix), expected);
     }
 
     fn pkg(name: &str) -> (String, Option<String>) {
@@ -114,20 +99,13 @@ mod tests {
         assert_eq!(names, vec!["python-dateutil"]);
     }
 
-    #[test]
-    fn fuzzy_similarity_tier_typo() {
+    #[test_case("numpie", "numpy" ; "typo")]
+    #[test_case("nupmy", "numpy" ; "transposition")]
+    fn fuzzy_similarity_tier(query: &str, expected_hit: &str) {
         let candidates = vec![pkg("numpy"), pkg("scipy"), pkg("pandas")];
-        let results = fuzzy_match(&candidates, "numpie");
+        let results = fuzzy_match(&candidates, query);
         let names: Vec<&str> = results.iter().map(|(n, _)| n.as_str()).collect();
-        assert!(names.contains(&"numpy"));
-    }
-
-    #[test]
-    fn fuzzy_similarity_tier_transposition() {
-        let candidates = vec![pkg("numpy"), pkg("scipy"), pkg("pandas")];
-        let results = fuzzy_match(&candidates, "nupmy");
-        let names: Vec<&str> = results.iter().map(|(n, _)| n.as_str()).collect();
-        assert!(names.contains(&"numpy"));
+        assert!(names.contains(&expected_hit));
     }
 
     #[test]
