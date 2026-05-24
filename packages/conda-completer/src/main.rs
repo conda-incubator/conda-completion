@@ -122,7 +122,7 @@ fn complete(
     let mut current_cmd: Option<&manifest::CommandSpec> = None;
     let mut expecting_value_for: Option<&manifest::OptionSpec> = None;
     let mut greedy_flag: bool = false;
-    let mut used_flags: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut used_flags: std::collections::HashSet<&str> = std::collections::HashSet::new();
 
     for (i, word) in words.iter().enumerate().skip(1) {
         if i >= cword {
@@ -148,7 +148,7 @@ fn complete(
                 None => &manifest.root_options,
             };
             let flag_name = word.split('=').next().unwrap_or(word);
-            used_flags.insert(flag_name.to_string());
+            used_flags.insert(flag_name);
             let opt = options.get(flag_name).or_else(|| {
                 options
                     .values()
@@ -270,10 +270,10 @@ fn complete_flag_value(
 }
 
 fn excluded_flags<'a>(
-    used: &'a std::collections::HashSet<String>,
+    used: &std::collections::HashSet<&'a str>,
     exclusive_groups: &'a [Vec<String>],
 ) -> std::collections::HashSet<&'a str> {
-    let mut excluded: std::collections::HashSet<&str> = used.iter().map(|s| s.as_str()).collect();
+    let mut excluded: std::collections::HashSet<&'a str> = used.iter().copied().collect();
     for group in exclusive_groups {
         if group.iter().any(|f| used.contains(f.as_str())) {
             for f in group {
@@ -351,7 +351,7 @@ fn resolve_dynamic(
                 let all_packages: Vec<_> = manifest
                     .package_names
                     .iter()
-                    .map(|n| (n.clone(), Some("package".to_string())))
+                    .map(|n| (n.as_str(), Some("package")))
                     .collect();
                 candidates.extend(matcher::fuzzy_match(&all_packages, current_word));
             }

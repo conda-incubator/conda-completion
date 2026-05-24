@@ -10,20 +10,26 @@ pub fn matches(candidate: &str, prefix: &str) -> bool {
 }
 
 pub fn fuzzy_match(
-    candidates: &[(String, Option<String>)],
+    candidates: &[(&str, Option<&str>)],
     query: &str,
 ) -> Vec<(String, Option<String>)> {
     if query.is_empty() {
-        return candidates.to_vec();
+        return candidates
+            .iter()
+            .map(|(n, d)| ((*n).to_string(), d.map(|s| s.to_string())))
+            .collect();
     }
     if query.len() > MAX_FUZZY_LEN {
         return Vec::new();
     }
 
+    let to_owned =
+        |n: &str, d: &Option<&str>| (n.to_string(), d.map(|s| s.to_string()));
+
     let mut prefix_hits: Vec<_> = candidates
         .iter()
         .filter(|(name, _)| name.starts_with(query))
-        .cloned()
+        .map(|(n, d)| to_owned(n, d))
         .collect();
     if !prefix_hits.is_empty() {
         prefix_hits.sort_by(|a, b| a.0.len().cmp(&b.0.len()).then_with(|| a.0.cmp(&b.0)));
@@ -33,7 +39,7 @@ pub fn fuzzy_match(
     let mut substr_hits: Vec<_> = candidates
         .iter()
         .filter(|(name, _)| name.contains(query))
-        .cloned()
+        .map(|(n, d)| to_owned(n, d))
         .collect();
     if !substr_hits.is_empty() {
         substr_hits.sort_by(|a, b| a.0.len().cmp(&b.0.len()).then_with(|| a.0.cmp(&b.0)));
@@ -48,7 +54,7 @@ pub fn fuzzy_match(
             if name.as_bytes().first() == query.as_bytes().first() {
                 score *= 1.05;
             }
-            (name.clone(), desc.clone(), score)
+            (name.to_string(), desc.map(|s| s.to_string()), score)
         })
         .filter(|(_, _, score)| *score > 0.6)
         .collect();
@@ -77,8 +83,8 @@ mod tests {
         assert_eq!(matches(candidate, prefix), expected);
     }
 
-    fn pkg(name: &str) -> (String, Option<String>) {
-        (name.to_string(), Some("package".to_string()))
+    fn pkg(name: &str) -> (&str, Option<&str>) {
+        (name, Some("package"))
     }
 
     #[test]
@@ -124,7 +130,8 @@ mod tests {
 
     #[test]
     fn fuzzy_caps_at_ten() {
-        let candidates: Vec<_> = (0..20).map(|i| pkg(&format!("pkg{}", i))).collect();
+        let names: Vec<String> = (0..20).map(|i| format!("pkg{}", i)).collect();
+        let candidates: Vec<_> = names.iter().map(|n| (n.as_str(), Some("package"))).collect();
         let results = fuzzy_match(&candidates, "pkx0");
         assert!(results.len() <= 10);
     }

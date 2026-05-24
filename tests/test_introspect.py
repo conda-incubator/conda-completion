@@ -26,7 +26,7 @@ def test_walk_simple_parser():
     assert cmd.positionals[0].name == "package"
 
 
-def testwalk_parser_with_subcommands():
+def test_walk_parser_with_subcommands():
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd")
 
@@ -43,7 +43,7 @@ def testwalk_parser_with_subcommands():
     assert "--channel" in cmd.subcommands["install"].options
 
 
-def testwalk_parser_with_choices():
+def test_walk_parser_with_choices():
     parser = argparse.ArgumentParser()
     parser.add_argument("--format", choices=["json", "yaml", "toml"])
 
@@ -52,7 +52,7 @@ def testwalk_parser_with_choices():
     assert cmd.options["--format"].choices == ["json", "yaml", "toml"]
 
 
-def testwalk_parser_with_mutual_exclusion():
+def test_walk_parser_with_mutual_exclusion():
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--from-lockfile", action="store_true")

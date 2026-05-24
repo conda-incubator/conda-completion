@@ -14,25 +14,14 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture(scope="module")
 def package_data():
-    """Extract package data with conda-forge as the configured channel.
+    """Extract package data with conda-forge as the configured channel."""
+    from conda.base.context import Context, reset_context
 
-    Patches Context.channels following conda's own test pattern
-    (tests/conftest.py:mock_channels) to avoid dependence on the
-    host's .condarc.
-    """
-    from unittest.mock import PropertyMock, patch
+    from conda_completion.repodata import extract_package_data
 
-    from conda.base.context import reset_context
-
-    with patch(
-        "conda.base.context.Context.channels",
-        new_callable=PropertyMock,
-        return_value=("conda-forge",),
-    ):
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(Context, "channels", ("conda-forge",), raising=False)
         reset_context()
-
-        from conda_completion.repodata import extract_package_data
-
         names, versions = extract_package_data()
 
     reset_context()

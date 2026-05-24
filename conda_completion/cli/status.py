@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+
+from ..manifest import read_manifest
+from ..paths import completion_cache_dir, manifest_path, versions_path
+from ..plugin import plugin_entry_point_hash
 
 if TYPE_CHECKING:
     import argparse
@@ -10,11 +15,6 @@ if TYPE_CHECKING:
 
 def execute_status(args: argparse.Namespace) -> int:
     """Print completion system status and diagnostics."""
-    from datetime import datetime, timezone
-
-    from ..paths import completion_cache_dir, manifest_path, versions_path
-    from ..plugin import plugin_entry_point_hash
-
     manifest = manifest_path()
     versions = versions_path()
     cache_dir = completion_cache_dir()
@@ -33,8 +33,6 @@ def execute_status(args: argparse.Namespace) -> int:
         else:
             age_str = f"{hours // 24} days ago"
         print(f"  Last generated: {age_str} ({stat.st_size} bytes)")
-
-        from ..manifest import read_manifest
 
         try:
             m = read_manifest(manifest)

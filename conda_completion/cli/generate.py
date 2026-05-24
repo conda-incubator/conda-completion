@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from ..introspect import generate_manifest
@@ -26,8 +27,6 @@ def execute_generate(args: argparse.Namespace) -> int:
     manifest = generate_manifest(plugin_hash=phash)
 
     try:
-        from dataclasses import replace
-
         package_names, version_map = extract_package_data()
         manifest = replace(manifest, package_names=package_names)
         write_versions(version_map, versions_path())
