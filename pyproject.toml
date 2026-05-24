@@ -69,7 +69,10 @@ select = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra -v"
+addopts = "-ra -v -m 'not slow and not benchmark'"
+markers = [
+  "benchmark: performance benchmarks (run with pytest-benchmark)",
+]
 
 [tool.coverage.run]
 source = ["conda_completion"]
@@ -111,6 +114,7 @@ conda-workspaces = ">=0.4"
 
 [tool.pixi.feature.test.dependencies]
 pytest = ">=8.0"
+pytest-benchmark = ">=5.0"
 pytest-cov = ">=4.0"
 platformdirs = ">=4.0"
 msgpack-python = ">=1.0"
@@ -139,6 +143,7 @@ format = { cmd = "ruff format conda_completion tests", description = "Auto-forma
 format-check = { cmd = "ruff format --check conda_completion tests", description = "Verify formatting" }
 typecheck = { cmd = "ty check conda_completion", description = "Run type checker" }
 test = { cmd = "pytest", description = "Run test suite" }
+bench = { cmd = "pytest -m benchmark --benchmark-json benchmark-results.json -v", description = "Run benchmarks" }
 test-cov = { cmd = "pytest --cov --cov-report=term-missing --cov-report=html --cov-report=xml", description = "Tests with coverage" }
 clippy = { cmd = "cargo clippy --manifest-path packages/conda-completer/Cargo.toml --all-targets -- -D warnings", description = "Rust linter" }
 cargo-audit = { cmd = "cargo audit --file Cargo.lock", description = "Check for known vulnerabilities" }

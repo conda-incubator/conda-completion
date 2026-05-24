@@ -50,6 +50,7 @@ ENV/
 .coverage
 htmlcov/
 coverage.xml
+benchmark-results.json
 
 # Docs
 docs/_build/
