@@ -19,6 +19,7 @@ from conda_completion.manifest import (
     OptionSpec,
     PositionalSpec,
     read_manifest,
+    read_versions,
     write_manifest,
     write_versions,
 )
@@ -142,12 +143,30 @@ def test_bench_manifest_round_trip(benchmark: BenchmarkFixture, tmp_path: Path) 
     benchmark(round_trip)
 
 
+def build_realistic_versions(
+    n_packages: int = 28000, n_versions: int = 20
+) -> dict[str, list[str]]:
+    """Build version data at conda-forge scale."""
+    return {
+        f"package-{i}": [f"{j}.{i % 10}.0" for j in range(n_versions)] for i in range(n_packages)
+    }
+
+
 def test_bench_versions_write(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
-    """Write indexed version data for 2000 packages."""
-    versions = {f"pkg-{i}": [f"{j}.0.0" for j in range(20)] for i in range(2000)}
+    """Write version data for 28000 packages (conda-forge scale)."""
+    versions = build_realistic_versions()
     path = tmp_path / "versions.msgpack"
 
     benchmark(write_versions, versions, path)
+
+
+def test_bench_versions_read_full(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
+    """Deserialize the full versions file (single-file legacy path)."""
+    versions = build_realistic_versions()
+    path = tmp_path / "versions.msgpack"
+    write_versions(versions, path)
+
+    benchmark(read_versions, path)
 
 
 def test_bench_walk_parser(benchmark: BenchmarkFixture) -> None:

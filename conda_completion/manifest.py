@@ -225,29 +225,8 @@ def read_manifest(path: Path) -> CompletionManifest:
 
 
 def write_versions(versions: dict[str, list[str]], path: Path) -> None:
-    """Serialize package version data as an indexed two-file format.
-
-    Writes ``versions.idx`` (package name to offset/length pairs) and
-    ``versions.dat`` (concatenated per-package msgpack entries) next to
-    *path*.  Also writes the legacy single-file ``versions.msgpack`` for
-    backward compatibility.
-    """
+    """Serialize package version data to a msgpack file."""
     atomic_write(path, msgpack.packb(versions))
-
-    idx_path = path.with_suffix(".idx")
-    dat_path = path.with_suffix(".dat")
-
-    index: dict[str, list[int]] = {}
-    chunks: list[bytes] = []
-    offset = 0
-    for name in sorted(versions):
-        packed = msgpack.packb(versions[name])
-        index[name] = [offset, len(packed)]
-        chunks.append(packed)
-        offset += len(packed)
-
-    atomic_write(dat_path, b"".join(chunks))
-    atomic_write(idx_path, msgpack.packb(index))
 
 
 def read_versions(path: Path) -> dict[str, list[str]]:

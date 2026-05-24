@@ -97,20 +97,7 @@ def test_status_manifest_age(status_env, capsys, age_seconds, expected_label):
     assert expected_label in capsys.readouterr().out
 
 
-def test_status_indexed_versions(status_env, capsys):
-    status_env.write_manifest()
-    versions = status_env.root / "versions.msgpack"
-    versions.touch()
-    versions.with_suffix(".idx").write_bytes(b"idx")
-    versions.with_suffix(".dat").write_bytes(b"dat")
-
-    result = execute_status(argparse.Namespace())
-
-    assert result == 0
-    assert "Indexed format" in capsys.readouterr().out
-
-
-def test_status_legacy_versions(status_env, capsys):
+def test_status_with_versions(status_env, capsys):
     status_env.write_manifest()
     versions = status_env.root / "versions.msgpack"
     versions.write_bytes(msgpack.packb({"numpy": ["1.0"]}))
@@ -118,7 +105,8 @@ def test_status_legacy_versions(status_env, capsys):
     result = execute_status(argparse.Namespace())
 
     assert result == 0
-    assert "Legacy format" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "Size:" in out
 
 
 def test_status_no_versions(status_env, capsys):

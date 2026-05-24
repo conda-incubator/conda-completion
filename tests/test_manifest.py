@@ -212,32 +212,6 @@ def test_read_manifest_non_dict_raises(tmp_path):
         read_manifest(path)
 
 
-def test_write_versions_creates_indexed_files(tmp_path):
-    versions = {"numpy": ["2.0", "1.26"], "pandas": ["2.2", "2.1"]}
-    path = tmp_path / "versions.msgpack"
-    write_versions(versions, path)
-
-    assert path.exists()
-    assert path.with_suffix(".idx").exists()
-    assert path.with_suffix(".dat").exists()
-
-
-def test_write_versions_indexed_round_trip(tmp_path):
-    import msgpack
-
-    versions = {"numpy": ["2.0", "1.26"], "pandas": ["2.2", "2.1"]}
-    path = tmp_path / "versions.msgpack"
-    write_versions(versions, path)
-
-    idx = msgpack.unpackb(path.with_suffix(".idx").read_bytes())
-    dat = path.with_suffix(".dat").read_bytes()
-
-    for name, version_list in versions.items():
-        offset, length = idx[name]
-        chunk = msgpack.unpackb(dat[offset : offset + length])
-        assert chunk == version_list
-
-
 def test_read_versions_round_trip(tmp_path):
     from conda_completion.manifest import read_versions
 

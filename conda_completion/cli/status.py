@@ -48,14 +48,7 @@ def execute_status(args: argparse.Namespace) -> int:
 
     print(f"Versions: {versions}")
     if versions.exists():
-        idx = versions.with_suffix(".idx")
-        dat = versions.with_suffix(".dat")
-        if idx.exists() and dat.exists():
-            idx_size = idx.stat().st_size
-            dat_size = dat.stat().st_size
-            print(f"  Indexed format: {idx_size} bytes index, {dat_size} bytes data")
-        else:
-            print(f"  Legacy format: {versions.stat().st_size} bytes")
+        print(f"  Size: {versions.stat().st_size} bytes")
     else:
         print("  Not found")
 
