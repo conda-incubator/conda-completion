@@ -314,13 +314,11 @@ fn resolve_dynamic(
                     "="
                 };
                 let pkg_name = current_word.split('=').next().unwrap_or("");
-                if let Ok(version_map) = manifest::load_versions(versions_path) {
-                    if let Some(versions) = version_map.get(pkg_name) {
-                        for v in versions {
-                            let candidate = format!("{}{}{}", pkg_name, sep, v);
-                            if matcher::matches(&candidate, current_word) {
-                                candidates.push((candidate, None));
-                            }
+                if let Ok(versions) = manifest::load_package_versions(versions_path, pkg_name) {
+                    for v in &versions {
+                        let candidate = format!("{}{}{}", pkg_name, sep, v);
+                        if matcher::matches(&candidate, current_word) {
+                            candidates.push((candidate, None));
                         }
                     }
                 }

@@ -87,16 +87,58 @@ pub fn load_manifest(path: &Path) -> Result<Manifest, Box<dyn std::error::Error>
     Ok(manifest)
 }
 
-pub fn load_versions(
+pub fn load_package_versions(
+    versions_path: &Path,
+    package_name: &str,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let idx_path = versions_path.with_extension("idx");
+    let dat_path = versions_path.with_extension("dat");
+
+    if idx_path.exists() && dat_path.exists() {
+        return load_package_versions_indexed(&idx_path, &dat_path, package_name);
+    }
+
+    load_package_versions_legacy(versions_path, package_name)
+}
+
+fn load_package_versions_indexed(
+    idx_path: &Path,
+    dat_path: &Path,
+    package_name: &str,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let idx_bytes = crate::cache::read_to_bytes_limited(idx_path)
+        .ok_or("versions index file not found or exceeds size limit")?;
+    let index: BTreeMap<String, (usize, usize)> = rmp_serde::from_slice(&idx_bytes)?;
+
+    let (offset, length) = index
+        .get(package_name)
+        .ok_or("package not found in version index")?;
+
+    let file = std::fs::File::open(dat_path)?;
+    let mut reader = std::io::BufReader::new(file);
+    std::io::Seek::seek(&mut reader, std::io::SeekFrom::Start(*offset as u64))?;
+
+    let mut buf = vec![0u8; *length];
+    std::io::Read::read_exact(&mut reader, &mut buf)?;
+
+    let versions: Vec<String> = rmp_serde::from_slice(&buf)?;
+    Ok(versions)
+}
+
+fn load_package_versions_legacy(
     path: &Path,
-) -> Result<BTreeMap<String, Vec<String>>, Box<dyn std::error::Error>> {
+    package_name: &str,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let bytes = crate::cache::read_to_bytes_limited(path)
         .ok_or("versions file not found, is a symlink, or exceeds size limit")?;
     let versions: BTreeMap<String, Vec<String>> = rmp_serde::from_slice(&bytes)?;
     if versions.len() > MAX_VERSIONS_ENTRIES {
         return Err("versions file contains too many entries".into());
     }
-    Ok(versions)
+    versions
+        .get(package_name)
+        .cloned()
+        .ok_or_else(|| "package not found in versions file".into())
 }
 
 #[cfg(test)]
