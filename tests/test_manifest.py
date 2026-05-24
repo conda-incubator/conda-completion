@@ -11,6 +11,7 @@ from conda_completion.manifest import (
     PositionalSpec,
     read_manifest,
     write_manifest,
+    write_versions,
 )
 
 
@@ -197,3 +198,112 @@ def test_read_invalid_msgpack_raises_manifest_error(tmp_path):
 
     with pytest.raises(ManifestError):
         read_manifest(path)
+
+
+def test_read_manifest_non_dict_raises(tmp_path):
+    from conda_completion.exceptions import ManifestError
+
+    path = tmp_path / "list.msgpack"
+    import msgpack
+
+    path.write_bytes(msgpack.packb([1, 2, 3]))
+
+    with pytest.raises(ManifestError, match="not a mapping"):
+        read_manifest(path)
+
+
+def test_write_versions_creates_indexed_files(tmp_path):
+    versions = {"numpy": ["2.0", "1.26"], "pandas": ["2.2", "2.1"]}
+    path = tmp_path / "versions.msgpack"
+    write_versions(versions, path)
+
+    assert path.exists()
+    assert path.with_suffix(".idx").exists()
+    assert path.with_suffix(".dat").exists()
+
+
+def test_write_versions_indexed_round_trip(tmp_path):
+    import msgpack
+
+    versions = {"numpy": ["2.0", "1.26"], "pandas": ["2.2", "2.1"]}
+    path = tmp_path / "versions.msgpack"
+    write_versions(versions, path)
+
+    idx = msgpack.unpackb(path.with_suffix(".idx").read_bytes())
+    dat = path.with_suffix(".dat").read_bytes()
+
+    for name, version_list in versions.items():
+        offset, length = idx[name]
+        chunk = msgpack.unpackb(dat[offset : offset + length])
+        assert chunk == version_list
+
+
+def test_read_versions_round_trip(tmp_path):
+    from conda_completion.manifest import read_versions
+
+    versions = {"numpy": ["2.0", "1.26"], "scipy": ["1.13"]}
+    path = tmp_path / "versions.msgpack"
+    write_versions(versions, path)
+
+    loaded = read_versions(path)
+    assert loaded == versions
+
+
+@pytest.mark.parametrize(
+    "setup",
+    [
+        pytest.param("invalid", id="corrupt-data"),
+        pytest.param("missing", id="missing-file"),
+    ],
+)
+def test_read_versions_error_cases(tmp_path, setup):
+    from conda_completion.exceptions import ManifestError
+    from conda_completion.manifest import read_versions
+
+    if setup == "invalid":
+        path = tmp_path / "bad_versions.msgpack"
+        path.write_bytes(b"\xff\xfe bad")
+    else:
+        path = tmp_path / "nonexistent.msgpack"
+
+    with pytest.raises(ManifestError):
+        read_versions(path)
+
+
+def test_atomic_write_rejects_symlink(tmp_path):
+    from conda_completion.manifest import atomic_write
+
+    target = tmp_path / "real_file"
+    target.write_bytes(b"original")
+    link = tmp_path / "link_file"
+    link.symlink_to(target)
+
+    with pytest.raises(OSError, match="symlink"):
+        atomic_write(link, b"injected")
+
+    assert target.read_bytes() == b"original"
+
+
+def test_option_spec_default_and_required_round_trip(tmp_path):
+    manifest = CompletionManifest(
+        version=1,
+        commands={
+            "test": CommandSpec(
+                options={
+                    "--output": OptionSpec(
+                        default="/tmp",
+                        required=True,
+                        metavar="PATH",
+                    ),
+                },
+            ),
+        },
+    )
+    path = tmp_path / "test.msgpack"
+    write_manifest(manifest, path)
+    loaded = read_manifest(path)
+
+    opt = loaded.commands["test"].options["--output"]
+    assert opt.default == "/tmp"
+    assert opt.required is True
+    assert opt.metavar == "PATH"

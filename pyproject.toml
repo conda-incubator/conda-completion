@@ -69,9 +69,10 @@ select = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra -v -m 'not slow and not benchmark'"
+addopts = "-ra -v -m 'not slow and not benchmark and not integration'"
 markers = [
   "benchmark: performance benchmarks (run with pytest-benchmark)",
+  "integration: integration tests requiring conda repodata (run with pytest -m integration)",
 ]
 
 [tool.coverage.run]
