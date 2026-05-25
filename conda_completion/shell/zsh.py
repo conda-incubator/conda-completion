@@ -18,14 +18,14 @@ class ZshShell(Shell):
         cp = self.posix_quote(completer_path)
         mp = self.posix_quote(manifest_path)
         return f"""\
-#compdef conda
 _conda() {{
     local completer={cp}
     local manifest={mp}
     local -a completions
-    completions=("${{(@f)$("$completer" --shell zsh --manifest "$manifest" -- "${{words[@]}}" $CURRENT 2>/dev/null)}}")
+    completions=("${{(@f)$("$completer" --shell zsh --manifest "$manifest" -- "${{words[@]}}" $((CURRENT - 1)) 2>/dev/null)}}")
     _describe -V 'conda' completions
 }}
+compdef _conda conda
 """
 
     def hook_line(self) -> str:

@@ -178,6 +178,14 @@ def test_powershell_default_rc_path_existing(tmp_path, monkeypatch):
     assert rc == profile
 
 
+def test_zsh_script_registers_compdef(tmp_path):
+    from conda_completion.shell.zsh import ZshShell
+
+    shell = ZshShell()
+    script = shell.script(tmp_path / "_conda_completer", tmp_path / "completion.msgpack")
+    assert "compdef _conda conda" in script
+
+
 def test_powershell_script_contains_register(tmp_path):
     from conda_completion.shell.powershell import PowerShellShell
 
