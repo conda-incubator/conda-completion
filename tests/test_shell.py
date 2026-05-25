@@ -194,3 +194,5 @@ def test_powershell_script_contains_register(tmp_path):
     assert "Register-ArgumentCompleter" in script
     assert "CompletionResult" in script
     assert str(tmp_path / "_conda_completer") in script
+    assert "CommandElements" in script
+    assert ".ToString().Split()" not in script
