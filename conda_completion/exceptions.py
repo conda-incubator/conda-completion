@@ -30,6 +30,18 @@ class ManifestError(CondaCompletionError):
         super().__init__(self.error_message)
 
 
+class IntrospectionError(CondaCompletionError):
+    """Raised when conda's parser cannot be inspected."""
+
+    def __init__(self, message: str) -> None:
+        self.error_message = f"Cannot inspect conda commands: {message}"
+        self.hints = [
+            "Check whether a conda plugin fails to import",
+            "Disable or update the failing plugin, then run 'conda completion generate'",
+        ]
+        super().__init__(self.error_message)
+
+
 class CompleterBinaryNotFoundError(CondaCompletionError):
     """Raised when the completion engine binary is not found."""
 
