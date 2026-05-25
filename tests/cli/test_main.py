@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from conda_completion.cli.main import configure_parser, execute
+from conda_completion.cli.main import build_parser, execute
 
 
 @pytest.mark.parametrize(
@@ -12,13 +12,13 @@ from conda_completion.cli.main import configure_parser, execute
     ["generate", "install", "uninstall", "init"],
 )
 def test_configure_parser_accepts_subcommand(subcmd):
-    parser = configure_parser()
+    parser = build_parser()
     args = parser.parse_args([subcmd] if subcmd != "init" else [subcmd, "bash"])
     assert args.subcmd == subcmd
 
 
 def test_configure_parser_install_flags():
-    parser = configure_parser()
+    parser = build_parser()
     args = parser.parse_args(["install", "--yes", "--dry-run", "zsh"])
     assert args.subcmd == "install"
     assert args.yes is True
@@ -27,13 +27,13 @@ def test_configure_parser_install_flags():
 
 
 def test_configure_parser_json_flag_is_suppressed():
-    parser = configure_parser()
+    parser = build_parser()
     args = parser.parse_args(["--json", "generate"])
     assert args.json is True
 
 
 def test_execute_no_subcommand(capsys):
-    args = configure_parser().parse_args([])
+    args = build_parser().parse_args([])
     result = execute(args)
     assert result == 0
     captured = capsys.readouterr()
@@ -50,7 +50,7 @@ def test_execute_dispatches_generate(tmp_path, monkeypatch):
         lambda: tmp_path,
     )
 
-    args = configure_parser().parse_args(["generate"])
+    args = build_parser().parse_args(["generate"])
     result = execute(args)
     assert result == 0
     assert (tmp_path / "completion.msgpack").exists()
@@ -64,7 +64,7 @@ def test_execute_handles_completion_error(monkeypatch):
 
     monkeypatch.setattr("conda_completion.cli.init.execute_init", raise_error)
 
-    args = configure_parser().parse_args(["init", "nushell"])
+    args = build_parser().parse_args(["init", "nushell"])
     result = execute(args)
     assert result == 1
 
@@ -78,7 +78,7 @@ def test_execute_dispatches_status(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr("conda_completion.paths.versions_path", lambda: tmp_path / "v.msgpack")
     monkeypatch.setattr("conda_completion.paths.completion_cache_dir", lambda: tmp_path)
 
-    args = configure_parser().parse_args(["status"])
+    args = build_parser().parse_args(["status"])
     result = execute(args)
     assert result == 0
     assert "Manifest:" in capsys.readouterr().out
@@ -96,7 +96,7 @@ def test_execute_dispatches_install(tmp_path, monkeypatch):
         lambda self: rc_file,
     )
 
-    args = configure_parser().parse_args(["install", "--yes"])
+    args = build_parser().parse_args(["install", "--yes"])
     result = execute(args)
     assert result == 0
 
@@ -110,23 +110,7 @@ def test_execute_dispatches_uninstall(tmp_path, monkeypatch):
         lambda self: rc_file,
     )
 
-    args = configure_parser().parse_args(["uninstall", "--yes"])
+    args = build_parser().parse_args(["uninstall", "--yes"])
     result = execute(args)
     assert result == 0
 
-
-def test_main_entry_point(monkeypatch):
-    monkeypatch.setattr(
-        "conda_completion.paths.manifest_path",
-        lambda: pytest.importorskip("pathlib").Path("/tmp/cc-test-main/completion.msgpack"),
-    )
-    monkeypatch.setattr(
-        "conda_completion.paths.completion_cache_dir",
-        lambda: pytest.importorskip("pathlib").Path("/tmp/cc-test-main"),
-    )
-
-    from conda_completion.__main__ import main
-
-    with pytest.raises(SystemExit) as exc_info:
-        main(["generate"])
-    assert exc_info.value.code == 0

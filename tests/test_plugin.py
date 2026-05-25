@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import argparse
+
 import msgpack
 import pytest
 
 from conda_completion.plugin import (
+    conda_subcommands,
     maybe_regenerate,
     plugin_entry_point_hash,
     read_manifest_plugin_hash,
@@ -137,8 +140,16 @@ def test_post_command_hook_yields_correct_run_for(command):
 
 
 def test_subcommands_hook_yields_completion():
-    from conda_completion.plugin import conda_subcommands
-
     cmds = list(conda_subcommands())
     assert len(cmds) == 1
     assert cmds[0].name == "completion"
+
+
+def test_subcommands_hook_configures_parser():
+    cmd = next(iter(conda_subcommands()))
+    parser = argparse.ArgumentParser()
+
+    assert cmd.configure_parser is not None
+    assert cmd.configure_parser(parser) is None
+    assert parser.parse_args(["generate"]).subcmd == "generate"
+    assert parser.parse_args(["install", "bash"]).subcmd == "install"
