@@ -80,15 +80,22 @@ def test_detect_shell_returns_string():
 
 
 @pytest.fixture()
-def _stub_generate(monkeypatch):
+def stub_generate(monkeypatch):
     """Stub out execute_generate so install tests don't need conda's full parser."""
+    calls = []
+
+    def fake_generate(args):
+        calls.append(args)
+        return 0
+
     monkeypatch.setattr(
         "conda_completion.cli.generate.execute_generate",
-        lambda args: 0,
+        fake_generate,
     )
+    return calls
 
 
-def test_execute_install_unsupported_shell(monkeypatch, _stub_generate):
+def test_execute_install_unsupported_shell(monkeypatch, stub_generate):
     from conda_completion.cli.install import execute_install
 
     monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "nushell")
@@ -97,7 +104,7 @@ def test_execute_install_unsupported_shell(monkeypatch, _stub_generate):
         execute_install(args)
 
 
-def test_execute_install_dry_run(tmp_path, monkeypatch, _stub_generate):
+def test_execute_install_dry_run(tmp_path, monkeypatch, stub_generate):
     from conda_completion.cli.install import execute_install
 
     rc_file = tmp_path / ".bashrc"
@@ -111,9 +118,10 @@ def test_execute_install_dry_run(tmp_path, monkeypatch, _stub_generate):
     result = execute_install(args)
     assert result == 0
     assert not rc_file.exists()
+    assert stub_generate == []
 
 
-def test_execute_install_already_present(tmp_path, monkeypatch, _stub_generate):
+def test_execute_install_already_present(tmp_path, monkeypatch, stub_generate):
     from conda_completion.cli.install import execute_install
 
     rc_file = tmp_path / ".bashrc"
@@ -131,9 +139,10 @@ def test_execute_install_already_present(tmp_path, monkeypatch, _stub_generate):
     result = execute_install(args)
     assert result == 0
     assert rc_file.read_text(encoding="utf-8").count(_BLOCK_START) == 1
+    assert stub_generate == []
 
 
-def test_execute_install_no_rc_path(monkeypatch, _stub_generate):
+def test_execute_install_no_rc_path(monkeypatch, stub_generate):
     from conda_completion.cli.install import execute_install
 
     monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
@@ -145,9 +154,10 @@ def test_execute_install_no_rc_path(monkeypatch, _stub_generate):
     args = argparse.Namespace(shell=None, yes=False, dry_run=False)
     result = execute_install(args)
     assert result == 1
+    assert stub_generate == []
 
 
-def test_execute_install_with_yes(tmp_path, monkeypatch, _stub_generate):
+def test_execute_install_with_yes(tmp_path, monkeypatch, stub_generate):
     from conda_completion.cli.install import execute_install
 
     rc_file = tmp_path / ".bashrc"
@@ -160,12 +170,13 @@ def test_execute_install_with_yes(tmp_path, monkeypatch, _stub_generate):
     args = argparse.Namespace(shell=None, yes=True, dry_run=False)
     result = execute_install(args)
     assert result == 0
+    assert len(stub_generate) == 1
     content = rc_file.read_text(encoding="utf-8")
     assert _BLOCK_START in content
     assert _BLOCK_END in content
 
 
-def test_execute_install_new_file(tmp_path, monkeypatch, _stub_generate):
+def test_execute_install_new_file(tmp_path, monkeypatch, stub_generate):
     from conda_completion.cli.install import execute_install
 
     rc_file = tmp_path / "subdir" / ".bashrc"
@@ -177,12 +188,13 @@ def test_execute_install_new_file(tmp_path, monkeypatch, _stub_generate):
     args = argparse.Namespace(shell="bash", yes=True, dry_run=False)
     result = execute_install(args)
     assert result == 0
+    assert len(stub_generate) == 1
     assert rc_file.exists()
     content = rc_file.read_text(encoding="utf-8")
     assert _BLOCK_START in content
 
 
-def test_execute_install_prompt_declined(tmp_path, monkeypatch, _stub_generate):
+def test_execute_install_prompt_declined(tmp_path, monkeypatch, stub_generate):
     from conda_completion.cli.install import execute_install
 
     rc_file = tmp_path / ".bashrc"
@@ -196,6 +208,7 @@ def test_execute_install_prompt_declined(tmp_path, monkeypatch, _stub_generate):
     result = execute_install(args)
     assert result == 1
     assert not rc_file.exists()
+    assert stub_generate == []
 
 
 def test_execute_uninstall_unsupported_shell(monkeypatch):
@@ -299,7 +312,7 @@ def test_execute_uninstall_removes_hook(tmp_path, monkeypatch):
     assert "# after" in content
 
 
-def test_install_warns_when_conda_not_on_path(tmp_path, monkeypatch, capsys, _stub_generate):
+def test_install_warns_when_conda_not_on_path(tmp_path, monkeypatch, capsys, stub_generate):
     from conda_completion.cli.install import execute_install
 
     rc_file = tmp_path / ".bashrc"
@@ -317,7 +330,7 @@ def test_install_warns_when_conda_not_on_path(tmp_path, monkeypatch, capsys, _st
     assert "conda is not on PATH" in captured.out
 
 
-def test_install_no_warning_when_conda_on_path(tmp_path, monkeypatch, capsys, _stub_generate):
+def test_install_no_warning_when_conda_on_path(tmp_path, monkeypatch, capsys, stub_generate):
     from conda_completion.cli.install import execute_install
 
     rc_file = tmp_path / ".bashrc"
