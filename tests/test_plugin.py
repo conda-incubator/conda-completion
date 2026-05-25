@@ -85,10 +85,15 @@ def test_maybe_regenerate_hash_differs(tmp_path, monkeypatch):
     def fake_write(m, path):
         written.append(path)
 
+    def fake_resolve_package_metadata(manifest, **kwargs):
+        return manifest
+
     monkeypatch.setattr("conda_completion.introspect.generate_manifest", fake_generate)
     monkeypatch.setattr("conda_completion.manifest.write_manifest", fake_write)
-    monkeypatch.setattr("conda_completion.manifest.write_versions", lambda v, p: None)
-    monkeypatch.setattr("conda_completion.repodata.extract_package_data", lambda: ([], {}))
+    monkeypatch.setattr(
+        "conda_completion.cli.generate.resolve_package_metadata",
+        fake_resolve_package_metadata,
+    )
 
     maybe_regenerate("install")
 

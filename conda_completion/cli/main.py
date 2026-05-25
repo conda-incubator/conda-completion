@@ -4,69 +4,104 @@ from __future__ import annotations
 
 import argparse
 
+from conda.common.constants import NULL
+
 
 def configure_parser(parser: argparse.ArgumentParser) -> None:
     """Configure the parser for ``conda completion``."""
-    parser.add_argument("--json", action="store_true", default=False, help=argparse.SUPPRESS)
+    parser.add_argument("--json", action="store_true", default=NULL, help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        default=NULL,
+        help=argparse.SUPPRESS,
+    )
 
     sub = parser.add_subparsers(dest="subcmd")
 
-    sub.add_parser(
+    generate_parser = sub.add_parser(
         "generate",
         help="Introspect conda's parser and write the completion manifest",
     )
+    generate_repodata_group = generate_parser.add_mutually_exclusive_group()
+    generate_repodata_group.add_argument(
+        "--refresh-repodata",
+        action="store_true",
+        default=False,
+        help="Refresh package metadata from conda repodata",
+    )
+    generate_repodata_group.add_argument(
+        "--no-repodata",
+        action="store_true",
+        default=False,
+        help="Generate command completions without package metadata from repodata",
+    )
 
-    p_install = sub.add_parser(
+    install_parser = sub.add_parser(
         "install",
         help="Generate completions and install a shell RC hook",
     )
-    p_install.add_argument(
+    install_parser.add_argument(
         "shell",
         nargs="?",
         help="Shell to install for (auto-detected if omitted)",
     )
-    p_install.add_argument(
+    install_parser.add_argument(
         "--yes",
         "-y",
         action="store_true",
         default=False,
         help="Skip confirmation prompt",
     )
-    p_install.add_argument(
+    install_parser.add_argument(
         "--dry-run",
         action="store_true",
         default=False,
         help="Show what would be written without modifying files",
     )
+    install_repodata_group = install_parser.add_mutually_exclusive_group()
+    install_repodata_group.add_argument(
+        "--refresh-repodata",
+        action="store_true",
+        default=False,
+        help="Refresh package metadata from conda repodata during delegated generation",
+    )
+    install_repodata_group.add_argument(
+        "--no-repodata",
+        action="store_true",
+        default=False,
+        help="Generate command completions without package metadata from repodata",
+    )
 
-    p_uninstall = sub.add_parser(
+    uninstall_parser = sub.add_parser(
         "uninstall",
         help="Remove the completion hook from a shell RC file",
     )
-    p_uninstall.add_argument(
+    uninstall_parser.add_argument(
         "shell",
         nargs="?",
         help="Shell to uninstall from (auto-detected if omitted)",
     )
-    p_uninstall.add_argument(
+    uninstall_parser.add_argument(
         "--yes",
         "-y",
         action="store_true",
         default=False,
         help="Skip confirmation prompt",
     )
-    p_uninstall.add_argument(
+    uninstall_parser.add_argument(
         "--dry-run",
         action="store_true",
         default=False,
         help="Show what would be removed without modifying files",
     )
 
-    p_init = sub.add_parser(
+    init_parser = sub.add_parser(
         "init",
         help="Print the completion script to stdout",
     )
-    p_init.add_argument(
+    init_parser.add_argument(
         "shell",
         help="Shell to generate the script for",
     )

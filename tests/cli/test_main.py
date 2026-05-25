@@ -21,17 +21,34 @@ def test_configure_parser_accepts_subcommand(subcmd):
 
 def test_configure_parser_install_flags():
     parser = build_parser()
-    args = parser.parse_args(["install", "--yes", "--dry-run", "zsh"])
+    args = parser.parse_args(["install", "--yes", "--dry-run", "--refresh-repodata", "zsh"])
     assert args.subcmd == "install"
     assert args.yes is True
     assert args.dry_run is True
+    assert args.refresh_repodata is True
+    assert args.no_repodata is False
     assert args.shell == "zsh"
+
+
+def test_configure_parser_generate_repodata_flags():
+    parser = build_parser()
+    args = parser.parse_args(["generate", "--no-repodata"])
+    assert args.subcmd == "generate"
+    assert args.no_repodata is True
+    assert args.refresh_repodata is False
 
 
 def test_configure_parser_json_flag_is_suppressed():
     parser = build_parser()
     args = parser.parse_args(["--json", "generate"])
     assert args.json is True
+
+
+@pytest.mark.parametrize("quiet_flag", ["--quiet", "-q"])
+def test_configure_parser_quiet_flag_is_suppressed(quiet_flag):
+    parser = build_parser()
+    args = parser.parse_args([quiet_flag, "generate"])
+    assert args.quiet is True
 
 
 def test_execute_no_subcommand(capsys):

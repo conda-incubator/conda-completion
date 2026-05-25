@@ -163,6 +163,29 @@ def test_execute_install_with_yes(tmp_path, monkeypatch, stub_generate):
     assert _BLOCK_END in content
 
 
+def test_execute_install_passes_repodata_flags(tmp_path, monkeypatch, stub_generate):
+    rc_file = tmp_path / ".bashrc"
+    monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
+    monkeypatch.setattr(
+        "conda_completion.shell.bash.BashShell.default_rc_path",
+        lambda self: rc_file,
+    )
+
+    args = argparse.Namespace(
+        shell=None,
+        yes=True,
+        dry_run=False,
+        refresh_repodata=True,
+        no_repodata=False,
+    )
+    result = execute_install(args)
+
+    assert result == 0
+    assert len(stub_generate) == 1
+    assert stub_generate[0].refresh_repodata is True
+    assert stub_generate[0].no_repodata is False
+
+
 def test_execute_install_new_file(tmp_path, monkeypatch, stub_generate):
     rc_file = tmp_path / "subdir" / ".bashrc"
     monkeypatch.setattr(
