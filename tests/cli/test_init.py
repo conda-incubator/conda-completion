@@ -34,7 +34,7 @@ def completer_binary(tmp_path, monkeypatch):
     "shell,expected",
     [
         ("bash", "_conda_completion"),
-        ("zsh", "#compdef conda"),
+        ("zsh", "compdef _conda conda"),
         ("powershell", "Register-ArgumentCompleter"),
         ("fish", "__conda_complete"),
     ],

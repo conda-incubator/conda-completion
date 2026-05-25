@@ -351,7 +351,7 @@ fn resolve_dynamic(
                 let all_packages: Vec<_> = manifest
                     .package_names
                     .iter()
-                    .map(|n| (n.as_str(), Some("package")))
+                    .map(|n| (n.as_str(), None))
                     .collect();
                 candidates.extend(matcher::fuzzy_match(&all_packages, current_word));
             }
