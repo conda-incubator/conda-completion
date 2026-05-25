@@ -53,8 +53,8 @@ class Shell:
     def detect_parent_shell() -> str | None:
         """Walk the process tree via ``ps`` to find the nearest parent shell.
 
-        Returns the shell name if found, or ``None``.
-        Only works on POSIX systems.
+        Returns the shell name if found, or ``None`` when ``ps`` is
+        unavailable (e.g. native Windows without Git Bash).
 
         Approach inspired by shellingham (ISC license):
         https://github.com/sarugaku/shellingham
@@ -96,16 +96,15 @@ class Shell:
         """Detect the current shell from the environment.
 
         Priority: ``CONDA_COMPLETION_SHELL`` env var, then process tree
-        walking (POSIX only), then ``SHELL`` env var, then platform default.
+        walking, then ``SHELL`` env var, then platform default.
         """
         override = os.environ.get("CONDA_COMPLETION_SHELL", "")
         if override:
             return Path(override).stem
 
-        if os.name == "posix":
-            shell = Shell.detect_parent_shell()
-            if shell:
-                return shell
+        shell = Shell.detect_parent_shell()
+        if shell:
+            return shell
 
         shell_path = os.environ.get("SHELL", "")
         if shell_path:

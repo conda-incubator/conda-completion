@@ -109,10 +109,11 @@ When the shell argument is omitted, conda-completion detects the current
 shell using this priority order:
 
 1. `CONDA_COMPLETION_SHELL` environment variable (explicit override).
-2. Process tree walking (POSIX only): walks parent processes via `ps`
-   to find the nearest shell. This correctly detects shells like fish
-   even when they are not the login shell (where `$SHELL` would still
-   point to the login shell).
+2. Process tree walking: walks parent processes via `ps` to find the
+   nearest shell. This correctly detects shells like fish even when
+   they are not the login shell (where `$SHELL` would still point to
+   the login shell). Works on Linux, macOS, WSL, and Git Bash/MSYS2.
+   Falls through silently on native Windows where `ps` is unavailable.
 3. `SHELL` environment variable (extracts the basename).
 4. Platform default: `powershell` on Windows, `bash` otherwise.
 

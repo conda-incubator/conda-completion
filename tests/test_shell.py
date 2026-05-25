@@ -150,9 +150,9 @@ def test_detect_shell_process_tree_beats_shell_env(monkeypatch):
     assert Shell.detect_shell() == "fish"
 
 
-def test_detect_shell_skips_process_tree_on_windows(monkeypatch):
+def test_detect_shell_falls_through_when_process_tree_fails(monkeypatch):
     monkeypatch.delenv("CONDA_COMPLETION_SHELL", raising=False)
-    monkeypatch.setattr("conda_completion.shell.os.name", "nt")
+    monkeypatch.setattr(Shell, "detect_parent_shell", staticmethod(lambda: None))
     monkeypatch.setenv("SHELL", "/bin/bash")
     assert Shell.detect_shell() == "bash"
 
