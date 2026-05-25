@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from conda.common.compat import on_win
 
 from conda_completion.shell import Shell, get_shell_registry
 
@@ -135,6 +136,7 @@ def test_detect_shell_override_takes_priority(monkeypatch):
     assert Shell.detect_shell() == "fish"
 
 
+@pytest.mark.skipif(on_win, reason="ps not available on Windows")
 def test_detect_parent_shell_finds_current_shell():
     result = Shell.detect_parent_shell()
     if result is not None:
