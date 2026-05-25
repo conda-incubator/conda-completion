@@ -10,7 +10,10 @@ pub struct Candidate {
 
 fn is_allowed(c: char) -> bool {
     c.is_alphanumeric()
-        || matches!(c, '-' | '.' | '_' | '/' | '=' | '@' | ' ' | ':' | '+' | '~' | '\\')
+        || matches!(
+            c,
+            '-' | '.' | '_' | '/' | '=' | '@' | ' ' | ':' | '+' | '~' | '\\'
+        )
 }
 
 fn sanitize(s: &str) -> Cow<'_, str> {
@@ -180,10 +183,7 @@ mod tests {
 
     #[test]
     fn bash_skips_directory_marker() {
-        let items = vec![
-            c("install", None, "subcommand"),
-            c("", None, "directory"),
-        ];
+        let items = vec![c("install", None, "subcommand"), c("", None, "directory")];
         let out = format_candidates("bash", &items);
         assert_eq!(out, "install");
     }

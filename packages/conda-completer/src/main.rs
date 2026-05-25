@@ -31,8 +31,9 @@ fn main() {
         }
     };
 
-    let versions_path =
-        parsed.versions.unwrap_or_else(|| parsed.manifest.with_file_name("versions.msgpack"));
+    let versions_path = parsed
+        .versions
+        .unwrap_or_else(|| parsed.manifest.with_file_name("versions.msgpack"));
 
     let cache_path = parsed.manifest.with_file_name("context_cache.msgpack");
     let mut stat_cache = cache::StatCache::load(&cache_path);
@@ -43,7 +44,14 @@ fn main() {
 
     stat_cache.save(&cache_path);
 
-    let mut candidates = complete(&manifest, &versions_path, &ctx, &global_ctx, &parsed.words, parsed.cword);
+    let mut candidates = complete(
+        &manifest,
+        &versions_path,
+        &ctx,
+        &global_ctx,
+        &parsed.words,
+        parsed.cword,
+    );
     candidates.sort_by(|a, b| a.name.cmp(&b.name));
     const MAX_CANDIDATES: usize = 500;
     candidates.truncate(MAX_CANDIDATES);
@@ -203,11 +211,7 @@ fn complete(
             if excluded.contains(name.as_str()) {
                 continue;
             }
-            let group = opt
-                .group
-                .as_deref()
-                .unwrap_or("option")
-                .to_string();
+            let group = opt.group.as_deref().unwrap_or("option").to_string();
             if long_prefix {
                 if matcher::matches(name, current_word) {
                     candidates.push(Candidate {
@@ -299,7 +303,14 @@ fn complete_flag_value(
     }
 
     if let Some(ref comp_type) = opt.completion_type {
-        return resolve_dynamic(comp_type, manifest, versions_path, ctx, global_ctx, current_word);
+        return resolve_dynamic(
+            comp_type,
+            manifest,
+            versions_path,
+            ctx,
+            global_ctx,
+            current_word,
+        );
     }
 
     Vec::new()
@@ -657,7 +668,14 @@ mod tests {
     #[test]
     fn complete_top_level_commands() {
         let m = test_manifest();
-        let result = complete(&m, &no_versions(), &empty_ctx(), &empty_global(), &words("conda "), 1);
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda "),
+            1,
+        );
         let n = names(&result);
         assert!(n.contains(&"install"));
         assert!(n.contains(&"remove"));
@@ -667,7 +685,14 @@ mod tests {
     #[test]
     fn complete_top_level_with_prefix() {
         let m = test_manifest();
-        let result = complete(&m, &no_versions(), &empty_ctx(), &empty_global(), &words("conda ins"), 1);
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda ins"),
+            1,
+        );
         let n = names(&result);
         assert!(n.contains(&"install"));
         assert!(!n.contains(&"remove"));
@@ -763,7 +788,14 @@ mod tests {
     #[test]
     fn complete_root_flags() {
         let m = test_manifest();
-        let result = complete(&m, &no_versions(), &empty_ctx(), &empty_global(), &words("conda --"), 1);
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda --"),
+            1,
+        );
         let n = names(&result);
         assert!(n.contains(&"--debug"));
         assert!(n.contains(&"--verbose"));
@@ -811,7 +843,14 @@ mod tests {
         let mut ctx = empty_ctx();
         ctx.env_names = vec!["myenv".to_string()];
 
-        let result = complete(&m, &no_versions(), &ctx, &empty_global(), &words("conda install -n "), 3);
+        let result = complete(
+            &m,
+            &no_versions(),
+            &ctx,
+            &empty_global(),
+            &words("conda install -n "),
+            3,
+        );
         let n = names(&result);
         assert!(n.contains(&"myenv"));
     }
@@ -900,5 +939,114 @@ mod tests {
         let n = names(&result);
         assert!(n.contains(&"base"));
         assert!(n.contains(&"globalenv"));
+    }
+
+    #[test]
+    fn empty_prefix_skips_packages() {
+        let m = manifest::Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec!["numpy".to_string(), "scipy".to_string()],
+            root_options: std::collections::BTreeMap::new(),
+            commands: std::collections::BTreeMap::from([(
+                "install".to_string(),
+                manifest::CommandSpec {
+                    summary: Some("Install".to_string()),
+                    options: std::collections::BTreeMap::new(),
+                    positionals: vec![manifest::PositionalSpec {
+                        name: "packages".to_string(),
+                        choices: None,
+                        nargs: Some("*".to_string()),
+                        completion_type: Some("package_spec".to_string()),
+                        description: None,
+                        metavar: None,
+                    }],
+                    subcommands: std::collections::BTreeMap::new(),
+                    exclusive_groups: vec![],
+                },
+            )]),
+        };
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda install "),
+            2,
+        );
+        let n = names(&result);
+        assert!(
+            !n.contains(&"numpy"),
+            "packages should not appear on empty prefix"
+        );
+        assert!(
+            !n.contains(&"scipy"),
+            "packages should not appear on empty prefix"
+        );
+    }
+
+    #[test]
+    fn option_group_passed_to_candidate() {
+        let m = manifest::Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec![],
+            root_options: std::collections::BTreeMap::new(),
+            commands: std::collections::BTreeMap::from([(
+                "install".to_string(),
+                manifest::CommandSpec {
+                    summary: None,
+                    options: std::collections::BTreeMap::from([
+                        (
+                            "--channel".to_string(),
+                            manifest::OptionSpec {
+                                short: None,
+                                choices: None,
+                                nargs: None,
+                                completion_type: None,
+                                description: None,
+                                metavar: Some("CH".to_string()),
+                                default: None,
+                                required: false,
+                                group: Some("Channel Customization".to_string()),
+                            },
+                        ),
+                        (
+                            "--verbose".to_string(),
+                            manifest::OptionSpec {
+                                short: None,
+                                choices: None,
+                                nargs: None,
+                                completion_type: None,
+                                description: None,
+                                metavar: None,
+                                default: None,
+                                required: false,
+                                group: None,
+                            },
+                        ),
+                    ]),
+                    positionals: vec![],
+                    subcommands: std::collections::BTreeMap::new(),
+                    exclusive_groups: vec![],
+                },
+            )]),
+        };
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda install --"),
+            2,
+        );
+        let channel = result.iter().find(|c| c.name == "--channel").unwrap();
+        assert_eq!(channel.group, "Channel Customization");
+        let verbose = result.iter().find(|c| c.name == "--verbose").unwrap();
+        assert_eq!(verbose.group, "option");
     }
 }

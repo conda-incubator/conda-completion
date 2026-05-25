@@ -23,8 +23,7 @@ pub fn fuzzy_match(
         return Vec::new();
     }
 
-    let to_owned =
-        |n: &str, d: &Option<&str>| (n.to_string(), d.map(|s| s.to_string()));
+    let to_owned = |n: &str, d: &Option<&str>| (n.to_string(), d.map(|s| s.to_string()));
 
     let mut prefix_hits: Vec<_> = candidates
         .iter()
@@ -131,7 +130,10 @@ mod tests {
     #[test]
     fn fuzzy_caps_at_ten() {
         let names: Vec<String> = (0..20).map(|i| format!("pkg{}", i)).collect();
-        let candidates: Vec<_> = names.iter().map(|n| (n.as_str(), Some("package"))).collect();
+        let candidates: Vec<_> = names
+            .iter()
+            .map(|n| (n.as_str(), Some("package")))
+            .collect();
         let results = fuzzy_match(&candidates, "pkx0");
         assert!(results.len() <= 10);
     }

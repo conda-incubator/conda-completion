@@ -258,6 +258,32 @@ def test_atomic_write_rejects_symlink(tmp_path):
     assert target.read_bytes() == b"original"
 
 
+def test_option_spec_group_round_trip(tmp_path):
+    manifest = CompletionManifest(
+        version=1,
+        commands={
+            "install": CommandSpec(
+                options={
+                    "--channel": OptionSpec(
+                        short="-c",
+                        description="Channel",
+                        group="Channel Customization",
+                    ),
+                    "--verbose": OptionSpec(
+                        description="Verbose",
+                    ),
+                },
+            ),
+        },
+    )
+    path = tmp_path / "test.msgpack"
+    write_manifest(manifest, path)
+    loaded = read_manifest(path)
+
+    assert loaded.commands["install"].options["--channel"].group == "Channel Customization"
+    assert loaded.commands["install"].options["--verbose"].group is None
+
+
 def test_option_spec_default_and_required_round_trip(tmp_path):
     manifest = CompletionManifest(
         version=1,
