@@ -208,6 +208,8 @@ def write_manifest(manifest: CompletionManifest, path: Path) -> None:
 def read_manifest(path: Path) -> CompletionManifest:
     """Deserialize a CompletionManifest from a msgpack file."""
     try:
+        if path.is_symlink():
+            raise ManifestError("refusing to read through symlink")
         size = path.stat().st_size
         if size > MAX_MANIFEST_SIZE:
             raise ManifestError(f"file too large ({size} bytes)")
@@ -236,6 +238,8 @@ def write_versions(versions: dict[str, list[str]], path: Path) -> None:
 def read_versions(path: Path) -> dict[str, list[str]]:
     """Deserialize package version data from a msgpack file."""
     try:
+        if path.is_symlink():
+            raise ManifestError("refusing to read through symlink")
         size = path.stat().st_size
         if size > MAX_MANIFEST_SIZE:
             raise ManifestError(f"file too large ({size} bytes)")
