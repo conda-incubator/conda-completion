@@ -7,7 +7,9 @@ import argparse
 import msgpack
 import pytest
 
+from conda_completion.manifest import CompletionManifest
 from conda_completion.plugin import (
+    conda_post_commands,
     conda_subcommands,
     maybe_regenerate,
     plugin_entry_point_hash,
@@ -77,8 +79,6 @@ def test_maybe_regenerate_hash_differs(tmp_path, monkeypatch):
     written = []
 
     def fake_generate(plugin_hash):
-        from conda_completion.manifest import CompletionManifest
-
         generated.append(plugin_hash)
         return CompletionManifest(plugin_hash=plugin_hash)
 
@@ -132,8 +132,6 @@ def test_maybe_regenerate_preserves_interrupts(monkeypatch, exc_class):
 
 @pytest.mark.parametrize("command", ["install", "remove", "update"])
 def test_post_command_hook_yields_correct_run_for(command):
-    from conda_completion.plugin import conda_post_commands
-
     hooks = list(conda_post_commands())
     assert len(hooks) == 1
     assert command in hooks[0].run_for

@@ -8,9 +8,15 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
+from conda.cli.conda_argparse import generate_parser as conda_generate_parser
 
 from .exceptions import IntrospectionError
 from .manifest import CommandSpec, CompletionManifest, OptionSpec, PositionalSpec
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 COMPLETION_TYPE_HEURISTICS: dict[str, str] = {
     "--name": "env_name",
@@ -48,8 +54,6 @@ def generate_manifest(plugin_hash: str = "") -> CompletionManifest:
 
 
 def generate_parser() -> argparse.ArgumentParser:
-    from conda.cli.conda_argparse import generate_parser as conda_generate_parser
-
     return conda_generate_parser()
 
 
@@ -179,7 +183,7 @@ def walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
     )
 
 
-def infer_completion_type(option_strings: list[str]) -> str | None:
+def infer_completion_type(option_strings: Sequence[str]) -> str | None:
     """Infer a dynamic completion type from option flag names.
 
     Only matches on the long-form flag (e.g., --name) to avoid false

@@ -6,9 +6,10 @@ import argparse
 
 import pytest
 
-from conda_completion.cli.install import _BLOCK_END, _BLOCK_START
-from conda_completion.cli.uninstall import _BLOCK_PATTERN
+from conda_completion.cli.install import _BLOCK_END, _BLOCK_START, execute_install
+from conda_completion.cli.uninstall import _BLOCK_PATTERN, execute_uninstall
 from conda_completion.exceptions import ShellNotSupportedError
+from conda_completion.shell import Shell, get_shell_registry
 
 
 def test_install_block_markers():
@@ -63,8 +64,6 @@ def test_install_idempotent(tmp_path):
     ids=["bash", "zsh", "powershell", "fish"],
 )
 def test_hook_line_per_shell(shell_name, expected_hook):
-    from conda_completion.shell import get_shell_registry
-
     registry = get_shell_registry()
     if shell_name not in registry:
         pytest.skip(f"{shell_name} not available")
@@ -72,8 +71,6 @@ def test_hook_line_per_shell(shell_name, expected_hook):
 
 
 def test_detect_shell_returns_string():
-    from conda_completion.shell import Shell
-
     result = Shell.detect_shell()
     assert isinstance(result, str)
     assert len(result) > 0
@@ -96,8 +93,6 @@ def stub_generate(monkeypatch):
 
 
 def test_execute_install_unsupported_shell(monkeypatch, stub_generate):
-    from conda_completion.cli.install import execute_install
-
     monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "nushell")
     args = argparse.Namespace(shell=None, yes=False, dry_run=False)
     with pytest.raises(ShellNotSupportedError):
@@ -105,8 +100,6 @@ def test_execute_install_unsupported_shell(monkeypatch, stub_generate):
 
 
 def test_execute_install_dry_run(tmp_path, monkeypatch, stub_generate):
-    from conda_completion.cli.install import execute_install
-
     rc_file = tmp_path / ".bashrc"
     monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
     monkeypatch.setattr(
@@ -122,8 +115,6 @@ def test_execute_install_dry_run(tmp_path, monkeypatch, stub_generate):
 
 
 def test_execute_install_already_present(tmp_path, monkeypatch, stub_generate):
-    from conda_completion.cli.install import execute_install
-
     rc_file = tmp_path / ".bashrc"
     rc_file.write_text(
         f"# existing\n{_BLOCK_START}\nhook\n{_BLOCK_END}\n",
@@ -143,8 +134,6 @@ def test_execute_install_already_present(tmp_path, monkeypatch, stub_generate):
 
 
 def test_execute_install_no_rc_path(monkeypatch, stub_generate):
-    from conda_completion.cli.install import execute_install
-
     monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
     monkeypatch.setattr(
         "conda_completion.shell.bash.BashShell.default_rc_path",
@@ -158,8 +147,6 @@ def test_execute_install_no_rc_path(monkeypatch, stub_generate):
 
 
 def test_execute_install_with_yes(tmp_path, monkeypatch, stub_generate):
-    from conda_completion.cli.install import execute_install
-
     rc_file = tmp_path / ".bashrc"
     monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
     monkeypatch.setattr(
@@ -177,8 +164,6 @@ def test_execute_install_with_yes(tmp_path, monkeypatch, stub_generate):
 
 
 def test_execute_install_new_file(tmp_path, monkeypatch, stub_generate):
-    from conda_completion.cli.install import execute_install
-
     rc_file = tmp_path / "subdir" / ".bashrc"
     monkeypatch.setattr(
         "conda_completion.shell.bash.BashShell.default_rc_path",
@@ -195,8 +180,6 @@ def test_execute_install_new_file(tmp_path, monkeypatch, stub_generate):
 
 
 def test_execute_install_prompt_declined(tmp_path, monkeypatch, stub_generate):
-    from conda_completion.cli.install import execute_install
-
     rc_file = tmp_path / ".bashrc"
     monkeypatch.setattr(
         "conda_completion.shell.bash.BashShell.default_rc_path",
@@ -212,8 +195,6 @@ def test_execute_install_prompt_declined(tmp_path, monkeypatch, stub_generate):
 
 
 def test_execute_uninstall_unsupported_shell(monkeypatch):
-    from conda_completion.cli.uninstall import execute_uninstall
-
     monkeypatch.setattr("conda_completion.cli.uninstall.Shell.detect_shell", lambda: "nushell")
     args = argparse.Namespace(shell=None, yes=True, dry_run=False)
     with pytest.raises(ShellNotSupportedError):
@@ -221,8 +202,6 @@ def test_execute_uninstall_unsupported_shell(monkeypatch):
 
 
 def test_execute_uninstall_no_rc_file(monkeypatch):
-    from conda_completion.cli.uninstall import execute_uninstall
-
     monkeypatch.setattr("conda_completion.cli.uninstall.Shell.detect_shell", lambda: "bash")
     monkeypatch.setattr(
         "conda_completion.shell.bash.BashShell.default_rc_path",
@@ -235,8 +214,6 @@ def test_execute_uninstall_no_rc_file(monkeypatch):
 
 
 def test_execute_uninstall_no_hook_in_file(tmp_path, monkeypatch):
-    from conda_completion.cli.uninstall import execute_uninstall
-
     rc_file = tmp_path / ".bashrc"
     rc_file.write_text("alias ll='ls -la'\n", encoding="utf-8")
     monkeypatch.setattr("conda_completion.cli.uninstall.Shell.detect_shell", lambda: "bash")
@@ -252,8 +229,6 @@ def test_execute_uninstall_no_hook_in_file(tmp_path, monkeypatch):
 
 
 def test_execute_uninstall_dry_run(tmp_path, monkeypatch):
-    from conda_completion.cli.uninstall import execute_uninstall
-
     rc_file = tmp_path / ".bashrc"
     original = f"# before\n\n{_BLOCK_START}\nhook line\n{_BLOCK_END}\n\n# after\n"
     rc_file.write_text(original, encoding="utf-8")
@@ -270,8 +245,6 @@ def test_execute_uninstall_dry_run(tmp_path, monkeypatch):
 
 
 def test_execute_uninstall_prompt_declined(tmp_path, monkeypatch):
-    from conda_completion.cli.uninstall import execute_uninstall
-
     rc_file = tmp_path / ".bashrc"
     original = f"# before\n\n{_BLOCK_START}\nhook line\n{_BLOCK_END}\n\n# after\n"
     rc_file.write_text(original, encoding="utf-8")
@@ -289,8 +262,6 @@ def test_execute_uninstall_prompt_declined(tmp_path, monkeypatch):
 
 
 def test_execute_uninstall_removes_hook(tmp_path, monkeypatch):
-    from conda_completion.cli.uninstall import execute_uninstall
-
     rc_file = tmp_path / ".bashrc"
     rc_file.write_text(
         f"# before\n\n{_BLOCK_START}\nhook line\n{_BLOCK_END}\n\n# after\n",
@@ -312,37 +283,35 @@ def test_execute_uninstall_removes_hook(tmp_path, monkeypatch):
     assert "# after" in content
 
 
-def test_install_warns_when_conda_not_on_path(tmp_path, monkeypatch, capsys, stub_generate):
-    from conda_completion.cli.install import execute_install
-
+@pytest.mark.parametrize(
+    "which_result,expected_message",
+    [
+        (None, "conda is not on PATH"),
+        ("/usr/bin/conda", None),
+    ],
+    ids=["missing-conda", "conda-on-path"],
+)
+def test_install_conda_path_warning(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    stub_generate,
+    which_result,
+    expected_message,
+):
     rc_file = tmp_path / ".bashrc"
     monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
     monkeypatch.setattr(
         "conda_completion.shell.bash.BashShell.default_rc_path",
         lambda self: rc_file,
     )
-    monkeypatch.setattr("conda_completion.cli.install.shutil.which", lambda _: None)
+    monkeypatch.setattr("conda_completion.cli.install.shutil.which", lambda _: which_result)
 
     args = argparse.Namespace(shell=None, yes=True, dry_run=False)
     result = execute_install(args)
     assert result == 0
     captured = capsys.readouterr()
-    assert "conda is not on PATH" in captured.out
-
-
-def test_install_no_warning_when_conda_on_path(tmp_path, monkeypatch, capsys, stub_generate):
-    from conda_completion.cli.install import execute_install
-
-    rc_file = tmp_path / ".bashrc"
-    monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
-    monkeypatch.setattr(
-        "conda_completion.shell.bash.BashShell.default_rc_path",
-        lambda self: rc_file,
-    )
-    monkeypatch.setattr("conda_completion.cli.install.shutil.which", lambda _: "/usr/bin/conda")
-
-    args = argparse.Namespace(shell=None, yes=True, dry_run=False)
-    result = execute_install(args)
-    assert result == 0
-    captured = capsys.readouterr()
-    assert "conda is not on PATH" not in captured.out
+    if expected_message is None:
+        assert "conda is not on PATH" not in captured.out
+    else:
+        assert expected_message in captured.out

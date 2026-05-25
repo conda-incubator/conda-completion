@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import msgpack
 import pytest
 
 from conda_completion.cli.main import build_parser, execute
+from conda_completion.exceptions import ShellNotSupportedError
 
 
 @pytest.mark.parametrize(
@@ -57,8 +59,6 @@ def test_execute_dispatches_generate(tmp_path, monkeypatch):
 
 
 def test_execute_handles_completion_error(monkeypatch):
-    from conda_completion.exceptions import ShellNotSupportedError
-
     def raise_error(args):
         raise ShellNotSupportedError("nushell", ["bash", "zsh"])
 
@@ -70,8 +70,6 @@ def test_execute_handles_completion_error(monkeypatch):
 
 
 def test_execute_dispatches_status(tmp_path, monkeypatch, capsys):
-    import msgpack
-
     manifest = tmp_path / "completion.msgpack"
     manifest.write_bytes(msgpack.packb({"version": 1, "commands": {}}))
     monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
@@ -113,4 +111,3 @@ def test_execute_dispatches_uninstall(tmp_path, monkeypatch):
     args = build_parser().parse_args(["uninstall", "--yes"])
     result = execute(args)
     assert result == 0
-
