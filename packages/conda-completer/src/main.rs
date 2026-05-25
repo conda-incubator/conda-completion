@@ -412,17 +412,12 @@ fn resolve_dynamic(
                     }
                 }
             } else if !current_word.is_empty() {
-                let all_packages: Vec<_> = manifest
-                    .package_names
-                    .iter()
-                    .map(|n| (n.as_str(), None))
-                    .collect();
                 candidates.extend(
-                    matcher::fuzzy_match(&all_packages, current_word)
+                    matcher::fuzzy_match_names(&manifest.package_names, current_word)
                         .into_iter()
-                        .map(|(name, desc)| Candidate {
+                        .map(|name| Candidate {
                             name,
-                            description: desc,
+                            description: None,
                             group: "package".into(),
                         }),
                 );

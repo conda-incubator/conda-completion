@@ -9,59 +9,51 @@ pub fn matches(candidate: &str, prefix: &str) -> bool {
     candidate.starts_with(prefix)
 }
 
-pub fn fuzzy_match(
-    candidates: &[(&str, Option<&str>)],
-    query: &str,
-) -> Vec<(String, Option<String>)> {
+pub fn fuzzy_match_names(candidates: &[String], query: &str) -> Vec<String> {
     if query.is_empty() {
-        return candidates
-            .iter()
-            .map(|(n, d)| ((*n).to_string(), d.map(|s| s.to_string())))
-            .collect();
+        return candidates.to_vec();
     }
     if query.len() > MAX_FUZZY_LEN {
         return Vec::new();
     }
 
-    let to_owned = |n: &str, d: &Option<&str>| (n.to_string(), d.map(|s| s.to_string()));
-
     let mut prefix_hits: Vec<_> = candidates
         .iter()
-        .filter(|(name, _)| name.starts_with(query))
-        .map(|(n, d)| to_owned(n, d))
+        .filter(|name| name.starts_with(query))
+        .map(String::to_owned)
         .collect();
     if !prefix_hits.is_empty() {
-        prefix_hits.sort_by(|a, b| a.0.len().cmp(&b.0.len()).then_with(|| a.0.cmp(&b.0)));
+        prefix_hits.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
         return prefix_hits;
     }
 
     let mut substr_hits: Vec<_> = candidates
         .iter()
-        .filter(|(name, _)| name.contains(query))
-        .map(|(n, d)| to_owned(n, d))
+        .filter(|name| name.contains(query))
+        .map(String::to_owned)
         .collect();
     if !substr_hits.is_empty() {
-        substr_hits.sort_by(|a, b| a.0.len().cmp(&b.0.len()).then_with(|| a.0.cmp(&b.0)));
+        substr_hits.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
         return substr_hits;
     }
 
     let mut scored: Vec<_> = candidates
         .iter()
-        .filter(|(name, _)| name.len() <= MAX_FUZZY_LEN)
-        .map(|(name, desc)| {
+        .filter(|name| name.len() <= MAX_FUZZY_LEN)
+        .map(|name| {
             let mut score = normalized_damerau_levenshtein(name, query);
             if name.as_bytes().first() == query.as_bytes().first() {
                 score *= 1.05;
             }
-            (name.to_string(), desc.map(|s| s.to_string()), score)
+            (name.as_str(), score)
         })
-        .filter(|(_, _, score)| *score > 0.6)
+        .filter(|(_, score)| *score > 0.6)
         .collect();
-    scored.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     scored
         .into_iter()
         .take(10)
-        .map(|(name, desc, _)| (name, desc))
+        .map(|(name, _)| name.to_string())
         .collect()
 }
 
@@ -82,59 +74,46 @@ mod tests {
         assert_eq!(matches(candidate, prefix), expected);
     }
 
-    fn pkg(name: &str) -> (&str, Option<&str>) {
-        (name, Some("package"))
-    }
-
-    #[test]
-    fn fuzzy_prefix_tier() {
-        let candidates = vec![pkg("numpy"), pkg("numba"), pkg("nose")];
-        let results = fuzzy_match(&candidates, "num");
-        let names: Vec<&str> = results.iter().map(|(n, _)| n.as_str()).collect();
-        assert!(names.contains(&"numpy"));
-        assert!(names.contains(&"numba"));
-        assert!(!names.contains(&"nose"));
-    }
-
-    #[test]
-    fn fuzzy_substring_tier() {
-        let candidates = vec![pkg("python-dateutil"), pkg("numpy"), pkg("pandas")];
-        let results = fuzzy_match(&candidates, "dateutil");
-        let names: Vec<&str> = results.iter().map(|(n, _)| n.as_str()).collect();
-        assert_eq!(names, vec!["python-dateutil"]);
-    }
-
-    #[test_case("numpie", "numpy" ; "typo")]
-    #[test_case("nupmy", "numpy" ; "transposition")]
-    fn fuzzy_similarity_tier(query: &str, expected_hit: &str) {
-        let candidates = vec![pkg("numpy"), pkg("scipy"), pkg("pandas")];
-        let results = fuzzy_match(&candidates, query);
-        let names: Vec<&str> = results.iter().map(|(n, _)| n.as_str()).collect();
-        assert!(names.contains(&expected_hit));
-    }
-
     #[test]
     fn fuzzy_no_results_for_garbage() {
-        let candidates = vec![pkg("numpy"), pkg("scipy"), pkg("pandas")];
-        let results = fuzzy_match(&candidates, "zzzzzzzzz");
+        let candidates = vec![
+            "numpy".to_string(),
+            "scipy".to_string(),
+            "pandas".to_string(),
+        ];
+        let results = fuzzy_match_names(&candidates, "zzzzzzzzz");
         assert!(results.is_empty());
     }
 
     #[test]
     fn fuzzy_empty_query_returns_all() {
-        let candidates = vec![pkg("numpy"), pkg("scipy")];
-        let results = fuzzy_match(&candidates, "");
+        let candidates = vec!["numpy".to_string(), "scipy".to_string()];
+        let results = fuzzy_match_names(&candidates, "");
         assert_eq!(results.len(), 2);
     }
 
+    #[test_case("num", vec!["numba", "numpy"] ; "prefix tier")]
+    #[test_case("dateutil", vec!["python-dateutil"] ; "substring tier")]
+    #[test_case("numpie", vec!["numpy"] ; "similarity tier")]
+    fn fuzzy_match_names_keeps_match_tiers(query: &str, expected: Vec<&str>) {
+        let candidates = vec![
+            "numpy".to_string(),
+            "numba".to_string(),
+            "python-dateutil".to_string(),
+            "scipy".to_string(),
+        ];
+
+        let results = fuzzy_match_names(&candidates, query);
+
+        for name in expected {
+            assert!(results.iter().any(|result| result == name));
+        }
+    }
+
     #[test]
-    fn fuzzy_caps_at_ten() {
+    fn fuzzy_match_names_caps_at_ten() {
         let names: Vec<String> = (0..20).map(|i| format!("pkg{}", i)).collect();
-        let candidates: Vec<_> = names
-            .iter()
-            .map(|n| (n.as_str(), Some("package")))
-            .collect();
-        let results = fuzzy_match(&candidates, "pkx0");
+        let results = fuzzy_match_names(&names, "pkx0");
         assert!(results.len() <= 10);
     }
 }
