@@ -44,6 +44,7 @@ fn main() {
     stat_cache.save(&cache_path);
 
     let mut candidates = complete(&manifest, &versions_path, &ctx, &global_ctx, &parsed.words, parsed.cword);
+    candidates.sort_by(|a, b| a.name.cmp(&b.name));
     const MAX_CANDIDATES: usize = 500;
     candidates.truncate(MAX_CANDIDATES);
     let output = shell::format_candidates(&parsed.shell, &candidates);
@@ -202,12 +203,17 @@ fn complete(
             if excluded.contains(name.as_str()) {
                 continue;
             }
+            let group = opt
+                .group
+                .as_deref()
+                .unwrap_or("option")
+                .to_string();
             if long_prefix {
                 if matcher::matches(name, current_word) {
                     candidates.push(Candidate {
                         name: name.clone(),
                         description: opt.description.clone(),
-                        group: "option",
+                        group: group.clone(),
                     });
                 }
             } else if let Some(short) = &opt.short {
@@ -215,7 +221,7 @@ fn complete(
                     candidates.push(Candidate {
                         name: short.clone(),
                         description: opt.description.clone(),
-                        group: "option",
+                        group,
                     });
                 }
             }
@@ -229,7 +235,7 @@ fn complete(
                 candidates.push(Candidate {
                     name: name.clone(),
                     description: sub.summary.clone(),
-                    group: "subcommand",
+                    group: "subcommand".into(),
                 });
             }
         }
@@ -251,7 +257,7 @@ fn complete(
                         candidates.push(Candidate {
                             name: choice.clone(),
                             description: None,
-                            group: "choice",
+                            group: "choice".into(),
                         });
                     }
                 }
@@ -263,7 +269,7 @@ fn complete(
                 candidates.push(Candidate {
                     name: name.clone(),
                     description: cmd.summary.clone(),
-                    group: "subcommand",
+                    group: "subcommand".into(),
                 });
             }
         }
@@ -287,7 +293,7 @@ fn complete_flag_value(
             .map(|c| Candidate {
                 name: c.clone(),
                 description: None,
-                group: "choice",
+                group: "choice".into(),
             })
             .collect();
     }
@@ -317,7 +323,7 @@ fn excluded_flags<'a>(
 fn collect_matching(
     sources: &[&[String]],
     description: &str,
-    group: &'static str,
+    group: &str,
     current_word: &str,
     candidates: &mut Vec<Candidate>,
 ) {
@@ -328,7 +334,7 @@ fn collect_matching(
                 candidates.push(Candidate {
                     name: name.clone(),
                     description: Some(description.to_string()),
-                    group,
+                    group: group.to_string(),
                 });
             }
         }
@@ -389,12 +395,12 @@ fn resolve_dynamic(
                             candidates.push(Candidate {
                                 name: candidate,
                                 description: None,
-                                group: "version",
+                                group: "version".into(),
                             });
                         }
                     }
                 }
-            } else {
+            } else if !current_word.is_empty() {
                 let all_packages: Vec<_> = manifest
                     .package_names
                     .iter()
@@ -406,7 +412,7 @@ fn resolve_dynamic(
                         .map(|(name, desc)| Candidate {
                             name,
                             description: desc,
-                            group: "package",
+                            group: "package".into(),
                         }),
                 );
             }
@@ -415,7 +421,7 @@ fn resolve_dynamic(
             candidates.push(Candidate {
                 name: String::new(),
                 description: None,
-                group: "directory",
+                group: "directory".into(),
             });
         }
         _ => {}
@@ -446,6 +452,7 @@ mod tests {
                         metavar: None,
                         default: None,
                         required: false,
+                        group: None,
                     },
                 ),
                 (
@@ -459,6 +466,7 @@ mod tests {
                         metavar: None,
                         default: None,
                         required: false,
+                        group: None,
                     },
                 ),
             ]),
@@ -479,6 +487,7 @@ mod tests {
                                     metavar: None,
                                     default: None,
                                     required: false,
+                                    group: None,
                                 },
                             ),
                             (
@@ -492,6 +501,7 @@ mod tests {
                                     metavar: None,
                                     default: None,
                                     required: false,
+                                    group: None,
                                 },
                             ),
                             (
@@ -505,6 +515,7 @@ mod tests {
                                     metavar: None,
                                     default: None,
                                     required: false,
+                                    group: None,
                                 },
                             ),
                         ]),
@@ -545,6 +556,7 @@ mod tests {
                                             metavar: None,
                                             default: None,
                                             required: false,
+                                            group: None,
                                         },
                                     )]),
                                     positionals: vec![],
@@ -828,6 +840,7 @@ mod tests {
                                 metavar: Some("PKG".to_string()),
                                 default: None,
                                 required: false,
+                                group: None,
                             },
                         ),
                         (
@@ -841,6 +854,7 @@ mod tests {
                                 metavar: None,
                                 default: None,
                                 required: false,
+                                group: None,
                             },
                         ),
                     ]),

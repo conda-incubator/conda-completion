@@ -5,7 +5,7 @@ use std::fmt::Write;
 pub struct Candidate {
     pub name: String,
     pub description: Option<String>,
-    pub group: &'static str,
+    pub group: String,
 }
 
 fn is_allowed(c: char) -> bool {
@@ -128,11 +128,11 @@ fn format_powershell(candidates: &[Candidate], out: &mut String) {
 mod tests {
     use super::*;
 
-    fn c(name: &str, desc: Option<&str>, group: &'static str) -> Candidate {
+    fn c(name: &str, desc: Option<&str>, group: &str) -> Candidate {
         Candidate {
             name: name.to_string(),
             description: desc.map(|s| s.to_string()),
-            group,
+            group: group.to_string(),
         }
     }
 
