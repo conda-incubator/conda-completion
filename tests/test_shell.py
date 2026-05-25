@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import shellingham
 
 from conda_completion.shell import Shell, get_shell_registry
 
@@ -83,29 +84,31 @@ def test_get_shell_registry_includes_fish():
 
 
 @pytest.mark.parametrize(
-    "shell_env,expected",
-    [
-        ("/usr/bin/zsh", "zsh"),
-        ("/usr/local/bin/fish", "fish"),
-        ("/bin/bash", "bash"),
-    ],
-    ids=["zsh", "fish", "bash"],
+    "shell_name",
+    ["bash", "zsh", "fish", "powershell"],
 )
-def test_detect_shell_from_env(monkeypatch, shell_env, expected):
-    monkeypatch.setenv("SHELL", shell_env)
-    assert Shell.detect_shell() == expected
+def test_detect_shell_uses_shellingham(monkeypatch, shell_name):
+    monkeypatch.setattr(
+        shellingham, "detect_shell", lambda: (shell_name, f"/usr/bin/{shell_name}")
+    )
+    assert Shell.detect_shell() == shell_name
 
 
 @pytest.mark.parametrize(
-    "platform,expected",
+    "shell_env,platform,expected",
     [
-        ("linux", "bash"),
-        ("win32", "powershell"),
+        ("/usr/bin/zsh", "linux", "zsh"),
+        ("/usr/local/bin/fish", "linux", "fish"),
+        (None, "linux", "bash"),
+        (None, "win32", "powershell"),
     ],
-    ids=["linux-fallback", "win32-fallback"],
+    ids=["zsh-from-env", "fish-basename", "empty-linux", "empty-win32"],
 )
-def test_detect_shell_empty_env(monkeypatch, platform, expected):
-    monkeypatch.delenv("SHELL", raising=False)
+def test_detect_shell_fallback(shellingham_fails, monkeypatch, shell_env, platform, expected):
+    if shell_env is not None:
+        monkeypatch.setenv("SHELL", shell_env)
+    else:
+        monkeypatch.delenv("SHELL", raising=False)
     monkeypatch.setattr("conda_completion.shell.sys.platform", platform)
     assert Shell.detect_shell() == expected
 

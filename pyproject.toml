@@ -25,6 +25,7 @@ dependencies = [
   "conda-completer",
   "platformdirs >=4.0",
   "msgpack >=1.0",
+  "shellingham >=1.5",
 ]
 dynamic = ["version"]
 
@@ -99,6 +100,7 @@ conda = ">=25.1"
 rust = ">=1.85"
 platformdirs = ">=4.0"
 msgpack-python = ">=1.0"
+shellingham = ">=1.5"
 
 [tool.pixi.pypi-dependencies]
 conda-completer = { path = "packages/conda-completer" }

@@ -13,6 +13,8 @@ import os
 import sys
 from pathlib import Path
 
+import shellingham
+
 
 class Shell:
     """Base class for shell completion script generators."""
@@ -49,6 +51,11 @@ class Shell:
     @staticmethod
     def detect_shell() -> str:
         """Detect the current shell from the environment."""
+        try:
+            name, _ = shellingham.detect_shell()
+            return name
+        except shellingham.ShellDetectionFailure:
+            pass
         shell_path = os.environ.get("SHELL", "")
         if shell_path:
             return Path(shell_path).name
