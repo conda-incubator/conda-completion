@@ -1,6 +1,13 @@
 use std::borrow::Cow;
 use std::fmt::Write;
 
+#[derive(Debug, Clone)]
+pub struct Candidate {
+    pub name: String,
+    pub description: Option<String>,
+    pub group: &'static str,
+}
+
 fn is_allowed(c: char) -> bool {
     c.is_alphanumeric()
         || matches!(c, '-' | '.' | '_' | '/' | '=' | '@' | ' ' | ':' | '+' | '~' | '\\')
@@ -14,7 +21,7 @@ fn sanitize(s: &str) -> Cow<'_, str> {
     }
 }
 
-pub fn format_candidates(shell: &str, candidates: &[(String, Option<String>)]) -> String {
+pub fn format_candidates(shell: &str, candidates: &[Candidate]) -> String {
     let mut out = String::with_capacity(candidates.len() * 32);
     match shell {
         "bash" => format_bash(candidates, &mut out),
@@ -26,12 +33,17 @@ pub fn format_candidates(shell: &str, candidates: &[(String, Option<String>)]) -
     out
 }
 
-fn format_bash(candidates: &[(String, Option<String>)], out: &mut String) {
-    for (i, (name, _)) in candidates.iter().enumerate() {
-        if i > 0 {
+fn format_bash(candidates: &[Candidate], out: &mut String) {
+    let mut first = true;
+    for c in candidates {
+        if c.group == "directory" {
+            continue;
+        }
+        if !first {
             out.push('\n');
         }
-        out.push_str(&sanitize(name));
+        first = false;
+        out.push_str(&sanitize(&c.name));
     }
 }
 
@@ -39,27 +51,53 @@ fn zsh_escape(s: &str) -> String {
     sanitize(s).replace('\\', "\\\\").replace(':', "\\:")
 }
 
-fn format_zsh(candidates: &[(String, Option<String>)], out: &mut String) {
-    for (i, (name, desc)) in candidates.iter().enumerate() {
-        if i > 0 {
+fn truncate_at_word(s: &str, max: usize) -> &str {
+    if s.len() <= max {
+        return s;
+    }
+    match s[..max].rfind(' ') {
+        Some(i) if i > max / 2 => &s[..i],
+        _ => &s[..max],
+    }
+}
+
+fn format_zsh(candidates: &[Candidate], out: &mut String) {
+    let mut first = true;
+    for c in candidates {
+        if c.group == "directory" {
+            if !first {
+                out.push('\n');
+            }
+            first = false;
+            out.push_str("__dir__");
+            continue;
+        }
+        if !first {
             out.push('\n');
         }
-        let safe_name = zsh_escape(name);
-        if let Some(d) = desc {
-            let _ = write!(out, "{}:{}", safe_name, zsh_escape(d));
+        first = false;
+        let _ = write!(out, "{}\t", c.group);
+        let safe_name = zsh_escape(&c.name);
+        if let Some(ref d) = c.description {
+            let _ = write!(out, "{}:{}", safe_name, zsh_escape(truncate_at_word(d, 80)));
         } else {
             out.push_str(&safe_name);
         }
     }
 }
 
-fn format_fish(candidates: &[(String, Option<String>)], out: &mut String) {
-    for (i, (name, desc)) in candidates.iter().enumerate() {
-        if i > 0 {
+fn format_fish(candidates: &[Candidate], out: &mut String) {
+    let mut first = true;
+    for c in candidates {
+        if c.group == "directory" {
+            continue;
+        }
+        if !first {
             out.push('\n');
         }
-        let safe_name = sanitize(name);
-        if let Some(d) = desc {
+        first = false;
+        let safe_name = sanitize(&c.name);
+        if let Some(ref d) = c.description {
             let _ = write!(out, "{}\t{}", safe_name, sanitize(d));
         } else {
             out.push_str(&safe_name);
@@ -67,13 +105,18 @@ fn format_fish(candidates: &[(String, Option<String>)], out: &mut String) {
     }
 }
 
-fn format_powershell(candidates: &[(String, Option<String>)], out: &mut String) {
-    for (i, (name, desc)) in candidates.iter().enumerate() {
-        if i > 0 {
+fn format_powershell(candidates: &[Candidate], out: &mut String) {
+    let mut first = true;
+    for c in candidates {
+        if c.group == "directory" {
+            continue;
+        }
+        if !first {
             out.push('\n');
         }
-        let safe_name = sanitize(name);
-        if let Some(d) = desc {
+        first = false;
+        let safe_name = sanitize(&c.name);
+        if let Some(ref d) = c.description {
             let _ = write!(out, "{}\t{}", safe_name, sanitize(d));
         } else {
             out.push_str(&safe_name);
@@ -85,11 +128,19 @@ fn format_powershell(candidates: &[(String, Option<String>)], out: &mut String) 
 mod tests {
     use super::*;
 
-    fn candidates() -> Vec<(String, Option<String>)> {
+    fn c(name: &str, desc: Option<&str>, group: &'static str) -> Candidate {
+        Candidate {
+            name: name.to_string(),
+            description: desc.map(|s| s.to_string()),
+            group,
+        }
+    }
+
+    fn candidates() -> Vec<Candidate> {
         vec![
-            ("install".to_string(), Some("Install packages".to_string())),
-            ("remove".to_string(), Some("Remove packages".to_string())),
-            ("list".to_string(), None),
+            c("install", Some("Install packages"), "subcommand"),
+            c("remove", Some("Remove packages"), "subcommand"),
+            c("list", None, "subcommand"),
         ]
     }
 
@@ -100,19 +151,41 @@ mod tests {
     }
 
     #[test]
-    fn zsh_colon_separated_descriptions() {
+    fn zsh_grouped_with_descriptions() {
         let out = format_candidates("zsh", &candidates());
         let lines: Vec<&str> = out.lines().collect();
-        assert_eq!(lines[0], "install:Install packages");
-        assert_eq!(lines[1], "remove:Remove packages");
-        assert_eq!(lines[2], "list");
+        assert_eq!(lines[0], "subcommand\tinstall:Install packages");
+        assert_eq!(lines[1], "subcommand\tremove:Remove packages");
+        assert_eq!(lines[2], "subcommand\tlist");
     }
 
     #[test]
     fn zsh_escapes_colons_in_descriptions() {
-        let items = vec![("flag".to_string(), Some("Use format: json".to_string()))];
+        let items = vec![c("flag", Some("Use format: json"), "option")];
         let out = format_candidates("zsh", &items);
-        assert_eq!(out, "flag:Use format\\: json");
+        assert_eq!(out, "option\tflag:Use format\\: json");
+    }
+
+    #[test]
+    fn zsh_directory_marker() {
+        let items = vec![
+            c("install", Some("Install packages"), "subcommand"),
+            c("", None, "directory"),
+        ];
+        let out = format_candidates("zsh", &items);
+        let lines: Vec<&str> = out.lines().collect();
+        assert_eq!(lines[0], "subcommand\tinstall:Install packages");
+        assert_eq!(lines[1], "__dir__");
+    }
+
+    #[test]
+    fn bash_skips_directory_marker() {
+        let items = vec![
+            c("install", None, "subcommand"),
+            c("", None, "directory"),
+        ];
+        let out = format_candidates("bash", &items);
+        assert_eq!(out, "install");
     }
 
     #[test]
@@ -145,11 +218,8 @@ mod tests {
     #[test]
     fn disallowed_characters_stripped_from_candidates() {
         let items = vec![
-            (
-                "safe\n$(evil)".to_string(),
-                Some("desc\ninjected".to_string()),
-            ),
-            ("tab\there".to_string(), None),
+            c("safe\n$(evil)", Some("desc\ninjected"), "subcommand"),
+            c("tab\there", None, "subcommand"),
         ];
         let out = format_candidates("bash", &items);
         assert_eq!(out, "safeevil\ntabhere");
@@ -161,15 +231,15 @@ mod tests {
 
     #[test]
     fn zsh_escapes_colons_in_names() {
-        let items = vec![("https://conda.anaconda.org".to_string(), None)];
+        let items = vec![c("https://conda.anaconda.org", None, "channel")];
         let out = format_candidates("zsh", &items);
-        assert_eq!(out, "https\\://conda.anaconda.org");
+        assert_eq!(out, "channel\thttps\\://conda.anaconda.org");
     }
 
     #[test]
     fn zsh_escapes_backslashes() {
-        let items = vec![("foo\\bar".to_string(), Some("a\\b".to_string()))];
+        let items = vec![c("foo\\bar", Some("a\\b"), "subcommand")];
         let out = format_candidates("zsh", &items);
-        assert_eq!(out, "foo\\\\bar:a\\\\b");
+        assert_eq!(out, "subcommand\tfoo\\\\bar:a\\\\b");
     }
 }

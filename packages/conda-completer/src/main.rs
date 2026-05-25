@@ -47,7 +47,9 @@ fn main() {
     const MAX_CANDIDATES: usize = 500;
     candidates.truncate(MAX_CANDIDATES);
     let output = shell::format_candidates(&parsed.shell, &candidates);
-    print!("{}", output);
+    if !output.is_empty() {
+        println!("{}", output);
+    }
 }
 
 struct ParsedArgs {
@@ -109,6 +111,8 @@ fn parse_args(args: &[String]) -> Option<ParsedArgs> {
     })
 }
 
+use shell::Candidate;
+
 fn complete(
     manifest: &manifest::Manifest,
     versions_path: &std::path::Path,
@@ -116,7 +120,7 @@ fn complete(
     global_ctx: &global::GlobalContext,
     words: &[String],
     cword: usize,
-) -> Vec<(String, Option<String>)> {
+) -> Vec<Candidate> {
     let current_word = words.get(cword).map(|s| s.as_str()).unwrap_or("");
 
     let mut current_cmd: Option<&manifest::CommandSpec> = None;
@@ -193,16 +197,26 @@ fn complete(
             None => &Vec::new(),
         };
         let excluded = excluded_flags(&used_flags, exclusive_groups);
+        let long_prefix = current_word.starts_with("--");
         for (name, opt) in options {
             if excluded.contains(name.as_str()) {
                 continue;
             }
-            if matcher::matches(name, current_word) {
-                candidates.push((name.clone(), opt.description.clone()));
-            }
-            if let Some(short) = &opt.short {
+            if long_prefix {
+                if matcher::matches(name, current_word) {
+                    candidates.push(Candidate {
+                        name: name.clone(),
+                        description: opt.description.clone(),
+                        group: "option",
+                    });
+                }
+            } else if let Some(short) = &opt.short {
                 if !excluded.contains(short.as_str()) && matcher::matches(short, current_word) {
-                    candidates.push((short.clone(), opt.description.clone()));
+                    candidates.push(Candidate {
+                        name: short.clone(),
+                        description: opt.description.clone(),
+                        group: "option",
+                    });
                 }
             }
         }
@@ -212,7 +226,11 @@ fn complete(
     if let Some(cmd) = current_cmd {
         for (name, sub) in &cmd.subcommands {
             if matcher::matches(name, current_word) {
-                candidates.push((name.clone(), sub.summary.clone()));
+                candidates.push(Candidate {
+                    name: name.clone(),
+                    description: sub.summary.clone(),
+                    group: "subcommand",
+                });
             }
         }
 
@@ -230,7 +248,11 @@ fn complete(
             if let Some(ref choices) = pos.choices {
                 for choice in choices {
                     if matcher::matches(choice, current_word) {
-                        candidates.push((choice.clone(), None));
+                        candidates.push(Candidate {
+                            name: choice.clone(),
+                            description: None,
+                            group: "choice",
+                        });
                     }
                 }
             }
@@ -238,7 +260,11 @@ fn complete(
     } else {
         for (name, cmd) in &manifest.commands {
             if matcher::matches(name, current_word) {
-                candidates.push((name.clone(), cmd.summary.clone()));
+                candidates.push(Candidate {
+                    name: name.clone(),
+                    description: cmd.summary.clone(),
+                    group: "subcommand",
+                });
             }
         }
     }
@@ -253,12 +279,16 @@ fn complete_flag_value(
     ctx: &context::ProjectContext,
     global_ctx: &global::GlobalContext,
     current_word: &str,
-) -> Vec<(String, Option<String>)> {
+) -> Vec<Candidate> {
     if let Some(ref choices) = opt.choices {
         return choices
             .iter()
             .filter(|c| matcher::matches(c, current_word))
-            .map(|c| (c.clone(), None))
+            .map(|c| Candidate {
+                name: c.clone(),
+                description: None,
+                group: "choice",
+            })
             .collect();
     }
 
@@ -287,15 +317,19 @@ fn excluded_flags<'a>(
 fn collect_matching(
     sources: &[&[String]],
     description: &str,
+    group: &'static str,
     current_word: &str,
-    candidates: &mut Vec<(String, Option<String>)>,
+    candidates: &mut Vec<Candidate>,
 ) {
-    let desc = Some(description.to_string());
     let mut seen = std::collections::HashSet::new();
     for source in sources {
         for name in *source {
             if matcher::matches(name, current_word) && seen.insert(name.as_str()) {
-                candidates.push((name.clone(), desc.clone()));
+                candidates.push(Candidate {
+                    name: name.clone(),
+                    description: Some(description.to_string()),
+                    group,
+                });
             }
         }
     }
@@ -308,12 +342,13 @@ fn resolve_dynamic(
     ctx: &context::ProjectContext,
     global_ctx: &global::GlobalContext,
     current_word: &str,
-) -> Vec<(String, Option<String>)> {
+) -> Vec<Candidate> {
     let mut candidates = Vec::new();
 
     match comp_type {
         "env_name" => collect_matching(
             &[&ctx.env_names, &global_ctx.env_names],
+            "environment",
             "environment",
             current_word,
             &mut candidates,
@@ -321,13 +356,21 @@ fn resolve_dynamic(
         "channel" => collect_matching(
             &[&ctx.channels, &global_ctx.channels],
             "channel",
+            "channel",
             current_word,
             &mut candidates,
         ),
-        "task_name" => collect_matching(&[&ctx.task_names], "task", current_word, &mut candidates),
+        "task_name" => collect_matching(
+            &[&ctx.task_names],
+            "task",
+            "task",
+            current_word,
+            &mut candidates,
+        ),
         "global_tool" => collect_matching(
             &[&global_ctx.tool_names],
             "global tool",
+            "tool",
             current_word,
             &mut candidates,
         ),
@@ -343,7 +386,11 @@ fn resolve_dynamic(
                     for v in &versions {
                         let candidate = format!("{}{}{}", pkg_name, sep, v);
                         if matcher::matches(&candidate, current_word) {
-                            candidates.push((candidate, None));
+                            candidates.push(Candidate {
+                                name: candidate,
+                                description: None,
+                                group: "version",
+                            });
                         }
                     }
                 }
@@ -353,10 +400,24 @@ fn resolve_dynamic(
                     .iter()
                     .map(|n| (n.as_str(), None))
                     .collect();
-                candidates.extend(matcher::fuzzy_match(&all_packages, current_word));
+                candidates.extend(
+                    matcher::fuzzy_match(&all_packages, current_word)
+                        .into_iter()
+                        .map(|(name, desc)| Candidate {
+                            name,
+                            description: desc,
+                            group: "package",
+                        }),
+                );
             }
         }
-        "directory" => {}
+        "directory" => {
+            candidates.push(Candidate {
+                name: String::new(),
+                description: None,
+                group: "directory",
+            });
+        }
         _ => {}
     }
 
@@ -521,8 +582,8 @@ mod tests {
         s.split_whitespace().map(String::from).collect()
     }
 
-    fn names(candidates: &[(String, Option<String>)]) -> Vec<&str> {
-        candidates.iter().map(|(n, _)| n.as_str()).collect()
+    fn names(candidates: &[Candidate]) -> Vec<&str> {
+        candidates.iter().map(|c| c.name.as_str()).collect()
     }
 
     fn no_versions() -> PathBuf {
