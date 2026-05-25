@@ -22,6 +22,11 @@ def context_cache_path() -> Path:
     return completion_cache_dir() / "context_cache.msgpack"
 
 
-def versions_path() -> Path:
-    """Return the path to the package versions msgpack file."""
-    return completion_cache_dir() / "versions.msgpack"
+def versions_index_path() -> Path:
+    """Return the path to the package versions offset index."""
+    return completion_cache_dir() / "versions.index"
+
+
+def versions_store_path() -> Path:
+    """Return the path to the package versions byte store."""
+    return completion_cache_dir() / "versions.store"

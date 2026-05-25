@@ -73,7 +73,8 @@ def test_execute_dispatches_status(tmp_path, monkeypatch, capsys):
     manifest = tmp_path / "completion.msgpack"
     manifest.write_bytes(msgpack.packb({"version": 1, "commands": {}}))
     monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
-    monkeypatch.setattr("conda_completion.paths.versions_path", lambda: tmp_path / "v.msgpack")
+    monkeypatch.setattr("conda_completion.paths.versions_index_path", lambda: tmp_path / "v.index")
+    monkeypatch.setattr("conda_completion.paths.versions_store_path", lambda: tmp_path / "v.store")
     monkeypatch.setattr("conda_completion.paths.completion_cache_dir", lambda: tmp_path)
 
     args = build_parser().parse_args(["status"])

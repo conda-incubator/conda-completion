@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from conda_completer import find_completer_binary
 
 from ..manifest import read_manifest
-from ..paths import completion_cache_dir, manifest_path, versions_path
+from ..paths import completion_cache_dir, manifest_path, versions_index_path, versions_store_path
 from ..plugin import plugin_entry_point_hash
 
 if TYPE_CHECKING:
@@ -18,7 +18,8 @@ if TYPE_CHECKING:
 def execute_status(args: argparse.Namespace) -> int:
     """Print completion system status and diagnostics."""
     manifest = manifest_path()
-    versions = versions_path()
+    versions_index = versions_index_path()
+    versions_store = versions_store_path()
     cache_dir = completion_cache_dir()
 
     print(f"Cache directory: {cache_dir}")
@@ -46,9 +47,15 @@ def execute_status(args: argparse.Namespace) -> int:
     else:
         print("  Not found. Run: conda completion generate")
 
-    print(f"Versions: {versions}")
-    if versions.exists():
-        print(f"  Size: {versions.stat().st_size} bytes")
+    print(f"Package versions index: {versions_index}")
+    if versions_index.exists():
+        print(f"  Size: {versions_index.stat().st_size} bytes")
+    else:
+        print("  Not found")
+
+    print(f"Package versions store: {versions_store}")
+    if versions_store.exists():
+        print(f"  Size: {versions_store.stat().st_size} bytes")
     else:
         print("  Not found")
 

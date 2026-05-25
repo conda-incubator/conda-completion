@@ -33,7 +33,7 @@ fn main() {
 
     let versions_path = parsed
         .versions
-        .unwrap_or_else(|| parsed.manifest.with_file_name("versions.msgpack"));
+        .unwrap_or_else(|| parsed.manifest.with_file_name("versions.index"));
 
     let cache_path = parsed.manifest.with_file_name("context_cache.msgpack");
     let mut stat_cache = cache::StatCache::load(&cache_path);
@@ -605,7 +605,7 @@ mod tests {
     }
 
     fn no_versions() -> PathBuf {
-        PathBuf::from("/nonexistent/versions.msgpack")
+        PathBuf::from("/nonexistent/versions")
     }
 
     #[test]

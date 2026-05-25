@@ -80,14 +80,14 @@ def maybe_regenerate(command: str) -> None:
 
             from .introspect import generate_manifest
             from .manifest import write_manifest, write_versions
-            from .paths import versions_path
+            from .paths import versions_index_path, versions_store_path
             from .repodata import extract_package_data
 
             manifest = generate_manifest(plugin_hash=current_hash)
             try:
                 package_names, version_map = extract_package_data()
                 manifest = replace(manifest, package_names=package_names)
-                write_versions(version_map, versions_path())
+                write_versions(version_map, versions_index_path(), versions_store_path())
             except Exception:
                 log.debug("Failed to refresh package data", exc_info=True)
             write_manifest(manifest, path)

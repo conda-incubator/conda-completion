@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from ..introspect import generate_manifest
 from ..manifest import write_manifest, write_versions
-from ..paths import manifest_path, versions_path
+from ..paths import manifest_path, versions_index_path, versions_store_path
 from ..plugin import plugin_entry_point_hash
 from ..repodata import extract_package_data
 
@@ -29,8 +29,12 @@ def execute_generate(args: argparse.Namespace) -> int:
     try:
         package_names, version_map = extract_package_data()
         manifest = replace(manifest, package_names=package_names)
-        write_versions(version_map, versions_path())
-        log.info("Package versions written to %s", versions_path())
+        write_versions(version_map, versions_index_path(), versions_store_path())
+        log.info(
+            "Package versions written to %s and %s",
+            versions_index_path(),
+            versions_store_path(),
+        )
     except Exception:
         log.warning("Failed to extract package data from repodata", exc_info=True)
 

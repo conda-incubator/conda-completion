@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from conda_completion.paths import completion_cache_dir, context_cache_path, manifest_path
+from conda_completion.paths import (
+    completion_cache_dir,
+    context_cache_path,
+    manifest_path,
+    versions_index_path,
+    versions_store_path,
+)
 
 
 def test_completion_cache_dir():
@@ -20,4 +26,16 @@ def test_manifest_path():
 def test_context_cache_path():
     result = context_cache_path()
     assert result.name == "context_cache.msgpack"
+    assert result.parent == completion_cache_dir()
+
+
+def test_versions_index_path():
+    result = versions_index_path()
+    assert result.name == "versions.index"
+    assert result.parent == completion_cache_dir()
+
+
+def test_versions_store_path():
+    result = versions_store_path()
+    assert result.name == "versions.store"
     assert result.parent == completion_cache_dir()
