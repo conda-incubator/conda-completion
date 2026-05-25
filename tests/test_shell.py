@@ -92,6 +92,7 @@ def test_get_shell_registry_includes_fish():
     ids=["zsh", "fish", "bash"],
 )
 def test_detect_shell_from_env(monkeypatch, shell_env, expected):
+    monkeypatch.delenv("CONDA_COMPLETION_SHELL", raising=False)
     monkeypatch.setenv("SHELL", shell_env)
     assert Shell.detect_shell() == expected
 
@@ -105,9 +106,31 @@ def test_detect_shell_from_env(monkeypatch, shell_env, expected):
     ids=["linux-fallback", "win32-fallback"],
 )
 def test_detect_shell_empty_env(monkeypatch, platform, expected):
+    monkeypatch.delenv("CONDA_COMPLETION_SHELL", raising=False)
     monkeypatch.delenv("SHELL", raising=False)
     monkeypatch.setattr("conda_completion.shell.sys.platform", platform)
     assert Shell.detect_shell() == expected
+
+
+@pytest.mark.parametrize(
+    "override,expected",
+    [
+        ("fish", "fish"),
+        ("/usr/local/bin/fish", "fish"),
+        ("zsh", "zsh"),
+    ],
+    ids=["bare-name", "full-path", "zsh"],
+)
+def test_detect_shell_conda_default_shell_override(monkeypatch, override, expected):
+    monkeypatch.setenv("CONDA_COMPLETION_SHELL", override)
+    monkeypatch.setenv("SHELL", "/bin/bash")
+    assert Shell.detect_shell() == expected
+
+
+def test_detect_shell_override_takes_priority(monkeypatch):
+    monkeypatch.setenv("CONDA_COMPLETION_SHELL", "fish")
+    monkeypatch.setenv("SHELL", "/bin/zsh")
+    assert Shell.detect_shell() == "fish"
 
 
 def test_default_rc_path_existing_file(tmp_path, monkeypatch):

@@ -48,7 +48,15 @@ class Shell:
 
     @staticmethod
     def detect_shell() -> str:
-        """Detect the current shell from the environment."""
+        """Detect the current shell from the environment.
+
+        Checks ``CONDA_COMPLETION_SHELL`` first (explicit override),
+        then falls back to ``SHELL`` and platform defaults.
+        """
+        override = os.environ.get("CONDA_COMPLETION_SHELL", "")
+        if override:
+            return Path(override).stem
+
         shell_path = os.environ.get("SHELL", "")
         if shell_path:
             return Path(shell_path).name
