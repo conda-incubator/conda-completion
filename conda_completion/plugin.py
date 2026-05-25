@@ -95,7 +95,9 @@ def maybe_regenerate(command: str) -> None:
         log.warning("Cannot update completion manifest: permission denied")
     except OSError as exc:
         log.warning("Cannot update completion manifest: %s", exc)
-    except Exception:
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except BaseException:
         log.debug("Failed to check/regenerate completion manifest", exc_info=True)
 
 

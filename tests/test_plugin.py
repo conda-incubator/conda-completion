@@ -99,8 +99,9 @@ def test_maybe_regenerate_hash_differs(tmp_path, monkeypatch):
         ("conda_completion.plugin.plugin_entry_point_hash", PermissionError, "denied"),
         ("conda_completion.paths.manifest_path", OSError, "disk full"),
         ("conda_completion.paths.manifest_path", RuntimeError, "oops"),
+        ("conda_completion.paths.manifest_path", BaseException, "panic"),
     ],
-    ids=["permission-error", "os-error", "generic-error"],
+    ids=["permission-error", "os-error", "generic-error", "base-exception"],
 )
 def test_maybe_regenerate_swallows_errors(tmp_path, monkeypatch, target, exc_class, exc_msg):
     if target == "conda_completion.plugin.plugin_entry_point_hash":
@@ -113,6 +114,17 @@ def test_maybe_regenerate_swallows_errors(tmp_path, monkeypatch, target, exc_cla
 
     monkeypatch.setattr(target, raiser)
     maybe_regenerate("install")
+
+
+@pytest.mark.parametrize("exc_class", [KeyboardInterrupt, SystemExit], ids=["interrupt", "exit"])
+def test_maybe_regenerate_preserves_interrupts(monkeypatch, exc_class):
+    def raiser():
+        raise exc_class
+
+    monkeypatch.setattr("conda_completion.paths.manifest_path", raiser)
+
+    with pytest.raises(exc_class):
+        maybe_regenerate("install")
 
 
 @pytest.mark.parametrize("command", ["install", "remove", "update"])
