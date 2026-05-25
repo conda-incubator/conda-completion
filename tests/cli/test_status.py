@@ -15,15 +15,16 @@ from conda_completion.cli.status import execute_status
 @pytest.fixture()
 def status_env(tmp_path, monkeypatch):
     """Stub out path helpers and return a helper to create manifests."""
-    monkeypatch.setattr("conda_completion.paths.completion_cache_dir", lambda: tmp_path)
+    monkeypatch.setattr("conda_completion.cli.status.completion_cache_dir", lambda: tmp_path)
     monkeypatch.setattr(
-        "conda_completion.paths.manifest_path",
+        "conda_completion.cli.status.manifest_path",
         lambda: tmp_path / "completion.msgpack",
     )
     monkeypatch.setattr(
-        "conda_completion.paths.versions_path",
+        "conda_completion.cli.status.versions_path",
         lambda: tmp_path / "versions.msgpack",
     )
+    monkeypatch.setattr("conda_completion.cli.status.plugin_entry_point_hash", lambda: "current")
 
     class Env:
         root = tmp_path
@@ -120,10 +121,27 @@ def test_status_no_versions(status_env, capsys):
     assert "Not found" in out
 
 
-def test_status_completer_binary_shown(status_env, capsys):
+def test_status_completer_binary_shown(status_env, tmp_path, monkeypatch, capsys):
     status_env.write_manifest()
+    binary = tmp_path / "_conda_completer"
+    monkeypatch.setattr("conda_completion.cli.status.find_completer_binary", lambda: binary)
 
     result = execute_status(argparse.Namespace())
 
     assert result == 0
-    assert "Completer binary:" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert f"Completer binary: {binary}" in out
+
+
+def test_status_completer_binary_missing(status_env, monkeypatch, capsys):
+    status_env.write_manifest()
+
+    def raise_not_found():
+        raise FileNotFoundError
+
+    monkeypatch.setattr("conda_completion.cli.status.find_completer_binary", raise_not_found)
+
+    result = execute_status(argparse.Namespace())
+
+    assert result == 0
+    assert "Completer binary: not found" in capsys.readouterr().out

@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from conda_completer import find_completer_binary
+
 from ..manifest import read_manifest
 from ..paths import completion_cache_dir, manifest_path, versions_path
 from ..plugin import plugin_entry_point_hash
@@ -54,9 +56,7 @@ def execute_status(args: argparse.Namespace) -> int:
     print(f"Current plugin hash: {current_hash}")
 
     try:
-        from conda_completer import completer_binary_path
-
-        binary = completer_binary_path()
+        binary = find_completer_binary()
         print(f"Completer binary: {binary}")
     except Exception:
         print("Completer binary: not found")
