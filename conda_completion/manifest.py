@@ -30,6 +30,7 @@ class OptionSpec:
     metavar: str | None = None
     default: str | None = None
     required: bool = False
+    group: str | None = None
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -49,6 +50,8 @@ class OptionSpec:
             result["default"] = self.default
         if self.required:
             result["required"] = True
+        if self.group:
+            result["group"] = self.group
         return result
 
     @classmethod
@@ -62,6 +65,7 @@ class OptionSpec:
             metavar=data.get("metavar"),
             default=data.get("default"),
             required=data.get("required", False),
+            group=data.get("group"),
         )
 
 

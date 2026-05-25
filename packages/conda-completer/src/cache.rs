@@ -64,7 +64,11 @@ impl StatCache {
         self.files.retain(|path, _| Path::new(path).exists());
 
         if self.files.len() > MAX_CACHE_ENTRIES {
-            let mut entries: Vec<_> = self.files.iter().map(|(k, v)| (k.clone(), v.mtime_secs)).collect();
+            let mut entries: Vec<_> = self
+                .files
+                .iter()
+                .map(|(k, v)| (k.clone(), v.mtime_secs))
+                .collect();
             entries.sort_by_key(|(_, mtime)| *mtime);
             let to_remove = self.files.len() - MAX_CACHE_ENTRIES;
             for (key, _) in entries.into_iter().take(to_remove) {

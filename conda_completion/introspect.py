@@ -57,6 +57,13 @@ def walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
         if len(group_names) > 1:
             exclusive_groups.append(group_names)
 
+    action_groups: dict[int, str] = {}
+    for ag in parser._action_groups:
+        if not ag.title or ag.title in ("positional arguments", "options"):
+            continue
+        for action in ag._group_actions:
+            action_groups[id(action)] = ag.title
+
     for action in parser._actions:
         if isinstance(action, argparse._HelpAction):
             continue
@@ -117,6 +124,7 @@ def walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
                 metavar=action.metavar if isinstance(action.metavar, str) else None,
                 default=default_str,
                 required=action.required,
+                group=action_groups.get(id(action)),
             )
         else:
             if action.dest in ("cmd", "subcmd", "_plugin_subcommand"):

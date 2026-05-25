@@ -31,8 +31,9 @@ fn main() {
         }
     };
 
-    let versions_path =
-        parsed.versions.unwrap_or_else(|| parsed.manifest.with_file_name("versions.msgpack"));
+    let versions_path = parsed
+        .versions
+        .unwrap_or_else(|| parsed.manifest.with_file_name("versions.msgpack"));
 
     let cache_path = parsed.manifest.with_file_name("context_cache.msgpack");
     let mut stat_cache = cache::StatCache::load(&cache_path);
@@ -43,11 +44,21 @@ fn main() {
 
     stat_cache.save(&cache_path);
 
-    let mut candidates = complete(&manifest, &versions_path, &ctx, &global_ctx, &parsed.words, parsed.cword);
+    let mut candidates = complete(
+        &manifest,
+        &versions_path,
+        &ctx,
+        &global_ctx,
+        &parsed.words,
+        parsed.cword,
+    );
+    candidates.sort_by(|a, b| a.name.cmp(&b.name));
     const MAX_CANDIDATES: usize = 500;
     candidates.truncate(MAX_CANDIDATES);
     let output = shell::format_candidates(&parsed.shell, &candidates);
-    print!("{}", output);
+    if !output.is_empty() {
+        println!("{}", output);
+    }
 }
 
 struct ParsedArgs {
@@ -109,6 +120,8 @@ fn parse_args(args: &[String]) -> Option<ParsedArgs> {
     })
 }
 
+use shell::Candidate;
+
 fn complete(
     manifest: &manifest::Manifest,
     versions_path: &std::path::Path,
@@ -116,7 +129,7 @@ fn complete(
     global_ctx: &global::GlobalContext,
     words: &[String],
     cword: usize,
-) -> Vec<(String, Option<String>)> {
+) -> Vec<Candidate> {
     let current_word = words.get(cword).map(|s| s.as_str()).unwrap_or("");
 
     let mut current_cmd: Option<&manifest::CommandSpec> = None;
@@ -193,16 +206,27 @@ fn complete(
             None => &Vec::new(),
         };
         let excluded = excluded_flags(&used_flags, exclusive_groups);
+        let long_prefix = current_word.starts_with("--");
         for (name, opt) in options {
             if excluded.contains(name.as_str()) {
                 continue;
             }
-            if matcher::matches(name, current_word) {
-                candidates.push((name.clone(), opt.description.clone()));
-            }
-            if let Some(short) = &opt.short {
+            let group = opt.group.as_deref().unwrap_or("option").to_string();
+            if long_prefix {
+                if matcher::matches(name, current_word) {
+                    candidates.push(Candidate {
+                        name: name.clone(),
+                        description: opt.description.clone(),
+                        group: group.clone(),
+                    });
+                }
+            } else if let Some(short) = &opt.short {
                 if !excluded.contains(short.as_str()) && matcher::matches(short, current_word) {
-                    candidates.push((short.clone(), opt.description.clone()));
+                    candidates.push(Candidate {
+                        name: short.clone(),
+                        description: opt.description.clone(),
+                        group,
+                    });
                 }
             }
         }
@@ -212,7 +236,11 @@ fn complete(
     if let Some(cmd) = current_cmd {
         for (name, sub) in &cmd.subcommands {
             if matcher::matches(name, current_word) {
-                candidates.push((name.clone(), sub.summary.clone()));
+                candidates.push(Candidate {
+                    name: name.clone(),
+                    description: sub.summary.clone(),
+                    group: "subcommand".into(),
+                });
             }
         }
 
@@ -230,7 +258,11 @@ fn complete(
             if let Some(ref choices) = pos.choices {
                 for choice in choices {
                     if matcher::matches(choice, current_word) {
-                        candidates.push((choice.clone(), None));
+                        candidates.push(Candidate {
+                            name: choice.clone(),
+                            description: None,
+                            group: "choice".into(),
+                        });
                     }
                 }
             }
@@ -238,7 +270,11 @@ fn complete(
     } else {
         for (name, cmd) in &manifest.commands {
             if matcher::matches(name, current_word) {
-                candidates.push((name.clone(), cmd.summary.clone()));
+                candidates.push(Candidate {
+                    name: name.clone(),
+                    description: cmd.summary.clone(),
+                    group: "subcommand".into(),
+                });
             }
         }
     }
@@ -253,17 +289,28 @@ fn complete_flag_value(
     ctx: &context::ProjectContext,
     global_ctx: &global::GlobalContext,
     current_word: &str,
-) -> Vec<(String, Option<String>)> {
+) -> Vec<Candidate> {
     if let Some(ref choices) = opt.choices {
         return choices
             .iter()
             .filter(|c| matcher::matches(c, current_word))
-            .map(|c| (c.clone(), None))
+            .map(|c| Candidate {
+                name: c.clone(),
+                description: None,
+                group: "choice".into(),
+            })
             .collect();
     }
 
     if let Some(ref comp_type) = opt.completion_type {
-        return resolve_dynamic(comp_type, manifest, versions_path, ctx, global_ctx, current_word);
+        return resolve_dynamic(
+            comp_type,
+            manifest,
+            versions_path,
+            ctx,
+            global_ctx,
+            current_word,
+        );
     }
 
     Vec::new()
@@ -287,15 +334,19 @@ fn excluded_flags<'a>(
 fn collect_matching(
     sources: &[&[String]],
     description: &str,
+    group: &str,
     current_word: &str,
-    candidates: &mut Vec<(String, Option<String>)>,
+    candidates: &mut Vec<Candidate>,
 ) {
-    let desc = Some(description.to_string());
     let mut seen = std::collections::HashSet::new();
     for source in sources {
         for name in *source {
             if matcher::matches(name, current_word) && seen.insert(name.as_str()) {
-                candidates.push((name.clone(), desc.clone()));
+                candidates.push(Candidate {
+                    name: name.clone(),
+                    description: Some(description.to_string()),
+                    group: group.to_string(),
+                });
             }
         }
     }
@@ -308,12 +359,13 @@ fn resolve_dynamic(
     ctx: &context::ProjectContext,
     global_ctx: &global::GlobalContext,
     current_word: &str,
-) -> Vec<(String, Option<String>)> {
+) -> Vec<Candidate> {
     let mut candidates = Vec::new();
 
     match comp_type {
         "env_name" => collect_matching(
             &[&ctx.env_names, &global_ctx.env_names],
+            "environment",
             "environment",
             current_word,
             &mut candidates,
@@ -321,13 +373,21 @@ fn resolve_dynamic(
         "channel" => collect_matching(
             &[&ctx.channels, &global_ctx.channels],
             "channel",
+            "channel",
             current_word,
             &mut candidates,
         ),
-        "task_name" => collect_matching(&[&ctx.task_names], "task", current_word, &mut candidates),
+        "task_name" => collect_matching(
+            &[&ctx.task_names],
+            "task",
+            "task",
+            current_word,
+            &mut candidates,
+        ),
         "global_tool" => collect_matching(
             &[&global_ctx.tool_names],
             "global tool",
+            "tool",
             current_word,
             &mut candidates,
         ),
@@ -343,20 +403,38 @@ fn resolve_dynamic(
                     for v in &versions {
                         let candidate = format!("{}{}{}", pkg_name, sep, v);
                         if matcher::matches(&candidate, current_word) {
-                            candidates.push((candidate, None));
+                            candidates.push(Candidate {
+                                name: candidate,
+                                description: None,
+                                group: "version".into(),
+                            });
                         }
                     }
                 }
-            } else {
+            } else if !current_word.is_empty() {
                 let all_packages: Vec<_> = manifest
                     .package_names
                     .iter()
                     .map(|n| (n.as_str(), None))
                     .collect();
-                candidates.extend(matcher::fuzzy_match(&all_packages, current_word));
+                candidates.extend(
+                    matcher::fuzzy_match(&all_packages, current_word)
+                        .into_iter()
+                        .map(|(name, desc)| Candidate {
+                            name,
+                            description: desc,
+                            group: "package".into(),
+                        }),
+                );
             }
         }
-        "directory" => {}
+        "directory" => {
+            candidates.push(Candidate {
+                name: String::new(),
+                description: None,
+                group: "directory".into(),
+            });
+        }
         _ => {}
     }
 
@@ -385,6 +463,7 @@ mod tests {
                         metavar: None,
                         default: None,
                         required: false,
+                        group: None,
                     },
                 ),
                 (
@@ -398,6 +477,7 @@ mod tests {
                         metavar: None,
                         default: None,
                         required: false,
+                        group: None,
                     },
                 ),
             ]),
@@ -418,6 +498,7 @@ mod tests {
                                     metavar: None,
                                     default: None,
                                     required: false,
+                                    group: None,
                                 },
                             ),
                             (
@@ -431,6 +512,7 @@ mod tests {
                                     metavar: None,
                                     default: None,
                                     required: false,
+                                    group: None,
                                 },
                             ),
                             (
@@ -444,6 +526,7 @@ mod tests {
                                     metavar: None,
                                     default: None,
                                     required: false,
+                                    group: None,
                                 },
                             ),
                         ]),
@@ -484,6 +567,7 @@ mod tests {
                                             metavar: None,
                                             default: None,
                                             required: false,
+                                            group: None,
                                         },
                                     )]),
                                     positionals: vec![],
@@ -521,8 +605,8 @@ mod tests {
         s.split_whitespace().map(String::from).collect()
     }
 
-    fn names(candidates: &[(String, Option<String>)]) -> Vec<&str> {
-        candidates.iter().map(|(n, _)| n.as_str()).collect()
+    fn names(candidates: &[Candidate]) -> Vec<&str> {
+        candidates.iter().map(|c| c.name.as_str()).collect()
     }
 
     fn no_versions() -> PathBuf {
@@ -584,7 +668,14 @@ mod tests {
     #[test]
     fn complete_top_level_commands() {
         let m = test_manifest();
-        let result = complete(&m, &no_versions(), &empty_ctx(), &empty_global(), &words("conda "), 1);
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda "),
+            1,
+        );
         let n = names(&result);
         assert!(n.contains(&"install"));
         assert!(n.contains(&"remove"));
@@ -594,7 +685,14 @@ mod tests {
     #[test]
     fn complete_top_level_with_prefix() {
         let m = test_manifest();
-        let result = complete(&m, &no_versions(), &empty_ctx(), &empty_global(), &words("conda ins"), 1);
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda ins"),
+            1,
+        );
         let n = names(&result);
         assert!(n.contains(&"install"));
         assert!(!n.contains(&"remove"));
@@ -690,7 +788,14 @@ mod tests {
     #[test]
     fn complete_root_flags() {
         let m = test_manifest();
-        let result = complete(&m, &no_versions(), &empty_ctx(), &empty_global(), &words("conda --"), 1);
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda --"),
+            1,
+        );
         let n = names(&result);
         assert!(n.contains(&"--debug"));
         assert!(n.contains(&"--verbose"));
@@ -738,7 +843,14 @@ mod tests {
         let mut ctx = empty_ctx();
         ctx.env_names = vec!["myenv".to_string()];
 
-        let result = complete(&m, &no_versions(), &ctx, &empty_global(), &words("conda install -n "), 3);
+        let result = complete(
+            &m,
+            &no_versions(),
+            &ctx,
+            &empty_global(),
+            &words("conda install -n "),
+            3,
+        );
         let n = names(&result);
         assert!(n.contains(&"myenv"));
     }
@@ -767,6 +879,7 @@ mod tests {
                                 metavar: Some("PKG".to_string()),
                                 default: None,
                                 required: false,
+                                group: None,
                             },
                         ),
                         (
@@ -780,6 +893,7 @@ mod tests {
                                 metavar: None,
                                 default: None,
                                 required: false,
+                                group: None,
                             },
                         ),
                     ]),
@@ -825,5 +939,114 @@ mod tests {
         let n = names(&result);
         assert!(n.contains(&"base"));
         assert!(n.contains(&"globalenv"));
+    }
+
+    #[test]
+    fn empty_prefix_skips_packages() {
+        let m = manifest::Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec!["numpy".to_string(), "scipy".to_string()],
+            root_options: std::collections::BTreeMap::new(),
+            commands: std::collections::BTreeMap::from([(
+                "install".to_string(),
+                manifest::CommandSpec {
+                    summary: Some("Install".to_string()),
+                    options: std::collections::BTreeMap::new(),
+                    positionals: vec![manifest::PositionalSpec {
+                        name: "packages".to_string(),
+                        choices: None,
+                        nargs: Some("*".to_string()),
+                        completion_type: Some("package_spec".to_string()),
+                        description: None,
+                        metavar: None,
+                    }],
+                    subcommands: std::collections::BTreeMap::new(),
+                    exclusive_groups: vec![],
+                },
+            )]),
+        };
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda install "),
+            2,
+        );
+        let n = names(&result);
+        assert!(
+            !n.contains(&"numpy"),
+            "packages should not appear on empty prefix"
+        );
+        assert!(
+            !n.contains(&"scipy"),
+            "packages should not appear on empty prefix"
+        );
+    }
+
+    #[test]
+    fn option_group_passed_to_candidate() {
+        let m = manifest::Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec![],
+            root_options: std::collections::BTreeMap::new(),
+            commands: std::collections::BTreeMap::from([(
+                "install".to_string(),
+                manifest::CommandSpec {
+                    summary: None,
+                    options: std::collections::BTreeMap::from([
+                        (
+                            "--channel".to_string(),
+                            manifest::OptionSpec {
+                                short: None,
+                                choices: None,
+                                nargs: None,
+                                completion_type: None,
+                                description: None,
+                                metavar: Some("CH".to_string()),
+                                default: None,
+                                required: false,
+                                group: Some("Channel Customization".to_string()),
+                            },
+                        ),
+                        (
+                            "--verbose".to_string(),
+                            manifest::OptionSpec {
+                                short: None,
+                                choices: None,
+                                nargs: None,
+                                completion_type: None,
+                                description: None,
+                                metavar: None,
+                                default: None,
+                                required: false,
+                                group: None,
+                            },
+                        ),
+                    ]),
+                    positionals: vec![],
+                    subcommands: std::collections::BTreeMap::new(),
+                    exclusive_groups: vec![],
+                },
+            )]),
+        };
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda install --"),
+            2,
+        );
+        let channel = result.iter().find(|c| c.name == "--channel").unwrap();
+        assert_eq!(channel.group, "Channel Customization");
+        let verbose = result.iter().find(|c| c.name == "--verbose").unwrap();
+        assert_eq!(verbose.group, "option");
     }
 }

@@ -21,9 +21,20 @@ class ZshShell(Shell):
 _conda() {{
     local completer={cp}
     local manifest={mp}
-    local -a completions
-    completions=("${{(@f)$("$completer" --shell zsh --manifest "$manifest" -- "${{words[@]}}" $((CURRENT - 1)) 2>/dev/null)}}")
-    _describe -V 'conda' completions
+    local -a items
+    local has_dir=0
+    local group rest
+
+    while IFS=$'\\t' read -r group rest || [[ -n "$group" ]]; do
+        if [[ "$group" == "__dir__" ]]; then
+            has_dir=1
+        else
+            items+=("$rest")
+        fi
+    done < <("$completer" --shell zsh --manifest "$manifest" -- "${{words[@]}}" $((CURRENT - 1)) 2>/dev/null)
+
+    (( ${{#items}} )) && _describe 'conda' items
+    (( has_dir )) && _path_files -/
 }}
 compdef _conda conda
 """

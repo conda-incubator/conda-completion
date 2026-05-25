@@ -100,6 +100,34 @@ def test_completion_type_heuristics(flag, expected_type):
     assert cmd.options[flag].completion_type == expected_type
 
 
+@pytest.fixture()
+def parser_with_groups():
+    parser = argparse.ArgumentParser()
+    grp = parser.add_argument_group("Channel Customization")
+    grp.add_argument("--channel", "-c", help="Channel to search")
+    grp.add_argument("--override-channels", action="store_true", help="Override")
+
+    solver_grp = parser.add_argument_group("Solver Options")
+    solver_grp.add_argument("--no-deps", action="store_true", help="No deps")
+
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose")
+    return walk_parser(parser)
+
+
+@pytest.mark.parametrize(
+    "flag,expected_group",
+    [
+        ("--channel", "Channel Customization"),
+        ("--override-channels", "Channel Customization"),
+        ("--no-deps", "Solver Options"),
+        ("--verbose", None),
+    ],
+    ids=["channel-grouped", "override-grouped", "solver-grouped", "ungrouped"],
+)
+def test_walk_parser_extracts_action_groups(parser_with_groups, flag, expected_group):
+    assert parser_with_groups.options[flag].group == expected_group
+
+
 def test_suppressed_help_excluded():
     parser = argparse.ArgumentParser()
     parser.add_argument("--hidden", help=argparse.SUPPRESS)

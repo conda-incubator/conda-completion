@@ -45,6 +45,8 @@ pub struct OptionSpec {
     #[serde(default)]
     #[allow(dead_code)]
     pub required: bool,
+    #[serde(default)]
+    pub group: Option<String>,
 }
 
 impl OptionSpec {
@@ -130,6 +132,7 @@ mod tests {
                                     metavar: None,
                                     default: None,
                                     required: false,
+                                    group: None,
                                 },
                             ),
                             (
@@ -143,6 +146,7 @@ mod tests {
                                     metavar: None,
                                     default: None,
                                     required: false,
+                                    group: None,
                                 },
                             ),
                         ]),
@@ -173,6 +177,7 @@ mod tests {
                     metavar: None,
                     default: None,
                     required: false,
+                    group: None,
                 },
             )]),
         }
@@ -221,6 +226,7 @@ mod tests {
             metavar: None,
             default: None,
             required: false,
+            group: None,
         };
         assert!(opt.takes_value());
     }
@@ -236,6 +242,7 @@ mod tests {
             metavar: None,
             default: None,
             required: false,
+            group: None,
         };
         assert!(opt.takes_value());
     }
@@ -251,6 +258,7 @@ mod tests {
             metavar: Some("NAME".to_string()),
             default: None,
             required: false,
+            group: None,
         };
         assert!(opt.takes_value());
     }
@@ -266,6 +274,7 @@ mod tests {
             metavar: None,
             default: None,
             required: false,
+            group: None,
         };
         assert!(!opt.takes_value());
     }
@@ -281,6 +290,7 @@ mod tests {
             metavar: None,
             default: None,
             required: false,
+            group: None,
         };
         assert!(!opt.takes_value());
     }
@@ -296,6 +306,7 @@ mod tests {
             metavar: Some("PKG".to_string()),
             default: None,
             required: false,
+            group: None,
         };
         assert!(opt.is_greedy());
         assert!(opt.takes_value());
@@ -312,6 +323,7 @@ mod tests {
             metavar: Some("PKG".to_string()),
             default: None,
             required: false,
+            group: None,
         };
         assert!(opt.is_greedy());
     }
@@ -327,6 +339,7 @@ mod tests {
             metavar: None,
             default: None,
             required: false,
+            group: None,
         };
         assert!(!opt.is_greedy());
     }
@@ -377,6 +390,7 @@ mod tests {
                                     metavar: None,
                                     default: None,
                                     required: false,
+                                    group: None,
                                 },
                             )]),
                             positionals: vec![],
