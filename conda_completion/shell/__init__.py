@@ -10,8 +10,11 @@ Each shell module provides a Shell subclass with ``script()``,
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
+
+SHELL_NAMES = frozenset({"bash", "zsh", "fish", "powershell", "pwsh", "cmd"})
 
 
 class Shell:
@@ -47,15 +50,62 @@ class Shell:
         return "'" + str(path).replace("'", "''") + "'"
 
     @staticmethod
+    def detect_parent_shell() -> str | None:
+        """Walk the process tree via ``ps`` to find the nearest parent shell.
+
+        Returns the shell name if found, or ``None``.
+        Only works on POSIX systems.
+
+        Approach inspired by shellingham (ISC license):
+        https://github.com/sarugaku/shellingham
+        """
+        try:
+            output = subprocess.check_output(
+                ["ps", "-ww", "-o", "pid=", "-o", "ppid=", "-o", "comm="],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            return None
+
+        processes: dict[str, tuple[str, str]] = {}
+        for line in output.splitlines():
+            parts = line.strip().split(None, 2)
+            if len(parts) < 3:
+                continue
+            pid, ppid, comm = parts
+            processes[pid] = (ppid, os.path.basename(comm).lower())
+
+        pid = str(os.getpid())
+        for _ in range(10):
+            info = processes.get(pid)
+            if info is None:
+                break
+            ppid, name = info
+            # Login shells show as "-zsh", "-bash", etc.
+            if name.startswith("-"):
+                name = name[1:]
+            if name in SHELL_NAMES:
+                return name
+            pid = ppid
+
+        return None
+
+    @staticmethod
     def detect_shell() -> str:
         """Detect the current shell from the environment.
 
-        Checks ``CONDA_COMPLETION_SHELL`` first (explicit override),
-        then falls back to ``SHELL`` and platform defaults.
+        Priority: ``CONDA_COMPLETION_SHELL`` env var, then process tree
+        walking (POSIX only), then ``SHELL`` env var, then platform default.
         """
         override = os.environ.get("CONDA_COMPLETION_SHELL", "")
         if override:
             return Path(override).stem
+
+        if os.name == "posix":
+            shell = Shell.detect_parent_shell()
+            if shell:
+                return shell
 
         shell_path = os.environ.get("SHELL", "")
         if shell_path:

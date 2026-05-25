@@ -93,6 +93,7 @@ def test_get_shell_registry_includes_fish():
 )
 def test_detect_shell_from_env(monkeypatch, shell_env, expected):
     monkeypatch.delenv("CONDA_COMPLETION_SHELL", raising=False)
+    monkeypatch.setattr(Shell, "detect_parent_shell", staticmethod(lambda: None))
     monkeypatch.setenv("SHELL", shell_env)
     assert Shell.detect_shell() == expected
 
@@ -107,6 +108,7 @@ def test_detect_shell_from_env(monkeypatch, shell_env, expected):
 )
 def test_detect_shell_empty_env(monkeypatch, platform, expected):
     monkeypatch.delenv("CONDA_COMPLETION_SHELL", raising=False)
+    monkeypatch.setattr(Shell, "detect_parent_shell", staticmethod(lambda: None))
     monkeypatch.delenv("SHELL", raising=False)
     monkeypatch.setattr("conda_completion.shell.sys.platform", platform)
     assert Shell.detect_shell() == expected
@@ -121,7 +123,7 @@ def test_detect_shell_empty_env(monkeypatch, platform, expected):
     ],
     ids=["bare-name", "full-path", "zsh"],
 )
-def test_detect_shell_conda_default_shell_override(monkeypatch, override, expected):
+def test_detect_shell_conda_completion_shell_override(monkeypatch, override, expected):
     monkeypatch.setenv("CONDA_COMPLETION_SHELL", override)
     monkeypatch.setenv("SHELL", "/bin/bash")
     assert Shell.detect_shell() == expected
@@ -131,6 +133,26 @@ def test_detect_shell_override_takes_priority(monkeypatch):
     monkeypatch.setenv("CONDA_COMPLETION_SHELL", "fish")
     monkeypatch.setenv("SHELL", "/bin/zsh")
     assert Shell.detect_shell() == "fish"
+
+
+def test_detect_parent_shell_finds_current_shell():
+    result = Shell.detect_parent_shell()
+    if result is not None:
+        assert result in {"bash", "zsh", "fish", "powershell", "pwsh", "cmd"}
+
+
+def test_detect_shell_process_tree_beats_shell_env(monkeypatch):
+    monkeypatch.delenv("CONDA_COMPLETION_SHELL", raising=False)
+    monkeypatch.setattr(Shell, "detect_parent_shell", staticmethod(lambda: "fish"))
+    monkeypatch.setenv("SHELL", "/bin/bash")
+    assert Shell.detect_shell() == "fish"
+
+
+def test_detect_shell_skips_process_tree_on_windows(monkeypatch):
+    monkeypatch.delenv("CONDA_COMPLETION_SHELL", raising=False)
+    monkeypatch.setattr("conda_completion.shell.os.name", "nt")
+    monkeypatch.setenv("SHELL", "/bin/bash")
+    assert Shell.detect_shell() == "bash"
 
 
 def test_default_rc_path_existing_file(tmp_path, monkeypatch):

@@ -2,10 +2,15 @@
 
 ## Read by conda-completion
 
+`CONDA_COMPLETION_SHELL`
+: Overrides shell auto-detection. Accepts a shell name (`fish`) or
+  full path (`/usr/local/bin/fish`). Takes priority over process tree
+  detection and `SHELL`. Useful when automatic detection fails or in
+  scripted environments.
+
 `SHELL`
-: Auto-detects the current shell when no shell argument is passed to
-  `conda completion install`, `uninstall`, or `init`. Defaults to
-  `powershell` on Windows if not set.
+: Fallback for shell detection when process tree walking does not find
+  a known shell. Defaults to `powershell` on Windows if not set.
 
 `CONDARC`
 : Path to a custom `.condarc` file. The Rust completer reads this
