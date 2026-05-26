@@ -92,6 +92,8 @@ def test_get_shell_registry_includes_fish():
     ids=["zsh", "fish", "bash"],
 )
 def test_detect_shell_from_env(monkeypatch, shell_env, expected):
+    monkeypatch.delenv("CONDA_COMPLETION_SHELL", raising=False)
+    monkeypatch.setattr(Shell, "detect_parent_shell", staticmethod(lambda: None))
     monkeypatch.setenv("SHELL", shell_env)
     assert Shell.detect_shell() == expected
 
@@ -105,9 +107,85 @@ def test_detect_shell_from_env(monkeypatch, shell_env, expected):
     ids=["linux-fallback", "win32-fallback"],
 )
 def test_detect_shell_empty_env(monkeypatch, platform, expected):
+    monkeypatch.delenv("CONDA_COMPLETION_SHELL", raising=False)
+    monkeypatch.setattr(Shell, "detect_parent_shell", staticmethod(lambda: None))
     monkeypatch.delenv("SHELL", raising=False)
     monkeypatch.setattr("conda_completion.shell.sys.platform", platform)
     assert Shell.detect_shell() == expected
+
+
+@pytest.mark.parametrize(
+    "override,expected",
+    [
+        ("fish", "fish"),
+        ("/usr/local/bin/fish", "fish"),
+        ("pwsh", "powershell"),
+        ("/usr/local/bin/pwsh.exe", "powershell"),
+        ("zsh", "zsh"),
+    ],
+    ids=["bare-name", "full-path", "pwsh", "pwsh-exe-path", "zsh"],
+)
+def test_detect_shell_conda_completion_shell_override(monkeypatch, override, expected):
+    monkeypatch.setenv("CONDA_COMPLETION_SHELL", override)
+    monkeypatch.setenv("SHELL", "/bin/bash")
+    assert Shell.detect_shell() == expected
+
+
+def test_detect_shell_override_takes_priority(monkeypatch):
+    monkeypatch.setenv("CONDA_COMPLETION_SHELL", "fish")
+    monkeypatch.setenv("SHELL", "/bin/zsh")
+    assert Shell.detect_shell() == "fish"
+
+
+@pytest.mark.parametrize(
+    "parent_comm,expected",
+    [
+        ("/usr/bin/fish", "fish"),
+        ("-zsh", "zsh"),
+        ("pwsh", "powershell"),
+        ("pwsh.exe", "powershell"),
+        ("powershell.exe", "powershell"),
+        ("cmd", None),
+        ("cmd.exe", None),
+    ],
+    ids=[
+        "fish-path",
+        "login-zsh",
+        "pwsh",
+        "pwsh-exe",
+        "powershell-exe",
+        "cmd-unsupported",
+        "cmd-exe-unsupported",
+    ],
+)
+def test_detect_parent_shell_parses_process_tree(monkeypatch, parent_comm, expected):
+    ps_output = f"""
+      1     0 launchd
+      123   1 {parent_comm}
+      456 123 python
+    """
+
+    monkeypatch.setattr("conda_completion.shell.os.getpid", lambda: 456)
+    monkeypatch.setattr(
+        "conda_completion.shell.subprocess.check_output",
+        lambda *args, **kwargs: ps_output,
+    )
+
+    assert Shell.detect_parent_shell() == expected
+
+
+def test_detect_shell_process_tree_beats_shell_env(monkeypatch):
+    monkeypatch.delenv("CONDA_COMPLETION_SHELL", raising=False)
+    monkeypatch.setattr(Shell, "detect_parent_shell", staticmethod(lambda: "fish"))
+    monkeypatch.setenv("SHELL", "/bin/bash")
+    assert Shell.detect_shell() == "fish"
+
+
+def test_detect_shell_falls_through_when_process_tree_fails(monkeypatch):
+    monkeypatch.delenv("CONDA_COMPLETION_SHELL", raising=False)
+    monkeypatch.setattr(Shell, "detect_parent_shell", staticmethod(lambda: None))
+    monkeypatch.setenv("SHELL", "/bin/bash")
+    assert Shell.detect_shell() == "bash"
 
 
 def test_default_rc_path_existing_file(tmp_path, monkeypatch):
