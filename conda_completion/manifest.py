@@ -13,6 +13,7 @@ from .exceptions import ManifestError
 
 if TYPE_CHECKING:
     from pathlib import Path
+    from typing import BinaryIO
 
 MAX_MANIFEST_SIZE = 50 * 1024 * 1024
 MAX_COLLECTION_SIZE = 2_000_000
@@ -260,10 +261,20 @@ def read_versions(index_path: Path, store_path: Path) -> dict[str, list[str]]:
     """Deserialize all package version data from an indexed byte store."""
     try:
         index = read_version_index(index_path)
-        return {
-            package_name: read_package_versions(index_path, store_path, package_name)
-            for package_name in index
-        }
+        if store_path.is_symlink():
+            raise ManifestError("refusing to read through symlink")
+        size = store_path.stat().st_size
+        versions = {}
+        with store_path.open("rb") as store_file:
+            for package_name, (offset, length) in index.items():
+                versions[package_name] = read_package_versions_record(
+                    store_file,
+                    size,
+                    package_name,
+                    offset,
+                    length,
+                )
+        return versions
     except (msgpack.UnpackException, ValueError, FileNotFoundError) as exc:
         raise ManifestError(str(exc)) from exc
 
@@ -283,20 +294,36 @@ def read_package_versions(index_path: Path, store_path: Path, package_name: str)
         if store_path.is_symlink():
             raise ManifestError("refusing to read through symlink")
         size = store_path.stat().st_size
-        end = offset + length
-        if offset < 0 or length < 0 or end > size:
-            raise ManifestError("package version index points outside store")
         with store_path.open("rb") as store_file:
-            store_file.seek(offset)
-            data = msgpack.unpackb(
-                store_file.read(length),
-                max_str_len=MAX_MANIFEST_SIZE,
-                max_bin_len=MAX_MANIFEST_SIZE,
-                max_array_len=MAX_COLLECTION_SIZE,
-                max_map_len=MAX_COLLECTION_SIZE,
+            return read_package_versions_record(
+                store_file,
+                size,
+                package_name,
+                offset,
+                length,
             )
     except (msgpack.UnpackException, ValueError, FileNotFoundError) as exc:
         raise ManifestError(str(exc)) from exc
+
+
+def read_package_versions_record(
+    store_file: BinaryIO,
+    store_size: int,
+    package_name: str,
+    offset: int,
+    length: int,
+) -> list[str]:
+    end = offset + length
+    if offset < 0 or length < 0 or end > store_size:
+        raise ManifestError("package version index points outside store")
+    store_file.seek(offset)
+    data = msgpack.unpackb(
+        store_file.read(length),
+        max_str_len=MAX_MANIFEST_SIZE,
+        max_bin_len=MAX_MANIFEST_SIZE,
+        max_array_len=MAX_COLLECTION_SIZE,
+        max_map_len=MAX_COLLECTION_SIZE,
+    )
     if not isinstance(data, list):
         raise ManifestError("package versions root is not a list")
     return data
