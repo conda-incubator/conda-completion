@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import argparse
+
 import msgpack
 import pytest
 
@@ -129,3 +131,9 @@ def test_execute_dispatches_uninstall(tmp_path, monkeypatch):
     args = build_parser().parse_args(["uninstall", "--yes"])
     result = execute(args)
     assert result == 0
+
+
+def test_execute_unknown_subcommand(capsys):
+    result = execute(argparse.Namespace(subcmd="bogus"))
+    assert result == 1
+    assert "usage" in capsys.readouterr().out.lower()

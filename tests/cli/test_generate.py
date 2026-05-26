@@ -9,7 +9,11 @@ from contextlib import nullcontext
 
 import pytest
 
-from conda_completion.cli.generate import execute_generate, resolve_package_metadata
+from conda_completion.cli.generate import (
+    execute_generate,
+    package_data_is_fresh,
+    resolve_package_metadata,
+)
 from conda_completion.manifest import (
     CompletionManifest,
     read_manifest,
@@ -110,7 +114,7 @@ def test_generate_refresh_repodata_forces_repodata_fetch(generate_env, monkeypat
 def test_generate_shows_repodata_spinner(generate_env, monkeypatch):
     spinner_messages = []
 
-    class FakeContext:
+    class ContextStub:
         quiet = False
         json = False
 
@@ -121,7 +125,7 @@ def test_generate_shows_repodata_spinner(generate_env, monkeypatch):
         spinner_messages.append(message)
         return nullcontext()
 
-    monkeypatch.setattr("conda_completion.cli.generate.context", FakeContext())
+    monkeypatch.setattr("conda_completion.cli.generate.context", ContextStub())
     monkeypatch.setattr("conda_completion.cli.generate.extract_package_data", fake_extract)
     monkeypatch.setattr("conda_completion.cli.generate.get_spinner", fake_spinner)
 
@@ -141,10 +145,10 @@ def test_generate_suppresses_repodata_spinner_for_quiet_or_json(
     quiet,
     json_enabled,
 ):
-    class FakeContext:
+    class ContextStub:
         json = json_enabled
 
-    FakeContext.quiet = quiet
+    ContextStub.quiet = quiet
 
     def fake_extract():
         return ["pandas"], {"pandas": ["2.2"]}
@@ -152,7 +156,7 @@ def test_generate_suppresses_repodata_spinner_for_quiet_or_json(
     def fail_spinner(message):
         raise AssertionError(f"spinner should not be shown: {message}")
 
-    monkeypatch.setattr("conda_completion.cli.generate.context", FakeContext())
+    monkeypatch.setattr("conda_completion.cli.generate.context", ContextStub())
     monkeypatch.setattr("conda_completion.cli.generate.extract_package_data", fake_extract)
     monkeypatch.setattr("conda_completion.cli.generate.get_spinner", fail_spinner)
 
@@ -240,3 +244,10 @@ def test_generate_without_existing_package_data_handles_repodata_failure(
 
     assert result == 0
     assert read_manifest(generate_env.manifest_path).package_names == []
+
+
+def test_package_data_is_fresh_returns_false_for_missing_files(tmp_path):
+    assert not package_data_is_fresh(
+        tmp_path / "versions.index",
+        tmp_path / "versions.store",
+    )

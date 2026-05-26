@@ -6,7 +6,7 @@ import argparse
 
 import pytest
 
-from conda_completion.cli.install import _BLOCK_END, _BLOCK_START, execute_install
+from conda_completion.cli.install import _BLOCK_END, _BLOCK_START, execute_install, source_command
 from conda_completion.cli.uninstall import _BLOCK_PATTERN, execute_uninstall
 from conda_completion.exceptions import ShellNotSupportedError
 from conda_completion.shell import Shell, get_shell_registry
@@ -184,6 +184,10 @@ def test_execute_install_passes_repodata_flags(tmp_path, monkeypatch, stub_gener
     assert len(stub_generate) == 1
     assert stub_generate[0].refresh_repodata is True
     assert stub_generate[0].no_repodata is False
+
+
+def test_source_command_for_powershell():
+    assert source_command("powershell", "ignored") == ". $PROFILE"
 
 
 def test_execute_install_new_file(tmp_path, monkeypatch, stub_generate):

@@ -158,6 +158,20 @@ def test_powershell_default_rc_path_non_win(tmp_path, monkeypatch):
     assert "powershell" in str(rc).lower()
 
 
+def test_powershell_default_rc_path_win32(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setattr("conda_completion.shell.powershell.sys.platform", "win32")
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "profile"))
+
+    shell = PowerShellShell()
+    rc = shell.default_rc_path()
+
+    assert (
+        rc
+        == tmp_path / "profile" / "Documents" / "PowerShell" / "Microsoft.PowerShell_profile.ps1"
+    )
+
+
 def test_powershell_default_rc_path_existing(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.setattr("conda_completion.shell.powershell.sys.platform", "darwin")
