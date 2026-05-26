@@ -114,7 +114,9 @@ shell using this priority order:
    they are not the login shell (where `$SHELL` would still point to
    the login shell). Works on Linux, macOS, WSL, and Git Bash/MSYS2.
    Falls through silently on native Windows where `ps` is unavailable.
-3. `SHELL` environment variable (extracts the basename).
+   PowerShell aliases such as `pwsh` are normalized to `powershell`.
+3. `SHELL` environment variable (extracts the basename and normalizes
+   supported aliases).
 4. Platform default: `powershell` on Windows, `bash` otherwise.
 
 The process tree approach is inspired by

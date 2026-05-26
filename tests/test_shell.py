@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from conda.common.compat import on_win
 
 from conda_completion.shell import Shell, get_shell_registry
 
@@ -120,9 +119,11 @@ def test_detect_shell_empty_env(monkeypatch, platform, expected):
     [
         ("fish", "fish"),
         ("/usr/local/bin/fish", "fish"),
+        ("pwsh", "powershell"),
+        ("/usr/local/bin/pwsh.exe", "powershell"),
         ("zsh", "zsh"),
     ],
-    ids=["bare-name", "full-path", "zsh"],
+    ids=["bare-name", "full-path", "pwsh", "pwsh-exe-path", "zsh"],
 )
 def test_detect_shell_conda_completion_shell_override(monkeypatch, override, expected):
     monkeypatch.setenv("CONDA_COMPLETION_SHELL", override)
@@ -136,11 +137,41 @@ def test_detect_shell_override_takes_priority(monkeypatch):
     assert Shell.detect_shell() == "fish"
 
 
-@pytest.mark.skipif(on_win, reason="ps not available on Windows")
-def test_detect_parent_shell_finds_current_shell():
-    result = Shell.detect_parent_shell()
-    if result is not None:
-        assert result in {"bash", "zsh", "fish", "powershell", "pwsh", "cmd"}
+@pytest.mark.parametrize(
+    "parent_comm,expected",
+    [
+        ("/usr/bin/fish", "fish"),
+        ("-zsh", "zsh"),
+        ("pwsh", "powershell"),
+        ("pwsh.exe", "powershell"),
+        ("powershell.exe", "powershell"),
+        ("cmd", None),
+        ("cmd.exe", None),
+    ],
+    ids=[
+        "fish-path",
+        "login-zsh",
+        "pwsh",
+        "pwsh-exe",
+        "powershell-exe",
+        "cmd-unsupported",
+        "cmd-exe-unsupported",
+    ],
+)
+def test_detect_parent_shell_parses_process_tree(monkeypatch, parent_comm, expected):
+    ps_output = f"""
+      1     0 launchd
+      123   1 {parent_comm}
+      456 123 python
+    """
+
+    monkeypatch.setattr("conda_completion.shell.os.getpid", lambda: 456)
+    monkeypatch.setattr(
+        "conda_completion.shell.subprocess.check_output",
+        lambda *args, **kwargs: ps_output,
+    )
+
+    assert Shell.detect_parent_shell() == expected
 
 
 def test_detect_shell_process_tree_beats_shell_env(monkeypatch):

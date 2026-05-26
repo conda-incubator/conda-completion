@@ -5,8 +5,9 @@
 `CONDA_COMPLETION_SHELL`
 : Overrides shell auto-detection. Accepts a shell name (`fish`) or
   full path (`/usr/local/bin/fish`). Takes priority over process tree
-  detection and `SHELL`. Useful when automatic detection fails or in
-  scripted environments.
+  detection and `SHELL`. PowerShell aliases such as `pwsh` are
+  normalized to `powershell`. Useful when automatic detection fails or
+  in scripted environments.
 
 `SHELL`
 : Fallback for shell detection when process tree walking does not find

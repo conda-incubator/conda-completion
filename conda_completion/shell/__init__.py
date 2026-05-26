@@ -14,7 +14,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-SHELL_NAMES = frozenset({"bash", "zsh", "fish", "powershell", "pwsh", "cmd"})
+SHELL_ALIASES = {
+    "bash": "bash",
+    "zsh": "zsh",
+    "fish": "fish",
+    "powershell": "powershell",
+    "pwsh": "powershell",
+}
 
 
 class Shell:
@@ -50,6 +56,16 @@ class Shell:
         return "'" + str(path).replace("'", "''") + "'"
 
     @staticmethod
+    def normalize_shell_name(name: str) -> str | None:
+        """Return the supported shell name for a process name, if any."""
+        shell_name = os.path.basename(name).lower()
+        if shell_name.startswith("-"):
+            shell_name = shell_name[1:]
+        if shell_name.endswith(".exe"):
+            shell_name = shell_name[:-4]
+        return SHELL_ALIASES.get(shell_name)
+
+    @staticmethod
     def detect_parent_shell() -> str | None:
         """Walk the process tree via ``ps`` to find the nearest parent shell.
 
@@ -74,7 +90,7 @@ class Shell:
             if len(parts) < 3:
                 continue
             pid, ppid, comm = parts
-            processes[pid] = (ppid, os.path.basename(comm).lower())
+            processes[pid] = (ppid, comm)
 
         pid = str(os.getpid())
         for _ in range(10):
@@ -82,11 +98,9 @@ class Shell:
             if info is None:
                 break
             ppid, name = info
-            # Login shells show as "-zsh", "-bash", etc.
-            if name.startswith("-"):
-                name = name[1:]
-            if name in SHELL_NAMES:
-                return name
+            shell_name = Shell.normalize_shell_name(name)
+            if shell_name:
+                return shell_name
             pid = ppid
 
         return None
@@ -100,7 +114,7 @@ class Shell:
         """
         override = os.environ.get("CONDA_COMPLETION_SHELL", "")
         if override:
-            return Path(override).stem
+            return Shell.normalize_shell_name(override) or Path(override).stem
 
         shell = Shell.detect_parent_shell()
         if shell:
@@ -108,7 +122,7 @@ class Shell:
 
         shell_path = os.environ.get("SHELL", "")
         if shell_path:
-            return Path(shell_path).name
+            return Shell.normalize_shell_name(shell_path) or Path(shell_path).name
         if sys.platform == "win32":
             return "powershell"
         return "bash"
