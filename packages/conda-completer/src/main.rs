@@ -33,7 +33,7 @@ fn main() {
 
     let versions_path = parsed
         .versions
-        .unwrap_or_else(|| parsed.manifest.with_file_name("versions.msgpack"));
+        .unwrap_or_else(|| parsed.manifest.with_file_name("versions.index"));
 
     let cache_path = parsed.manifest.with_file_name("context_cache.msgpack");
     let mut stat_cache = cache::StatCache::load(&cache_path);
@@ -412,17 +412,12 @@ fn resolve_dynamic(
                     }
                 }
             } else if !current_word.is_empty() {
-                let all_packages: Vec<_> = manifest
-                    .package_names
-                    .iter()
-                    .map(|n| (n.as_str(), None))
-                    .collect();
                 candidates.extend(
-                    matcher::fuzzy_match(&all_packages, current_word)
+                    matcher::fuzzy_match_names(&manifest.package_names, current_word)
                         .into_iter()
-                        .map(|(name, desc)| Candidate {
+                        .map(|name| Candidate {
                             name,
-                            description: desc,
+                            description: None,
                             group: "package".into(),
                         }),
                 );
@@ -610,7 +605,7 @@ mod tests {
     }
 
     fn no_versions() -> PathBuf {
-        PathBuf::from("/nonexistent/versions.msgpack")
+        PathBuf::from("/nonexistent/versions")
     }
 
     #[test]

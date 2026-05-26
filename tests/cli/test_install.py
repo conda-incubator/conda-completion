@@ -6,7 +6,7 @@ import argparse
 
 import pytest
 
-from conda_completion.cli.install import _BLOCK_END, _BLOCK_START, execute_install
+from conda_completion.cli.install import _BLOCK_END, _BLOCK_START, execute_install, source_command
 from conda_completion.exceptions import ShellNotSupportedError
 from conda_completion.shell import Shell, get_shell_registry
 
@@ -56,10 +56,17 @@ def test_detect_shell_returns_string():
 @pytest.fixture()
 def stub_generate(monkeypatch):
     """Stub out execute_generate so install tests don't need conda's full parser."""
+    calls = []
+
+    def fake_generate(args):
+        calls.append(args)
+        return 0
+
     monkeypatch.setattr(
         "conda_completion.cli.generate.execute_generate",
-        lambda args: 0,
+        fake_generate,
     )
+    return calls
 
 
 def test_execute_install_unsupported_shell(monkeypatch, stub_generate):
@@ -81,6 +88,7 @@ def test_execute_install_dry_run(tmp_path, monkeypatch, stub_generate):
     result = execute_install(args)
     assert result == 0
     assert not rc_file.exists()
+    assert stub_generate == []
 
 
 def test_execute_install_already_present(tmp_path, monkeypatch, stub_generate):
@@ -99,6 +107,7 @@ def test_execute_install_already_present(tmp_path, monkeypatch, stub_generate):
     result = execute_install(args)
     assert result == 0
     assert rc_file.read_text(encoding="utf-8").count(_BLOCK_START) == 1
+    assert stub_generate == []
 
 
 def test_execute_install_no_rc_path(monkeypatch, stub_generate):
@@ -111,6 +120,7 @@ def test_execute_install_no_rc_path(monkeypatch, stub_generate):
     args = argparse.Namespace(shell=None, yes=False, dry_run=False)
     result = execute_install(args)
     assert result == 1
+    assert stub_generate == []
 
 
 def test_execute_install_with_yes(tmp_path, monkeypatch, stub_generate):
@@ -124,9 +134,37 @@ def test_execute_install_with_yes(tmp_path, monkeypatch, stub_generate):
     args = argparse.Namespace(shell=None, yes=True, dry_run=False)
     result = execute_install(args)
     assert result == 0
+    assert len(stub_generate) == 1
     content = rc_file.read_text(encoding="utf-8")
     assert _BLOCK_START in content
     assert _BLOCK_END in content
+
+
+def test_execute_install_passes_repodata_flags(tmp_path, monkeypatch, stub_generate):
+    rc_file = tmp_path / ".bashrc"
+    monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
+    monkeypatch.setattr(
+        "conda_completion.shell.bash.BashShell.default_rc_path",
+        lambda self: rc_file,
+    )
+
+    args = argparse.Namespace(
+        shell=None,
+        yes=True,
+        dry_run=False,
+        refresh_repodata=True,
+        no_repodata=False,
+    )
+    result = execute_install(args)
+
+    assert result == 0
+    assert len(stub_generate) == 1
+    assert stub_generate[0].refresh_repodata is True
+    assert stub_generate[0].no_repodata is False
+
+
+def test_source_command_for_powershell():
+    assert source_command("powershell", "ignored") == ". $PROFILE"
 
 
 def test_execute_install_new_file(tmp_path, monkeypatch, stub_generate):
@@ -139,6 +177,7 @@ def test_execute_install_new_file(tmp_path, monkeypatch, stub_generate):
     args = argparse.Namespace(shell="bash", yes=True, dry_run=False)
     result = execute_install(args)
     assert result == 0
+    assert len(stub_generate) == 1
     assert rc_file.exists()
     content = rc_file.read_text(encoding="utf-8")
     assert _BLOCK_START in content
@@ -156,35 +195,38 @@ def test_execute_install_prompt_declined(tmp_path, monkeypatch, stub_generate):
     result = execute_install(args)
     assert result == 1
     assert not rc_file.exists()
+    assert stub_generate == []
 
 
-def test_install_warns_when_conda_not_on_path(tmp_path, monkeypatch, capsys, stub_generate):
+@pytest.mark.parametrize(
+    "which_result,expected_message",
+    [
+        (None, "conda is not on PATH"),
+        ("/usr/bin/conda", None),
+    ],
+    ids=["missing-conda", "conda-on-path"],
+)
+def test_install_conda_path_warning(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    stub_generate,
+    which_result,
+    expected_message,
+):
     rc_file = tmp_path / ".bashrc"
     monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
     monkeypatch.setattr(
         "conda_completion.shell.bash.BashShell.default_rc_path",
         lambda self: rc_file,
     )
-    monkeypatch.setattr("conda_completion.cli.install.shutil.which", lambda _: None)
+    monkeypatch.setattr("conda_completion.cli.install.shutil.which", lambda _: which_result)
 
     args = argparse.Namespace(shell=None, yes=True, dry_run=False)
     result = execute_install(args)
     assert result == 0
     captured = capsys.readouterr()
-    assert "conda is not on PATH" in captured.out
-
-
-def test_install_no_warning_when_conda_on_path(tmp_path, monkeypatch, capsys, stub_generate):
-    rc_file = tmp_path / ".bashrc"
-    monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
-    monkeypatch.setattr(
-        "conda_completion.shell.bash.BashShell.default_rc_path",
-        lambda self: rc_file,
-    )
-    monkeypatch.setattr("conda_completion.cli.install.shutil.which", lambda _: "/usr/bin/conda")
-
-    args = argparse.Namespace(shell=None, yes=True, dry_run=False)
-    result = execute_install(args)
-    assert result == 0
-    captured = capsys.readouterr()
-    assert "conda is not on PATH" not in captured.out
+    if expected_message is None:
+        assert "conda is not on PATH" not in captured.out
+    else:
+        assert expected_message in captured.out

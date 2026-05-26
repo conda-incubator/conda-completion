@@ -7,6 +7,9 @@ from pathlib import Path
 import pytest
 
 from conda_completion.shell import Shell, get_shell_registry
+from conda_completion.shell.bash import BashShell
+from conda_completion.shell.powershell import PowerShellShell
+from conda_completion.shell.zsh import ZshShell
 
 
 @pytest.mark.parametrize(
@@ -189,8 +192,6 @@ def test_detect_shell_falls_through_when_process_tree_fails(monkeypatch):
 
 
 def test_default_rc_path_existing_file(tmp_path, monkeypatch):
-    from conda_completion.shell.bash import BashShell
-
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     (tmp_path / ".bash_profile").touch()
 
@@ -200,8 +201,6 @@ def test_default_rc_path_existing_file(tmp_path, monkeypatch):
 
 
 def test_default_rc_path_prefers_first_existing(tmp_path, monkeypatch):
-    from conda_completion.shell.bash import BashShell
-
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     (tmp_path / ".bashrc").touch()
     (tmp_path / ".bash_profile").touch()
@@ -212,8 +211,6 @@ def test_default_rc_path_prefers_first_existing(tmp_path, monkeypatch):
 
 
 def test_default_rc_path_fallback_to_first_in_list(tmp_path, monkeypatch):
-    from conda_completion.shell.bash import BashShell
-
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
     shell = BashShell()
@@ -230,8 +227,6 @@ def test_default_rc_path_empty_rc_files(tmp_path, monkeypatch):
 
 
 def test_powershell_default_rc_path_non_win(tmp_path, monkeypatch):
-    from conda_completion.shell.powershell import PowerShellShell
-
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.setattr("conda_completion.shell.powershell.sys.platform", "darwin")
 
@@ -241,9 +236,21 @@ def test_powershell_default_rc_path_non_win(tmp_path, monkeypatch):
     assert "powershell" in str(rc).lower()
 
 
-def test_powershell_default_rc_path_existing(tmp_path, monkeypatch):
-    from conda_completion.shell.powershell import PowerShellShell
+def test_powershell_default_rc_path_win32(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setattr("conda_completion.shell.powershell.sys.platform", "win32")
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "profile"))
 
+    shell = PowerShellShell()
+    rc = shell.default_rc_path()
+
+    assert (
+        rc
+        == tmp_path / "profile" / "Documents" / "PowerShell" / "Microsoft.PowerShell_profile.ps1"
+    )
+
+
+def test_powershell_default_rc_path_existing(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.setattr("conda_completion.shell.powershell.sys.platform", "darwin")
 
@@ -257,18 +264,16 @@ def test_powershell_default_rc_path_existing(tmp_path, monkeypatch):
 
 
 def test_zsh_script_registers_compdef(tmp_path):
-    from conda_completion.shell.zsh import ZshShell
-
     shell = ZshShell()
     script = shell.script(tmp_path / "_conda_completer", tmp_path / "completion.msgpack")
     assert "compdef _conda conda" in script
 
 
 def test_powershell_script_contains_register(tmp_path):
-    from conda_completion.shell.powershell import PowerShellShell
-
     shell = PowerShellShell()
     script = shell.script(tmp_path / "_conda_completer", tmp_path / "completion.msgpack")
     assert "Register-ArgumentCompleter" in script
     assert "CompletionResult" in script
     assert str(tmp_path / "_conda_completer") in script
+    assert "CommandElements" in script
+    assert ".ToString().Split()" not in script

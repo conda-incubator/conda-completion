@@ -6,7 +6,8 @@ import argparse
 
 import pytest
 
-from conda_completion.introspect import walk_parser
+from conda_completion.exceptions import IntrospectionError
+from conda_completion.introspect import generate_manifest, walk_parser
 
 
 def test_walk_simple_parser():
@@ -140,16 +141,12 @@ def test_suppressed_help_excluded():
 
 
 def test_generate_manifest_includes_plugin_subcommands():
-    from conda_completion.introspect import generate_manifest
-
     m = generate_manifest("test")
     assert "workspace" in m.commands
     assert "task" in m.commands
 
 
 def test_generate_manifest_plugin_subcommand_depth():
-    from conda_completion.introspect import generate_manifest
-
     m = generate_manifest("test")
     ws = m.commands["workspace"]
     assert "install" in ws.subcommands
@@ -157,3 +154,24 @@ def test_generate_manifest_plugin_subcommand_depth():
 
     task = m.commands["task"]
     assert "run" in task.subcommands
+
+
+def test_generate_manifest_wraps_parser_failure(monkeypatch):
+    def raise_failure():
+        raise RuntimeError("bad plugin")
+
+    monkeypatch.setattr("conda_completion.introspect.generate_parser", raise_failure)
+
+    with pytest.raises(IntrospectionError, match="bad plugin"):
+        generate_manifest("test")
+
+
+@pytest.mark.parametrize("exc", [KeyboardInterrupt, SystemExit], ids=["interrupt", "exit"])
+def test_generate_manifest_preserves_interrupts(monkeypatch, exc):
+    def raise_interrupt():
+        raise exc
+
+    monkeypatch.setattr("conda_completion.introspect.generate_parser", raise_interrupt)
+
+    with pytest.raises(exc):
+        generate_manifest("test")

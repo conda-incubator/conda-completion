@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
+
 import msgpack
 import pytest
 
+from conda_completion.manifest import CompletionManifest
 from conda_completion.plugin import (
+    conda_post_commands,
+    conda_subcommands,
     maybe_regenerate,
     plugin_entry_point_hash,
     read_manifest_plugin_hash,
@@ -74,18 +79,21 @@ def test_maybe_regenerate_hash_differs(tmp_path, monkeypatch):
     written = []
 
     def fake_generate(plugin_hash):
-        from conda_completion.manifest import CompletionManifest
-
         generated.append(plugin_hash)
         return CompletionManifest(plugin_hash=plugin_hash)
 
     def fake_write(m, path):
         written.append(path)
 
+    def fake_resolve_package_metadata(manifest, **kwargs):
+        return manifest
+
     monkeypatch.setattr("conda_completion.introspect.generate_manifest", fake_generate)
     monkeypatch.setattr("conda_completion.manifest.write_manifest", fake_write)
-    monkeypatch.setattr("conda_completion.manifest.write_versions", lambda v, p: None)
-    monkeypatch.setattr("conda_completion.repodata.extract_package_data", lambda: ([], {}))
+    monkeypatch.setattr(
+        "conda_completion.cli.generate.resolve_package_metadata",
+        fake_resolve_package_metadata,
+    )
 
     maybe_regenerate("install")
 
@@ -99,8 +107,9 @@ def test_maybe_regenerate_hash_differs(tmp_path, monkeypatch):
         ("conda_completion.plugin.plugin_entry_point_hash", PermissionError, "denied"),
         ("conda_completion.paths.manifest_path", OSError, "disk full"),
         ("conda_completion.paths.manifest_path", RuntimeError, "oops"),
+        ("conda_completion.paths.manifest_path", BaseException, "panic"),
     ],
-    ids=["permission-error", "os-error", "generic-error"],
+    ids=["permission-error", "os-error", "generic-error", "base-exception"],
 )
 def test_maybe_regenerate_swallows_errors(tmp_path, monkeypatch, target, exc_class, exc_msg):
     if target == "conda_completion.plugin.plugin_entry_point_hash":
@@ -115,18 +124,35 @@ def test_maybe_regenerate_swallows_errors(tmp_path, monkeypatch, target, exc_cla
     maybe_regenerate("install")
 
 
+@pytest.mark.parametrize("exc_class", [KeyboardInterrupt, SystemExit], ids=["interrupt", "exit"])
+def test_maybe_regenerate_preserves_interrupts(monkeypatch, exc_class):
+    def raiser():
+        raise exc_class
+
+    monkeypatch.setattr("conda_completion.paths.manifest_path", raiser)
+
+    with pytest.raises(exc_class):
+        maybe_regenerate("install")
+
+
 @pytest.mark.parametrize("command", ["install", "remove", "update"])
 def test_post_command_hook_yields_correct_run_for(command):
-    from conda_completion.plugin import conda_post_commands
-
     hooks = list(conda_post_commands())
     assert len(hooks) == 1
     assert command in hooks[0].run_for
 
 
 def test_subcommands_hook_yields_completion():
-    from conda_completion.plugin import conda_subcommands
-
     cmds = list(conda_subcommands())
     assert len(cmds) == 1
     assert cmds[0].name == "completion"
+
+
+def test_subcommands_hook_configures_parser():
+    cmd = next(iter(conda_subcommands()))
+    parser = argparse.ArgumentParser()
+
+    assert cmd.configure_parser is not None
+    assert cmd.configure_parser(parser) is None
+    assert parser.parse_args(["generate"]).subcmd == "generate"
+    assert parser.parse_args(["install", "bash"]).subcmd == "install"

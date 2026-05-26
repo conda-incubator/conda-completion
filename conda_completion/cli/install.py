@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from ..exceptions import ShellNotSupportedError
 from ..shell import Shell, get_shell_registry
+from . import generate
 
 if TYPE_CHECKING:
     import argparse
@@ -20,15 +21,11 @@ _BLOCK_END = "# <<< conda-completion <<<"
 
 def execute_install(args: argparse.Namespace) -> int:
     """Generate completions and install a shell RC hook."""
-    from .generate import execute_generate
-
     registry = get_shell_registry()
     shell_name = args.shell or Shell.detect_shell()
 
     if shell_name not in registry:
         raise ShellNotSupportedError(shell_name, list(registry))
-
-    execute_generate(args)
 
     shell = registry[shell_name]
     rc_path = shell.default_rc_path()
@@ -57,6 +54,8 @@ def execute_install(args: argparse.Namespace) -> int:
         if response.lower() not in ("y", "yes"):
             print("Aborted.")
             return 1
+
+    generate.execute_generate(args)
 
     rc_path.parent.mkdir(parents=True, exist_ok=True)
     with open(rc_path, "a", encoding="utf-8") as f:

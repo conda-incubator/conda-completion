@@ -15,15 +15,20 @@ from conda_completion.cli.status import execute_status
 @pytest.fixture()
 def status_env(tmp_path, monkeypatch):
     """Stub out path helpers and return a helper to create manifests."""
-    monkeypatch.setattr("conda_completion.paths.completion_cache_dir", lambda: tmp_path)
+    monkeypatch.setattr("conda_completion.cli.status.completion_cache_dir", lambda: tmp_path)
     monkeypatch.setattr(
-        "conda_completion.paths.manifest_path",
+        "conda_completion.cli.status.manifest_path",
         lambda: tmp_path / "completion.msgpack",
     )
     monkeypatch.setattr(
-        "conda_completion.paths.versions_path",
-        lambda: tmp_path / "versions.msgpack",
+        "conda_completion.cli.status.versions_index_path",
+        lambda: tmp_path / "versions.index",
     )
+    monkeypatch.setattr(
+        "conda_completion.cli.status.versions_store_path",
+        lambda: tmp_path / "versions.store",
+    )
+    monkeypatch.setattr("conda_completion.cli.status.plugin_entry_point_hash", lambda: "current")
 
     class Env:
         root = tmp_path
@@ -99,13 +104,16 @@ def test_status_manifest_age(status_env, capsys, age_seconds, expected_label):
 
 def test_status_with_versions(status_env, capsys):
     status_env.write_manifest()
-    versions = status_env.root / "versions.msgpack"
-    versions.write_bytes(msgpack.packb({"numpy": ["1.0"]}))
+    record = msgpack.packb(["1.0"])
+    (status_env.root / "versions.index").write_bytes(msgpack.packb({"numpy": (0, len(record))}))
+    (status_env.root / "versions.store").write_bytes(record)
 
     result = execute_status(argparse.Namespace())
 
     assert result == 0
     out = capsys.readouterr().out
+    assert "Package versions index:" in out
+    assert "Package versions store:" in out
     assert "Size:" in out
 
 
@@ -116,14 +124,32 @@ def test_status_no_versions(status_env, capsys):
 
     assert result == 0
     out = capsys.readouterr().out
-    assert "Versions:" in out
+    assert "Package versions index:" in out
+    assert "Package versions store:" in out
     assert "Not found" in out
 
 
-def test_status_completer_binary_shown(status_env, capsys):
+def test_status_completer_binary_shown(status_env, tmp_path, monkeypatch, capsys):
     status_env.write_manifest()
+    binary = tmp_path / "_conda_completer"
+    monkeypatch.setattr("conda_completion.cli.status.find_completer_binary", lambda: binary)
 
     result = execute_status(argparse.Namespace())
 
     assert result == 0
-    assert "Completer binary:" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert f"Completer binary: {binary}" in out
+
+
+def test_status_completer_binary_missing(status_env, monkeypatch, capsys):
+    status_env.write_manifest()
+
+    def raise_not_found():
+        raise FileNotFoundError
+
+    monkeypatch.setattr("conda_completion.cli.status.find_completer_binary", raise_not_found)
+
+    result = execute_status(argparse.Namespace())
+
+    assert result == 0
+    assert "Completer binary: not found" in capsys.readouterr().out

@@ -2,17 +2,31 @@
 
 from __future__ import annotations
 
+import msgpack
 import pytest
 
+from conda_completion.exceptions import ManifestError
 from conda_completion.manifest import (
     CommandSpec,
     CompletionManifest,
     OptionSpec,
     PositionalSpec,
+    atomic_write,
     read_manifest,
+    read_package_versions,
+    read_version_index,
+    read_versions,
     write_manifest,
     write_versions,
 )
+
+
+def write_empty_manifest(path):
+    write_manifest(CompletionManifest(), path)
+
+
+def write_numpy_versions(path):
+    write_versions({"numpy": ["2.0"]}, path, path.with_name("versions.store"))
 
 
 def test_round_trip_empty_manifest(tmp_path):
@@ -191,8 +205,6 @@ def test_nargs_round_trip(tmp_path, nargs_in, nargs_out):
 
 
 def test_read_invalid_msgpack_raises_manifest_error(tmp_path):
-    from conda_completion.exceptions import ManifestError
-
     path = tmp_path / "bad.msgpack"
     path.write_bytes(b"\xff\xfe invalid msgpack bytes")
 
@@ -201,10 +213,7 @@ def test_read_invalid_msgpack_raises_manifest_error(tmp_path):
 
 
 def test_read_manifest_non_dict_raises(tmp_path):
-    from conda_completion.exceptions import ManifestError
-
     path = tmp_path / "list.msgpack"
-    import msgpack
 
     path.write_bytes(msgpack.packb([1, 2, 3]))
 
@@ -212,15 +221,90 @@ def test_read_manifest_non_dict_raises(tmp_path):
         read_manifest(path)
 
 
+@pytest.mark.parametrize(
+    "target_name,link_name,write_data,read_data",
+    [
+        pytest.param(
+            "real.msgpack",
+            "completion.msgpack",
+            write_empty_manifest,
+            read_manifest,
+            id="manifest",
+        ),
+        pytest.param(
+            "real_versions.index",
+            "versions.index",
+            write_numpy_versions,
+            lambda path: read_versions(path, path.with_name("versions.store")),
+            id="versions",
+        ),
+    ],
+)
+def test_read_completion_data_rejects_symlink(
+    tmp_path,
+    target_name,
+    link_name,
+    write_data,
+    read_data,
+):
+    target = tmp_path / target_name
+    link = tmp_path / link_name
+    write_data(target)
+    link.symlink_to(target)
+
+    with pytest.raises(ManifestError, match="symlink"):
+        read_data(link)
+
+
 def test_read_versions_round_trip(tmp_path):
-    from conda_completion.manifest import read_versions
-
     versions = {"numpy": ["2.0", "1.26"], "scipy": ["1.13"]}
-    path = tmp_path / "versions.msgpack"
-    write_versions(versions, path)
+    index_path = tmp_path / "versions.index"
+    store_path = tmp_path / "versions.store"
+    write_versions(versions, index_path, store_path)
 
-    loaded = read_versions(path)
+    loaded = read_versions(index_path, store_path)
     assert loaded == versions
+
+
+def test_write_versions_creates_indexed_store(tmp_path):
+    versions = {"numpy": ["2.0", "1.26"], "scipy": ["1.13"]}
+    index_path = tmp_path / "versions.index"
+    store_path = tmp_path / "versions.store"
+    write_versions(versions, index_path, store_path)
+
+    assert index_path.exists()
+    assert store_path.exists()
+    assert set(read_version_index(index_path)) == {"numpy", "scipy"}
+    assert read_package_versions(index_path, store_path, "numpy") == ["2.0", "1.26"]
+
+
+@pytest.mark.parametrize("link_target", ["index", "store"])
+def test_read_package_versions_rejects_symlink(tmp_path, link_target):
+    index_path = tmp_path / "versions.index"
+    store_path = tmp_path / "versions.store"
+    write_versions({"numpy": ["2.0"]}, index_path, store_path)
+    target = tmp_path / "target.msgpack"
+    if link_target == "index":
+        target.write_bytes(index_path.read_bytes())
+        index_path.unlink()
+        index_path.symlink_to(target)
+    else:
+        target.write_bytes(store_path.read_bytes())
+        store_path.unlink()
+        store_path.symlink_to(target)
+
+    with pytest.raises(ManifestError, match="symlink"):
+        read_package_versions(index_path, store_path, "numpy")
+
+
+def test_read_package_versions_rejects_out_of_bounds_index(tmp_path):
+    index_path = tmp_path / "versions.index"
+    store_path = tmp_path / "versions.store"
+    store_path.write_bytes(b"short")
+    index_path.write_bytes(msgpack.packb({"numpy": (0, 10)}))
+
+    with pytest.raises(ManifestError, match="outside store"):
+        read_package_versions(index_path, store_path, "numpy")
 
 
 @pytest.mark.parametrize(
@@ -228,25 +312,27 @@ def test_read_versions_round_trip(tmp_path):
     [
         pytest.param("invalid", id="corrupt-data"),
         pytest.param("missing", id="missing-file"),
+        pytest.param("file", id="file-not-directory"),
     ],
 )
 def test_read_versions_error_cases(tmp_path, setup):
-    from conda_completion.exceptions import ManifestError
-    from conda_completion.manifest import read_versions
-
+    store_path = tmp_path / "versions.store"
     if setup == "invalid":
-        path = tmp_path / "bad_versions.msgpack"
+        path = tmp_path / "bad_versions.index"
         path.write_bytes(b"\xff\xfe bad")
+        store_path.write_bytes(b"")
+    elif setup == "file":
+        path = tmp_path / "versions.index"
+        path.write_bytes(msgpack.packb({"numpy": ["2.0"]}))
+        store_path.write_bytes(b"")
     else:
-        path = tmp_path / "nonexistent.msgpack"
+        path = tmp_path / "nonexistent.index"
 
     with pytest.raises(ManifestError):
-        read_versions(path)
+        read_versions(path, store_path)
 
 
 def test_atomic_write_rejects_symlink(tmp_path):
-    from conda_completion.manifest import atomic_write
-
     target = tmp_path / "real_file"
     target.write_bytes(b"original")
     link = tmp_path / "link_file"

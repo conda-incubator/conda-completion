@@ -155,18 +155,20 @@ def build_realistic_versions(
 def test_bench_versions_write(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
     """Write version data for 28000 packages (conda-forge scale)."""
     versions = build_realistic_versions()
-    path = tmp_path / "versions.msgpack"
+    index_path = tmp_path / "versions.index"
+    store_path = tmp_path / "versions.store"
 
-    benchmark(write_versions, versions, path)
+    benchmark(write_versions, versions, index_path, store_path)
 
 
-def test_bench_versions_read_full(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
-    """Deserialize the full versions file (single-file legacy path)."""
+def test_bench_versions_read_all(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
+    """Deserialize all indexed package version data."""
     versions = build_realistic_versions()
-    path = tmp_path / "versions.msgpack"
-    write_versions(versions, path)
+    index_path = tmp_path / "versions.index"
+    store_path = tmp_path / "versions.store"
+    write_versions(versions, index_path, store_path)
 
-    benchmark(read_versions, path)
+    benchmark(read_versions, index_path, store_path)
 
 
 def test_bench_walk_parser(benchmark: BenchmarkFixture) -> None:

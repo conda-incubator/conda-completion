@@ -6,9 +6,11 @@ use std::time::SystemTime;
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StatCache {
     pub files: BTreeMap<String, CachedFile>,
+    #[serde(skip)]
+    dirty: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct CachedFile {
     pub mtime_secs: u64,
     pub size: u64,
@@ -46,6 +48,9 @@ impl StatCache {
 
         let mut pruned = self.clone();
         pruned.evict_stale();
+        if !pruned.dirty {
+            return;
+        }
 
         if let Ok(bytes) = rmp_serde::to_vec(&pruned) {
             let Some(dir) = path.parent() else {
@@ -61,7 +66,11 @@ impl StatCache {
     }
 
     fn evict_stale(&mut self) {
+        let len_before = self.files.len();
         self.files.retain(|path, _| Path::new(path).exists());
+        if self.files.len() != len_before {
+            self.dirty = true;
+        }
 
         if self.files.len() > MAX_CACHE_ENTRIES {
             let mut entries: Vec<_> = self
@@ -74,6 +83,7 @@ impl StatCache {
             for (key, _) in entries.into_iter().take(to_remove) {
                 self.files.remove(&key);
             }
+            self.dirty = true;
         }
     }
 
@@ -99,7 +109,11 @@ impl StatCache {
     }
 
     pub fn update(&mut self, file_path: &str, entry: CachedFile) {
+        if self.files.get(file_path) == Some(&entry) {
+            return;
+        }
         self.files.insert(file_path.to_string(), entry);
+        self.dirty = true;
     }
 }
 
@@ -181,6 +195,63 @@ mod tests {
         assert_eq!(entry.size, 100);
         assert_eq!(entry.env_names, vec!["myenv"]);
         assert_eq!(entry.channels, vec!["conda-forge"]);
+    }
+
+    #[test]
+    fn save_skips_clean_cache() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache_path = dir.path().join("cache.msgpack");
+        let cache = StatCache::default();
+
+        cache.save(&cache_path);
+
+        assert!(!cache_path.exists());
+    }
+
+    #[test]
+    fn update_keeps_cache_clean_when_entry_is_unchanged() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache_path = dir.path().join("cache.msgpack");
+        let real_file = dir.path().join("project.toml");
+        std::fs::write(&real_file, "content").unwrap();
+        let file_key = real_file.to_str().unwrap();
+        let entry = CachedFile {
+            mtime_secs: 12345,
+            size: 100,
+            env_names: vec!["myenv".to_string()],
+            task_names: vec![],
+            feature_names: vec![],
+            channels: vec!["conda-forge".to_string()],
+            tool_names: vec![],
+        };
+
+        let mut cache = StatCache::default();
+        cache.update(file_key, entry.clone());
+        cache.save(&cache_path);
+
+        let mut loaded = StatCache::load(&cache_path);
+        loaded.update(file_key, entry);
+
+        assert!(!loaded.dirty);
+    }
+
+    #[test]
+    fn update_marks_cache_dirty_when_entry_changes() {
+        let mut cache = StatCache::default();
+        cache.update(
+            "/tmp/project.toml",
+            CachedFile {
+                mtime_secs: 12345,
+                size: 100,
+                env_names: vec!["myenv".to_string()],
+                task_names: vec![],
+                feature_names: vec![],
+                channels: vec!["conda-forge".to_string()],
+                tool_names: vec![],
+            },
+        );
+
+        assert!(cache.dirty);
     }
 
     #[test]

@@ -21,7 +21,7 @@ Register-ArgumentCompleter -Native -CommandName conda -ScriptBlock {{
     param($wordToComplete, $commandAst, $cursorPosition)
     $completer = {cp}
     $manifest = {mp}
-    $words = $commandAst.ToString().Split()
+    $words = @($commandAst.CommandElements | ForEach-Object {{ $_.Extent.Text }})
     $cword = $words.Length - 1
     & $completer --shell powershell --manifest $manifest -- $words $cword |
         ForEach-Object {{

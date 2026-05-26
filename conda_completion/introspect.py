@@ -8,8 +8,15 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
+from conda.cli.conda_argparse import generate_parser as conda_generate_parser
+
+from .exceptions import IntrospectionError
 from .manifest import CommandSpec, CompletionManifest, OptionSpec, PositionalSpec
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 COMPLETION_TYPE_HEURISTICS: dict[str, str] = {
     "--name": "env_name",
@@ -28,9 +35,13 @@ POSITIONAL_TYPE_HEURISTICS: dict[str, str] = {
 
 def generate_manifest(plugin_hash: str = "") -> CompletionManifest:
     """Build a CompletionManifest by introspecting conda's argparse tree."""
-    from conda.cli.conda_argparse import generate_parser
+    try:
+        parser = generate_parser()
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except BaseException as exc:
+        raise IntrospectionError(str(exc)) from exc
 
-    parser = generate_parser()
     root_cmd = walk_parser(parser)
 
     return CompletionManifest(
@@ -40,6 +51,10 @@ def generate_manifest(plugin_hash: str = "") -> CompletionManifest:
         root_options=root_cmd.options,
         commands=root_cmd.subcommands,
     )
+
+
+def generate_parser() -> argparse.ArgumentParser:
+    return conda_generate_parser()
 
 
 def walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
@@ -168,7 +183,7 @@ def walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
     )
 
 
-def infer_completion_type(option_strings: list[str]) -> str | None:
+def infer_completion_type(option_strings: Sequence[str]) -> str | None:
     """Infer a dynamic completion type from option flag names.
 
     Only matches on the long-form flag (e.g., --name) to avoid false

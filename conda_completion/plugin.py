@@ -76,26 +76,26 @@ def maybe_regenerate(command: str) -> None:
 
         if current_hash != stored_hash:
             log.info("Plugin set changed, regenerating completion manifest")
-            from dataclasses import replace
 
+            from .cli.generate import resolve_package_metadata
             from .introspect import generate_manifest
-            from .manifest import write_manifest, write_versions
-            from .paths import versions_path
-            from .repodata import extract_package_data
+            from .manifest import write_manifest
 
             manifest = generate_manifest(plugin_hash=current_hash)
-            try:
-                package_names, version_map = extract_package_data()
-                manifest = replace(manifest, package_names=package_names)
-                write_versions(version_map, versions_path())
-            except Exception:
-                log.debug("Failed to refresh package data", exc_info=True)
+            manifest = resolve_package_metadata(
+                manifest,
+                existing_manifest_path=path,
+                failure_log_level=logging.DEBUG,
+                show_spinner=False,
+            )
             write_manifest(manifest, path)
     except PermissionError:
         log.warning("Cannot update completion manifest: permission denied")
     except OSError as exc:
         log.warning("Cannot update completion manifest: %s", exc)
-    except Exception:
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except BaseException:
         log.debug("Failed to check/regenerate completion manifest", exc_info=True)
 
 

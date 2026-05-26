@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -78,6 +79,7 @@ pub struct PositionalSpec {
 
 const MAX_PACKAGE_NAMES: usize = 2_000_000;
 const MAX_VERSIONS_ENTRIES: usize = 2_000_000;
+const MAX_VERSION_RECORD_SIZE: u64 = 1024 * 1024;
 
 pub fn load_manifest(path: &Path) -> Result<Manifest, Box<dyn std::error::Error>> {
     let bytes = crate::cache::read_to_bytes_limited(path)
@@ -90,19 +92,43 @@ pub fn load_manifest(path: &Path) -> Result<Manifest, Box<dyn std::error::Error>
 }
 
 pub fn load_package_versions(
-    path: &Path,
+    index_path: &Path,
     package_name: &str,
 ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let bytes = crate::cache::read_to_bytes_limited(path)
-        .ok_or("versions file not found, is a symlink, or exceeds size limit")?;
-    let versions: BTreeMap<String, Vec<String>> = rmp_serde::from_slice(&bytes)?;
-    if versions.len() > MAX_VERSIONS_ENTRIES {
-        return Err("versions file contains too many entries".into());
+    if package_name.is_empty() {
+        return Err("package name is empty".into());
     }
-    versions
+    let bytes = crate::cache::read_to_bytes_limited(index_path)
+        .ok_or("package versions index not found, is a symlink, or exceeds size limit")?;
+    let index: BTreeMap<String, (u64, u64)> = rmp_serde::from_slice(&bytes)?;
+    let (offset, length) = index
         .get(package_name)
-        .cloned()
-        .ok_or_else(|| "package not found in versions file".into())
+        .copied()
+        .ok_or("package not found in versions index")?;
+    if length > MAX_VERSION_RECORD_SIZE {
+        return Err("package versions record exceeds size limit".into());
+    }
+
+    let store_path = index_path.with_file_name("versions.store");
+    let metadata = std::fs::symlink_metadata(&store_path)?;
+    if !metadata.file_type().is_file() {
+        return Err("package versions store is not a regular file".into());
+    }
+    let end = offset
+        .checked_add(length)
+        .ok_or("package versions index offset overflow")?;
+    if end > metadata.len() {
+        return Err("package versions index points outside store".into());
+    }
+    let mut store = std::fs::File::open(&store_path)?;
+    store.seek(SeekFrom::Start(offset))?;
+    let mut bytes = vec![0; length as usize];
+    store.read_exact(&mut bytes)?;
+    let versions: Vec<String> = rmp_serde::from_slice(&bytes)?;
+    if versions.len() > MAX_VERSIONS_ENTRIES {
+        return Err("package versions file contains too many entries".into());
+    }
+    Ok(versions)
 }
 
 #[cfg(test)]
@@ -359,6 +385,45 @@ mod tests {
     #[test]
     fn load_manifest_missing_file() {
         let result = load_manifest(Path::new("/nonexistent/manifest.msgpack"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn load_package_versions_from_indexed_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let index_path = dir.path().join("versions.index");
+        let store_path = dir.path().join("versions.store");
+        let record = rmp_serde::to_vec(&vec!["2.0".to_string(), "1.26".to_string()]).unwrap();
+        std::fs::write(&store_path, &record).unwrap();
+        std::fs::write(
+            &index_path,
+            rmp_serde::to_vec(&BTreeMap::from([(
+                "numpy".to_string(),
+                (0_u64, record.len() as u64),
+            )]))
+            .unwrap(),
+        )
+        .unwrap();
+
+        let versions = load_package_versions(&index_path, "numpy").unwrap();
+
+        assert_eq!(versions, vec!["2.0", "1.26"]);
+    }
+
+    #[test]
+    fn load_package_versions_rejects_out_of_bounds_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let index_path = dir.path().join("versions.index");
+        let store_path = dir.path().join("versions.store");
+        std::fs::write(&store_path, b"short").unwrap();
+        std::fs::write(
+            &index_path,
+            rmp_serde::to_vec(&BTreeMap::from([("numpy".to_string(), (0_u64, 10_u64))])).unwrap(),
+        )
+        .unwrap();
+
+        let result = load_package_versions(&index_path, "numpy");
+
         assert!(result.is_err());
     }
 
