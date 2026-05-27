@@ -13,6 +13,7 @@ from conda_completion.cli.generate import (
     execute_generate,
     package_data_is_fresh,
     resolve_package_metadata,
+    write_completion_data,
 )
 from conda_completion.manifest import (
     CompletionManifest,
@@ -83,13 +84,13 @@ def test_generate_reuses_fresh_package_data(generate_env, monkeypatch):
 
     monkeypatch.setattr("conda_completion.cli.generate.extract_package_data", fail_extract)
 
-    result = execute_generate(argparse.Namespace(refresh_repodata=False, no_repodata=False))
+    result = execute_generate(argparse.Namespace(no_repodata=False))
 
     assert result == 0
     assert read_manifest(generate_env.manifest_path).package_names == ["numpy"]
 
 
-def test_generate_refresh_repodata_forces_repodata_fetch(generate_env, monkeypatch):
+def test_write_completion_data_refresh_forces_repodata_fetch(generate_env, monkeypatch):
     write_manifest(CompletionManifest(package_names=["numpy"]), generate_env.manifest_path)
     write_versions(
         {"numpy": ["2.0"]},
@@ -104,7 +105,7 @@ def test_generate_refresh_repodata_forces_repodata_fetch(generate_env, monkeypat
 
     monkeypatch.setattr("conda_completion.cli.generate.extract_package_data", fake_extract)
 
-    result = execute_generate(argparse.Namespace(refresh_repodata=True, no_repodata=False))
+    result = write_completion_data(argparse.Namespace(), refresh=True, include=True)
 
     assert result == 0
     assert calls == [True]
@@ -186,7 +187,6 @@ def test_execute_generate_suppresses_repodata_spinner_for_output_flags(
 
     result = execute_generate(
         argparse.Namespace(
-            refresh_repodata=False,
             no_repodata=False,
             quiet=quiet,
             json=json_enabled,
@@ -203,7 +203,7 @@ def test_generate_no_repodata_skips_repodata(generate_env, monkeypatch):
 
     monkeypatch.setattr("conda_completion.cli.generate.extract_package_data", fail_extract)
 
-    result = execute_generate(argparse.Namespace(refresh_repodata=False, no_repodata=True))
+    result = execute_generate(argparse.Namespace(no_repodata=True))
 
     assert result == 0
     assert read_manifest(generate_env.manifest_path).package_names == []
@@ -225,7 +225,7 @@ def test_generate_preserves_existing_package_data_on_repodata_failure(generate_e
 
     monkeypatch.setattr("conda_completion.cli.generate.extract_package_data", fail_extract)
 
-    result = execute_generate(argparse.Namespace(refresh_repodata=False, no_repodata=False))
+    result = execute_generate(argparse.Namespace(no_repodata=False))
 
     assert result == 0
     assert read_manifest(generate_env.manifest_path).package_names == ["numpy"]
@@ -240,7 +240,7 @@ def test_generate_without_existing_package_data_handles_repodata_failure(
 
     monkeypatch.setattr("conda_completion.cli.generate.extract_package_data", fail_extract)
 
-    result = execute_generate(argparse.Namespace(refresh_repodata=False, no_repodata=False))
+    result = execute_generate(argparse.Namespace(no_repodata=False))
 
     assert result == 0
     assert read_manifest(generate_env.manifest_path).package_names == []

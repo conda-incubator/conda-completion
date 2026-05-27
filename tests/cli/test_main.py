@@ -13,7 +13,7 @@ from conda_completion.exceptions import ShellNotSupportedError
 
 @pytest.mark.parametrize(
     "subcmd",
-    ["generate", "install", "uninstall", "init"],
+    ["generate", "refresh", "install", "uninstall", "init"],
 )
 def test_configure_parser_accepts_subcommand(subcmd):
     parser = build_parser()
@@ -23,21 +23,19 @@ def test_configure_parser_accepts_subcommand(subcmd):
 
 def test_configure_parser_install_flags():
     parser = build_parser()
-    args = parser.parse_args(["install", "--yes", "--dry-run", "--refresh-repodata", "zsh"])
+    args = parser.parse_args(["install", "--yes", "--dry-run", "--no-repodata", "zsh"])
     assert args.subcmd == "install"
     assert args.yes is True
     assert args.dry_run is True
-    assert args.refresh_repodata is True
-    assert args.no_repodata is False
+    assert args.no_repodata is True
     assert args.shell == "zsh"
 
 
-def test_configure_parser_generate_repodata_flags():
+def test_configure_parser_generate_no_repodata_flag():
     parser = build_parser()
     args = parser.parse_args(["generate", "--no-repodata"])
     assert args.subcmd == "generate"
     assert args.no_repodata is True
-    assert args.refresh_repodata is False
 
 
 def test_configure_parser_json_flag_is_suppressed():
@@ -75,6 +73,24 @@ def test_execute_dispatches_generate(tmp_path, monkeypatch):
     result = execute(args)
     assert result == 0
     assert (tmp_path / "completion.msgpack").exists()
+
+
+def test_execute_dispatches_refresh(monkeypatch):
+    calls = []
+
+    def record_refresh(args):
+        calls.append(args)
+        return 0
+
+    monkeypatch.setattr(
+        "conda_completion.cli.refresh.execute_refresh",
+        record_refresh,
+    )
+
+    args = build_parser().parse_args(["refresh"])
+    result = execute(args)
+    assert result == 0
+    assert calls == [args]
 
 
 def test_execute_handles_completion_error(monkeypatch):

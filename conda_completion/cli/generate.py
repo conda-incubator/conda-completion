@@ -29,6 +29,20 @@ PACKAGE_DATA_MAX_AGE = timedelta(hours=24)
 
 def execute_generate(args: argparse.Namespace) -> int:
     """Generate the completion manifest from conda's argparse tree."""
+    return write_completion_data(
+        args,
+        refresh=False,
+        include=not getattr(args, "no_repodata", False),
+    )
+
+
+def write_completion_data(
+    args: argparse.Namespace,
+    *,
+    refresh: bool,
+    include: bool,
+) -> int:
+    """Write completion data, optionally forcing package metadata refresh."""
     path = manifest_path()
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -37,8 +51,8 @@ def execute_generate(args: argparse.Namespace) -> int:
     manifest = resolve_package_metadata(
         manifest,
         existing_manifest_path=path,
-        refresh=getattr(args, "refresh_repodata", False),
-        include=not getattr(args, "no_repodata", False),
+        refresh=refresh,
+        include=include,
         failure_log_level=logging.WARNING,
         show_spinner=not (getattr(args, "quiet", False) or getattr(args, "json", False)),
     )

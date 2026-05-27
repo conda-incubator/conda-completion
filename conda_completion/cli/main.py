@@ -24,18 +24,16 @@ def configure_parser(parser: argparse.ArgumentParser) -> None:
         "generate",
         help="Introspect conda's parser and write the completion manifest",
     )
-    generate_repodata_group = generate_parser.add_mutually_exclusive_group()
-    generate_repodata_group.add_argument(
-        "--refresh-repodata",
-        action="store_true",
-        default=False,
-        help="Refresh package metadata from conda repodata",
-    )
-    generate_repodata_group.add_argument(
+    generate_parser.add_argument(
         "--no-repodata",
         action="store_true",
         default=False,
         help="Generate command completions without package metadata from repodata",
+    )
+
+    sub.add_parser(
+        "refresh",
+        help="Refresh package metadata from conda repodata",
     )
 
     install_parser = sub.add_parser(
@@ -60,14 +58,7 @@ def configure_parser(parser: argparse.ArgumentParser) -> None:
         default=False,
         help="Show what would be written without modifying files",
     )
-    install_repodata_group = install_parser.add_mutually_exclusive_group()
-    install_repodata_group.add_argument(
-        "--refresh-repodata",
-        action="store_true",
-        default=False,
-        help="Refresh package metadata from conda repodata during delegated generation",
-    )
-    install_repodata_group.add_argument(
+    install_parser.add_argument(
         "--no-repodata",
         action="store_true",
         default=False,
@@ -136,6 +127,10 @@ def execute(args: argparse.Namespace) -> int:
             from .generate import execute_generate
 
             return execute_generate(args)
+        elif subcmd == "refresh":
+            from .refresh import execute_refresh
+
+            return execute_refresh(args)
         elif subcmd == "install":
             from .install import execute_install
 

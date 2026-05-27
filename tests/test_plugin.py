@@ -155,4 +155,5 @@ def test_subcommands_hook_configures_parser():
     assert cmd.configure_parser is not None
     assert cmd.configure_parser(parser) is None
     assert parser.parse_args(["generate"]).subcmd == "generate"
+    assert parser.parse_args(["refresh"]).subcmd == "refresh"
     assert parser.parse_args(["install", "bash"]).subcmd == "install"

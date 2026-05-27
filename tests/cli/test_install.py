@@ -140,7 +140,7 @@ def test_execute_install_with_yes(tmp_path, monkeypatch, stub_generate):
     assert _BLOCK_END in content
 
 
-def test_execute_install_passes_repodata_flags(tmp_path, monkeypatch, stub_generate):
+def test_execute_install_passes_no_repodata_flag(tmp_path, monkeypatch, stub_generate):
     rc_file = tmp_path / ".bashrc"
     monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
     monkeypatch.setattr(
@@ -152,15 +152,13 @@ def test_execute_install_passes_repodata_flags(tmp_path, monkeypatch, stub_gener
         shell=None,
         yes=True,
         dry_run=False,
-        refresh_repodata=True,
-        no_repodata=False,
+        no_repodata=True,
     )
     result = execute_install(args)
 
     assert result == 0
     assert len(stub_generate) == 1
-    assert stub_generate[0].refresh_repodata is True
-    assert stub_generate[0].no_repodata is False
+    assert stub_generate[0].no_repodata is True
 
 
 def test_source_command_for_powershell():
