@@ -12,15 +12,17 @@
 ### Features
 
 - Package name completion from repodata. `conda install nump<TAB>` completes package names extracted from configured channels during `conda completion generate`.
-- Version completion. `conda install numpy=<TAB>` and `conda install numpy==<TAB>` list available versions. Versions are stored in a separate `versions.msgpack` file, loaded only when `=` is detected in the current word.
+- Version completion. `conda install numpy=<TAB>` and `conda install numpy==<TAB>` list available versions. Versions are stored in indexed `versions.index` and `versions.store` files, loaded only when `=` is detected in the current word.
 - Three-tier fuzzy matching for package names: prefix > substring > normalized Damerau-Levenshtein similarity. Typos like `numpie` or `nupmy` suggest `numpy`. The similarity threshold is 0.6 with a cap of 10 results.
-- `--versions` CLI argument for the Rust binary to specify the versions file path (defaults to `versions.msgpack` alongside the manifest).
+- `conda completion refresh` to force-refresh package names and versions from repodata.
+- `--no-repodata` for `conda completion generate` and `conda completion install` to skip package metadata in offline or automated environments.
+- `--versions` CLI argument for the Rust binary to specify the versions index path (defaults to `versions.index` alongside the manifest).
 
 ### Performance
 
 - Manifest deserialization is faster with msgpack (binary format, no string parsing).
 - Package name completion uses the pre-built name list from `completion.msgpack` (~500KB), avoiding repodata access on every TAB press.
-- Version completion loads `versions.msgpack` (~5-10MB) only when `=` is detected, keeping the common case fast.
+- Version completion loads `versions.index` and one record from `versions.store` only when `=` is detected, keeping the common case fast.
 - Fuzzy matching over 30k+ package names runs in under 1ms (Damerau-Levenshtein is O(nm) per comparison, but for short package names this is ~900 ops each).
 
 ## 0.1.0 (2026-05-21)
@@ -65,5 +67,5 @@ Initial release of conda-completion and conda-completer.
 - conda-completion: pure Python conda plugin with CLI and shell
   script generation.
 - conda-completer: Rust binary (`_conda_completer`) that reads the
-  TOML manifest and project files to produce TAB candidates. Built with
+  msgpack manifest and project files to produce TAB candidates. Built with
   maturin, ships platform-specific wheels.

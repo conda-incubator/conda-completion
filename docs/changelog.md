@@ -1,14 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (unreleased)
 
-- Initial release of conda-completion.
-- Hybrid Python/Rust architecture: Python introspects, Rust completes.
-- Plugin-aware: all conda plugin subcommands are included automatically.
-- Contextual completions from project files (conda.toml, pixi.toml,
-  pyproject.toml, environment.yml, lockfiles, .condarc, global.toml).
-- Tier 1 shell support: bash, zsh, PowerShell.
-- Tier 2 shell support: fish.
-- Automatic manifest regeneration via `conda_post_commands` hook.
-- Install/uninstall commands for shell RC file management.
-- Fast response time for command, flag, and package name completion (no Python on the hot path).
+- Manifest and context cache files now use msgpack.
+- Package names and versions are extracted from repodata for install/remove-style completions.
+- Version data is stored in indexed `versions.index` and `versions.store` files.
+- Added `conda completion refresh` to force-refresh package metadata.
+- Added `--no-repodata` for `generate` and `install` in offline or automated environments.
+- Added fuzzy package matching for prefix, substring, and near-miss queries.
+
+## 0.1.0 (2026-05-21)
+
+- Initial release of conda-completion and conda-completer.

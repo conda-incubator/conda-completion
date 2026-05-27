@@ -1,5 +1,5 @@
 context:
-  version: "0.1.0"
+  version: "0.2.0"
   python_min: "3.10"
 
 recipe:
@@ -83,8 +83,7 @@ outputs:
         - conda >=25.1
         - conda-completer ==${{ version }}
         - platformdirs >=4.0
-        - tomli >=2.0
-        - tomli-w >=1.0
+        - msgpack-python >=1.0
     tests:
       - python:
           imports:

@@ -4,8 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "conda-completer"
-version = "0.1.0"
-description = "Fast completion engine for conda -- reads a TOML manifest and project files to produce TAB candidates"
+version = "0.2.0"
+description = "Fast completion engine for conda -- reads a msgpack manifest and project files to produce TAB candidates"
 requires-python = ">=3.10"
 readme = "README.md"
 license = { text = "BSD-3-Clause" }
