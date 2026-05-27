@@ -13,11 +13,11 @@ flowchart TD
         A["conda completion generate"] --> B["Call generate_parser()"]
         B --> C["Walk argparse tree"]
         C --> D["Include plugin commands"]
-        D --> D2["Fetch repodata"]
-        D2 --> E["Write completion.msgpack\n+ versions.msgpack"]
+        D --> D2["Resolve package metadata"]
+        D2 --> E["Write completion.msgpack\n+ versions.index/store"]
     end
 
-    E --> F[("completion.msgpack\nversions.msgpack\n(cache directory)")]
+    E --> F[("completion.msgpack\nversions.index/store\n(cache directory)")]
 
     subgraph rust ["Phase 2: Rust (runs on every TAB)"]
         direction TB
@@ -38,10 +38,11 @@ flowchart TD
 conda's `generate_parser()` function, which loads all registered plugin
 subcommands. The resulting argparse tree is walked recursively to extract
 commands, flags, positional arguments, help text, and mutually exclusive
-groups. It also fetches repodata from configured channels via conda's
-`SubdirData` API to extract package names and versions. The output is a
-`completion.msgpack` manifest and a separate `versions.msgpack` file,
-both stored in your platform's cache directory.
+groups. It also resolves package metadata from configured channels via
+conda's `SubdirData` API to extract package names and versions, reusing
+fresh package metadata when available. The output is a `completion.msgpack`
+manifest plus `versions.index` and `versions.store`, all stored in your
+platform's cache directory.
 
 **Phase 2: Completion (Rust).** On every TAB press, the shell calls
 `_conda_completer`, a statically linked Rust binary. It reads the
@@ -168,11 +169,12 @@ avoided to stay within the performance budget.
 artifact, never hand-edited. msgpack is smaller and faster to
 deserialize than TOML. It is already used in conda's sharded repodata.
 
-**Two-file split for package data.** `completion.msgpack` (~500KB,
-command tree plus package names) is always loaded. `versions.msgpack`
-(~2-3MB, name-to-version mapping) is loaded only when `=` appears in
-the current word. This keeps the common TAB-press fast while still
-supporting version completion.
+**Indexed package-version data.** `completion.msgpack` (~500KB, command
+tree plus package names) is always loaded. `versions.index` maps package
+names to byte ranges in `versions.store`, and the store record for one
+package is loaded only when `=` appears in the current word. This keeps
+the common TAB-press fast while avoiding a full version-map
+deserialization for one package.
 
 **Argparse introspection over a new hookspec.** Introspecting conda's
 existing argparse tree works with all registered plugins immediately.

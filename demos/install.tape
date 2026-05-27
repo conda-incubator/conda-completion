@@ -10,7 +10,7 @@ Wait /\)/
 Type `export PS1="$DEMO_PS1" && export SHELL=/bin/bash && rm -rf /tmp/.demo-home && mkdir -p /tmp/.demo-home && touch /tmp/.demo-home/.bashrc && export HOME=/tmp/.demo-home`
 Enter
 Wait /\$/
-Type "conda completion generate > /dev/null 2>&1"
+Type "conda completion generate --no-repodata > /dev/null 2>&1"
 Enter
 Wait /\$/
 Type "clear"
@@ -31,7 +31,7 @@ Type "# Install the completion hook"
 Enter
 Sleep 500ms
 
-Type@80ms "conda completion install --yes"
+Type@80ms "conda completion install --yes --no-repodata"
 Enter
 Sleep 2s
 

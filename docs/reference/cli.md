@@ -1,30 +1,47 @@
 # CLI reference
 
-`conda completion` has five subcommands.
+`conda completion` has six subcommands.
 
 ## `conda completion generate`
 
 Introspect conda's argparse tree and write the completion manifest.
 
 ```text
-conda completion generate
+conda completion generate [--no-repodata]
 ```
 
 Writes to the platform's cache directory (e.g.,
 `~/.cache/conda/completion/completion.msgpack` on Linux). See
 {doc}`manifest` for paths on all platforms.
 
+`--no-repodata`
+: Generate command, flag, and plugin completion data without package
+  names or package versions. Runtime contextual completions from project
+  files still work.
+
 Runs automatically via `conda_post_commands` when the plugin set
 changes after `conda install/remove/update`. Only needed manually
 after installing a plugin via pip.
 
-## `conda completion install`
+## `conda completion refresh`
 
-Generate the manifest (if needed) and add the completion hook to your
-shell's RC file.
+Force-refresh package names and versions from conda repodata.
 
 ```text
-conda completion install [shell] [--yes] [--dry-run]
+conda completion refresh
+```
+
+Use this when a newly published package or version is missing from
+completion results. It rewrites `completion.msgpack`, `versions.index`,
+and `versions.store`.
+
+## `conda completion install`
+
+Generate the manifest and add the completion hook to your shell's RC
+file.
+
+```text
+conda completion install [shell] [--yes] [--dry-run] [--no-repodata]
 ```
 
 shell
@@ -35,7 +52,13 @@ shell
 : Skip the confirmation prompt.
 
 `--dry-run`
-: Show what would be written without modifying files.
+: Show what would be written without modifying files. Does not generate
+  completion data and does not fetch repodata.
+
+`--no-repodata`
+: Generate command completions without package metadata during the
+  delegated generation step. Runtime contextual completions from project
+  files still work.
 
 Idempotent: running it twice does not duplicate the hook.
 
@@ -77,7 +100,7 @@ conda completion init fish | source
 ## `conda completion status`
 
 Show diagnostics: manifest location, age, size, command/package counts,
-plugin hash, and completer binary path.
+plugin hash, package-version cache files, and completer binary path.
 
 ```text
 conda completion status
@@ -92,7 +115,9 @@ Manifest: /home/user/.cache/conda/completion/completion.msgpack
   Commands: 42
   Packages: 28540
   Plugin hash: a1b2c3d4e5f67890
-Versions: /home/user/.cache/conda/completion/versions.msgpack
+Package versions index: /home/user/.cache/conda/completion/versions.index
+  Size: 1048576 bytes
+Package versions store: /home/user/.cache/conda/completion/versions.store
   Size: 2621440 bytes
 Current plugin hash: a1b2c3d4e5f67890
 Completer binary: /home/user/.conda/envs/base/bin/_conda_completer

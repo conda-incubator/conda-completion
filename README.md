@@ -22,7 +22,7 @@ via a tiny Rust binary.
 
 ## Status
 
-This project is in early development. It is not yet published to conda-forge.
+This project is in early development and available from conda-forge.
 
 ## Quick start (development)
 
@@ -54,8 +54,8 @@ conda-completion splits the work into two phases:
 calls conda's `generate_parser()`, which loads all registered plugin
 subcommands. The argparse tree is walked recursively to extract commands,
 flags, positional arguments, help text, and package names from repodata.
-The output is a `completion.msgpack` manifest and a `versions.msgpack`
-file stored in the platform cache directory.
+The output is a `completion.msgpack` manifest plus `versions.index` and
+`versions.store` package-version files in the platform cache directory.
 
 **Phase 2: Completion (Rust, runs on every TAB).** When you press TAB,
 your shell calls `_conda_completer`, a small Rust binary (~1 MB). It
@@ -96,12 +96,17 @@ parsing and serves cached results directly.
 | Command | Description |
 | --- | --- |
 | `conda completion generate` | Introspect conda's parser, write `completion.msgpack` |
+| `conda completion refresh` | Force refresh package names and versions from repodata |
 | `conda completion install [shell]` | Generate + install shell RC hook (auto-detects shell) |
 | `conda completion uninstall [shell]` | Remove the RC hook |
 | `conda completion init <shell>` | Print the shell script to stdout |
+| `conda completion status` | Show cache, manifest, package-version, and binary diagnostics |
 
 `install` and `uninstall` support `--dry-run` to preview changes and
 `--yes` to skip confirmation.
+
+`generate` and `install` support `--no-repodata` to skip package
+metadata. Use `conda completion refresh` to force a repodata refresh.
 
 ## Development
 

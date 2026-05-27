@@ -69,23 +69,27 @@ step-by-step instructions for each tool.
 ## Does it complete package names?
 
 Yes. During `conda completion generate`, package names are extracted
-from repodata for all configured channels. After that, `conda install
-nump<TAB>` completes matching package names.
+from repodata for all configured channels unless you pass
+`--no-repodata`. After that, `conda install nump<TAB>` completes
+matching package names.
 
 Package names are stored in `completion.msgpack` alongside the command
 tree, so they are always available without extra file reads.
 
+Package metadata is reused for 24 hours. Use
+`conda completion refresh` to force a refresh.
+
 ## Does it complete package versions?
 
 Yes. When you type `=` or `==` after a package name, the completer
-loads version data from a separate `versions.msgpack` file:
+loads version data from `versions.index` and `versions.store`:
 
 ```text
 $ conda install numpy=<TAB>
 numpy=1.26.4  numpy=2.0.0  numpy=2.1.0  ...
 ```
 
-The versions file is only loaded when `=` is detected, keeping the
+The version files are only loaded when `=` is detected, keeping the
 common TAB press fast.
 
 ## What if I misspell a package name?

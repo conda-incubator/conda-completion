@@ -73,6 +73,18 @@ The manifest regenerates automatically for plugins installed via
 conda completion generate
 ```
 
+## Package or version not showing up
+
+Refresh package metadata from repodata:
+
+```bash
+conda completion refresh
+```
+
+If you intentionally generated with `--no-repodata`, package name and
+version candidates are omitted until you run `conda completion generate`
+again without that flag.
+
 ## Completions work in one shell but not another
 
 Each shell needs its own hook:

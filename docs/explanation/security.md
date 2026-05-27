@@ -49,13 +49,16 @@ After sanitization, shell-specific escaping is applied:
 
 ## Symlink protection
 
-Both Python and Rust refuse to write through symlinks:
+Both Python and Rust refuse cache-file symlinks:
 
 Python (`atomic_write` in `manifest.py`) checks `path.is_symlink()`
 before and after creating the temp file. If the target is a symlink at
 either point, the write is aborted and the temp file is removed. The
 double-check narrows the TOCTOU window, though it does not eliminate it
 entirely on all filesystems.
+
+Python manifest and version readers also reject symlinked
+`completion.msgpack`, `versions.index`, and `versions.store` files.
 
 Rust (`StatCache.save` in `cache.rs`) checks `symlink_metadata(path)`
 before writing. Uses `tempfile::NamedTempFile` with `O_EXCL` semantics
@@ -105,7 +108,7 @@ itself is a pure data processor.
 | Threat | Mitigation |
 | --- | --- |
 | Shell injection via completion output | Allowlist sanitization + per-shell escaping |
-| Symlink attack on cache/manifest files | Pre-write symlink checks + atomic rename |
+| Symlink attack on cache/manifest/version files | Symlink rejection + atomic rename |
 | Partial file reads (crash mid-write) | Temp-file-then-rename for all writes |
 | Oversized input files | Size limits on all file reads (10-50 MB) |
 | Malformed msgpack data | Size-bounded deserialization + type validation |

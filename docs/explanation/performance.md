@@ -33,9 +33,11 @@ and string comparisons.
 
 **Version completion (when `=` is detected):**
 
-Same as above, plus loading `versions.msgpack` (the package-to-version
-mapping). This file is larger, so version completion is noticeably
-slower than command or package name completion, but still responsive.
+Same as above, plus loading `versions.index` and one record from
+`versions.store` for the requested package. This path does extra I/O
+and msgpack decoding, so version completion is slower than command or
+package name completion, but it avoids deserializing every package's
+versions for one lookup.
 
 **Fuzzy matching (when no prefix or substring match exists):**
 

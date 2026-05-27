@@ -7,6 +7,9 @@ Hide
 Type `eval "$(pixi shell-hook -s bash -e dev)"`
 Enter
 Wait /\)/
+Type "conda completion generate > /dev/null 2>&1"
+Enter
+Wait /\$/
 Type `export PS1="$DEMO_PS1" && eval "$(conda completion init bash)"`
 Enter
 Wait /\$/

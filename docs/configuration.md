@@ -25,9 +25,9 @@ The completion manifest is stored in your platform's cache directory:
 | macOS | `~/Library/Caches/conda/completion/completion.msgpack` |
 | Windows | `%LOCALAPPDATA%\conda\cache\completion\completion.msgpack` |
 
-A separate `versions.msgpack` file in the same directory stores the
-mapping of package names to available versions. It is only loaded when
-`=` is detected in the current word (e.g., `numpy=<TAB>`).
+Package version data lives in `versions.index` and `versions.store` in
+the same directory. These files are only loaded when `=` is detected in
+the current word (e.g., `numpy=<TAB>`).
 
 This follows the same pattern as conda's own cache directories, using
 `platformdirs.user_cache_dir("conda")`.
@@ -56,6 +56,11 @@ post-command hook will not trigger. Regenerate manually:
 ```bash
 conda completion generate
 ```
+
+By default, generation reuses package metadata if it is less than 24
+hours old. Use `conda completion refresh` to force a fresh repodata
+read, or `--no-repodata` to regenerate command and flag completions
+without package metadata.
 
 ## Eval-based setup
 

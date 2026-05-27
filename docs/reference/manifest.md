@@ -14,8 +14,8 @@ The manifest is stored in your platform's cache directory:
 | macOS | `~/Library/Caches/conda/completion/completion.msgpack` |
 | Windows | `%LOCALAPPDATA%\conda\cache\completion\completion.msgpack` |
 
-A separate `versions.msgpack` file in the same directory stores the mapping
-of package names to available versions. It is only loaded when `=` is
+Package versions are stored in two files in the same directory:
+`versions.index` and `versions.store`. They are only loaded when `=` is
 detected in the current word (e.g., `numpy=<TAB>`).
 
 ## Schema
@@ -70,9 +70,9 @@ plugin_hash
 
 package_names
 : Deduplicated, sorted list of all package names across configured
-  channels. Extracted from repodata during `conda completion generate`.
+  channels when repodata is included during `conda completion generate`.
   Used for package name completion in `conda install`, `conda remove`,
-  etc.
+  etc. Omitted when generation runs with `--no-repodata`.
 
 ### CommandSpec
 
@@ -139,24 +139,31 @@ description
 metavar
 : Display name for the value.
 
-## Versions file
+## Version files
 
-A separate `versions.msgpack` file in the same directory stores the
-mapping of package names to available versions. The completion engine
-only loads this file when `=` or `==` is detected in the current word
-(e.g., `numpy=<TAB>`).
+The version cache uses an indexed msgpack store:
 
-The file is a msgpack-encoded dict mapping package names to version
-lists:
+`versions.index`
+: A msgpack-encoded dict mapping package names to `(offset, length)`
+  records in `versions.store`.
+
+`versions.store`
+: A byte store containing one msgpack-encoded version list per package.
+
+The completion engine only loads these files when `=` or `==` is
+detected in the current word (e.g., `numpy=<TAB>`). Normal package name
+completion reads only `completion.msgpack`.
+
+Shown as equivalent JSON, the index looks like:
 
 ```json
 {
-  "numpy": ["2.1.0", "2.0.0", "1.26.4"],
-  "pandas": ["2.2.1", "2.2.0", "2.1.5"]
+  "numpy": [0, 24],
+  "pandas": [24, 29]
 }
 ```
 
-For conda-forge scale (~28,000 packages), this file is typically
-2-5 MB. Since version lookups only happen when the user types `=`,
-the full deserialization cost is acceptable and keeps the implementation
-simple.
+Each referenced store record is a msgpack-encoded list such as
+`["2.1.0", "2.0.0", "1.26.4"]`. This avoids deserializing the full
+package-to-version mapping for a single version lookup while preserving
+the simple msgpack format.

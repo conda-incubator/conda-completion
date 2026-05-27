@@ -16,15 +16,18 @@ _conda_completer --shell <shell> --manifest <path> [--versions <path>] [--cwd <d
 : Path to the `completion.msgpack` manifest file.
 
 `--versions`
-: Path to the `versions.msgpack` file. Defaults to `versions.msgpack` in
-  the same directory as the manifest.
+: Path to the `versions.index` file. Defaults to `versions.index` in
+  the same directory as the manifest. The matching `versions.store`
+  file is expected next to the index.
 
 `--cwd`
 : Working directory to search for project files. Defaults to the current
   directory.
 
 `<words>`
-: The current command line split into words.
+: The current command line split into words by the shell integration.
+  PowerShell uses command AST elements so quoted paths and arguments
+  stay intact.
 
 `<cword>`
 : Zero-based index of the word being completed.

@@ -54,8 +54,8 @@ $ conda install numpy=<TAB>
 numpy=1.26.4  numpy=2.0.0  numpy=2.1.0  ...
 ```
 
-Version data is stored in a separate `versions.msgpack` file that is
-only loaded when needed, keeping the common TAB press fast.
+Version data is stored in an indexed `versions.index` and `versions.store`
+pair that is only loaded when needed, keeping the common TAB press fast.
 
 ## Fuzzy matching
 
@@ -83,6 +83,13 @@ hook checks whether the set of registered plugins has changed. If it has,
 the completion manifest is regenerated automatically. You never need to
 run `conda completion generate` manually after installing a plugin via
 conda.
+
+## Repodata controls
+
+Package metadata is reused for 24 hours by default. Run
+`conda completion refresh` when you want a fresh package list
+immediately, or `conda completion generate --no-repodata` when you only
+need command, flag, plugin, and contextual completions.
 
 ## Tiered shell support
 

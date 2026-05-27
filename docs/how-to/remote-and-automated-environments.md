@@ -78,6 +78,9 @@ RUN conda install -y conda-completion && \
 
 `--yes` skips the interactive confirmation prompt.
 
+For faster image builds that do not need package name or version
+completion, add `--no-repodata` to the install command.
+
 ### Dev containers (VS Code / GitHub Codespaces)
 
 Add completion setup to `postCreateCommand`:
@@ -146,6 +149,9 @@ To test that completions work after a plugin release:
 
 The manifest invalidates automatically when the plugin set changes, so
 a simple OS-based cache key works.
+
+This cache directory also contains `versions.index` and `versions.store`
+when package metadata has been generated.
 
 ## Non-interactive environments
 

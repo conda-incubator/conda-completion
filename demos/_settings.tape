@@ -13,3 +13,4 @@ Set WaitTimeout 120s
 Env BAT_OPTS "--color=always --paging=never --plain"
 Env BAT_THEME "Visual Studio Dark+"
 Env DEMO_PS1 "\[\e[1;38;2;67;176;42m\]$\[\e[0m\] "
+Env PYTHONWARNINGS "ignore::SyntaxWarning"

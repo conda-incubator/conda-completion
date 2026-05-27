@@ -26,6 +26,11 @@ directly (not through `conda install` or `conda-pypi`), which bypass
 the conda hook system. See {doc}`/how-to/troubleshooting` for the
 workaround.
 
+Package metadata is refreshed by `generate` when missing or older than
+24 hours. If repodata refresh fails and existing package data is present,
+generation preserves the existing package names and version files. If no
+package data exists, command and flag completions are still generated.
+
 ## Stat-based context cache
 
 The Rust completer reads project files (conda.toml, pixi.toml,
@@ -59,8 +64,8 @@ context_cache.msgpack:
 }
 ```
 
-Stored at `<cache_dir>/conda/completion/context_cache.msgpack`, next
-to the manifest.
+Stored as `context_cache.msgpack` next to the manifest in the completion
+cache directory.
 
 ### Eviction
 
@@ -105,10 +110,14 @@ Maximum walk depth is 10 levels.
 
 ## Version lookups
 
-Package version data can be large (2-5 MB for conda-forge with ~28,000
-packages). The version file is only loaded when the user types `=` in
-a package spec (e.g., `numpy=<TAB>`), so the full deserialization cost
-does not affect normal completion latency.
+Package version data can be large for conda-forge-scale channel sets.
+The version cache is split into `versions.index` and `versions.store`.
+The index maps package names to byte ranges in the store, and the store
+contains one msgpack-encoded version list per package.
+
+The version cache is only loaded when the user types `=` in a package
+spec (e.g., `numpy=<TAB>`), so version lookup cost does not affect
+normal command, flag, or package-name completion latency.
 
 See {doc}`/reference/manifest` for the file format.
 
@@ -117,5 +126,6 @@ See {doc}`/reference/manifest` for the file format.
 | File | Updated by | Updated when | Purpose |
 | --- | --- | --- | --- |
 | `completion.msgpack` | Python (`generate`) | Plugin set changes or manual `generate` | Command tree, flags, package names |
-| `versions.msgpack` | Python (`generate`) | Same as manifest | Package name to version list mapping |
+| `versions.index` | Python (`generate`) | Missing, stale, or forced refresh | Package name to store offset mapping |
+| `versions.store` | Python (`generate`) | Missing, stale, or forced refresh | Msgpack version-list records |
 | `context_cache.msgpack` | Rust (every TAB) | Every cache miss | Stat-based file cache |

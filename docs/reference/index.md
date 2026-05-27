@@ -11,7 +11,7 @@ orphan: true
 :link: cli
 :link-type: doc
 
-`conda completion generate`, `install`, `uninstall`, `init`, and `status`.
+`conda completion generate`, `refresh`, `install`, `uninstall`, `init`, and `status`.
 :::
 
 :::{grid-item-card} {octicon}`file` Manifest format

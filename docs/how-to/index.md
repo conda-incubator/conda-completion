@@ -30,4 +30,11 @@ IDE terminals, remote development, Docker, dev containers, and CI.
 Making your conda plugin work well with the completion system.
 :::
 
+:::{grid-item-card} {octicon}`database` Package metadata
+:link: package-metadata
+:link-type: doc
+
+Refresh, skip, inspect, and cache package-name and package-version data.
+:::
+
 ::::

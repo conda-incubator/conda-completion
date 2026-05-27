@@ -34,6 +34,21 @@ Fix: `conda completion generate`. If that fails, delete the manifest
 manually (run `conda completion status` to find the path) and
 regenerate.
 
+### IntrospectionError
+
+```text
+Cannot inspect conda commands: <details>
+  hint: Check whether a conda plugin fails to import
+  hint: Disable or update the failing plugin, then run 'conda completion generate'
+```
+
+conda's parser could not be generated or walked during
+`conda completion generate`. This usually means conda itself or a conda
+plugin raised an exception while registering commands.
+
+Fix: run `conda completion generate` again after disabling, updating,
+or removing the failing plugin.
+
 ### CompleterBinaryNotFoundError
 
 ```text

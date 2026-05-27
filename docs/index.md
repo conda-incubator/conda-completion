@@ -54,7 +54,7 @@ Why conda-completion exists, how the hybrid architecture works, and performance 
 :link: configuration
 :link-type: doc
 
-Customizing shell detection, manifest paths, and cache behavior.
+Understanding shell detection, cache files, and package metadata.
 :::
 
 :::{grid-item-card} {octicon}`tools` Troubleshooting
@@ -180,6 +180,7 @@ configuration
 
 Troubleshooting <how-to/troubleshooting>
 Remote & automated environments <how-to/remote-and-automated-environments>
+Package metadata <how-to/package-metadata>
 Plugin completions <how-to/custom-completions>
 ```
 

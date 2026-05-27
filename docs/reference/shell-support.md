@@ -47,6 +47,11 @@ requires the shell to treat `numpy=1.26` as a single token. Bash splits
 on `=` by default via `COMP_WORDBREAKS`, so the generated bash script
 removes `=` from that variable. Other shells do not split on `=`.
 
+**PowerShell tokenization.** The generated PowerShell script reads
+`$commandAst.CommandElements` instead of splitting the command string on
+whitespace. This preserves quoted paths and arguments before passing
+words to the Rust completer.
+
 **Descriptions.** Zsh, fish, and PowerShell display descriptions
 alongside completion candidates. Bash's COMPREPLY does not support
 descriptions, so the Rust binary omits them for bash output.
