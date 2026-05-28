@@ -2,10 +2,11 @@
 
 Fast, plugin-aware shell tab completion for conda.
 
-conda-completion introspects conda's full command tree, including all installed
-plugin subcommands (workspace, global, spawn, task, and more), and provides
-instant TAB completions with descriptions. A small Rust binary handles every
-TAB press with no Python on the hot path.
+conda-completion introspects conda's argparse command tree, including
+registered plugin subcommands such as workspace, global, spawn, and task
+when those plugins are installed. A small Rust binary handles each TAB
+press with no Python on the hot path, and shells with native description
+support can show help text alongside candidates.
 
 ```bash
 conda install -c conda-forge conda-completion
@@ -68,7 +69,7 @@ Common issues and how to fix them.
 :link: features
 :link-type: doc
 
-Everything conda-completion brings to the table.
+Feature overview and shell behavior.
 :::
 
 ::::::
@@ -82,9 +83,9 @@ Everything conda-completion brings to the table.
 
 **Plugin-aware completions**
 
-Every conda plugin that registers subcommands is automatically included.
-Install `conda-workspaces` and `conda workspace <TAB>` just works, with
-full subcommand and flag completion.
+Conda plugins that register subcommands are included when the manifest
+is generated. Install a plugin such as `conda-workspaces`, regenerate if
+needed, and `conda workspace <TAB>` offers its subcommands and flags.
 
 :::
 
@@ -93,8 +94,9 @@ full subcommand and flag completion.
 **Contextual completions**
 
 Environment names, task names, and channels are completed from your
-project files: `conda.toml`, `pixi.toml`, `pyproject.toml`,
-`environment.yml`, and lockfiles.
+project and environment files: `environment.yml`, conda-workspaces
+manifests such as `conda.toml`, pixi manifests, `pyproject.toml`, and
+lockfiles.
 
 :::
 
@@ -103,7 +105,7 @@ project files: `conda.toml`, `pixi.toml`, `pyproject.toml`,
 **Package name and version completion**
 
 `conda install nump<TAB>` completes package names from repodata.
-`conda install numpy=<TAB>` lists available versions. A three-tier
+`conda install numpy=<TAB>` lists available versions. A three-stage
 matching strategy handles typos: prefix, substring, then fuzzy
 Damerau-Levenshtein similarity.
 
@@ -113,8 +115,8 @@ Damerau-Levenshtein similarity.
 
 **Descriptions alongside candidates**
 
-In zsh, fish, and PowerShell, each completion candidate shows its help
-text so you never have to guess what a flag does.
+In zsh, fish, and PowerShell, each completion candidate can show the
+help text extracted from conda's argparse metadata.
 
 :::
 
@@ -144,6 +146,7 @@ Bash <tutorials/setup-bash>
 Zsh <tutorials/setup-zsh>
 PowerShell <tutorials/setup-powershell>
 Fish <tutorials/setup-fish>
+Project-aware completions <tutorials/project-aware-completions>
 Plugin completions <tutorials/plugin-completions>
 Migrating <tutorials/coming-from/index>
 ```
@@ -166,6 +169,7 @@ Errors <reference/errors>
 
 Motivation <explanation/motivation>
 Architecture <explanation/architecture>
+Scope and tradeoffs <explanation/scope-and-tradeoffs>
 Performance <explanation/performance>
 Caching <explanation/caching>
 Security <explanation/security>
@@ -179,7 +183,10 @@ configuration
 :caption: How-to guides
 
 Troubleshooting <how-to/troubleshooting>
+Diagnose and repair <how-to/diagnose-and-repair>
+Nonstandard shell startup <how-to/nonstandard-shell-startup>
 Remote & automated environments <how-to/remote-and-automated-environments>
+Offline & restricted networks <how-to/offline-and-restricted-networks>
 Package metadata <how-to/package-metadata>
 Plugin completions <how-to/custom-completions>
 ```

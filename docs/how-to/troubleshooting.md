@@ -1,5 +1,8 @@
 # Troubleshooting
 
+For a step-by-step debugging workflow, see
+{doc}`diagnose-and-repair`.
+
 ## Completions stopped working
 
 Regenerate the manifest:
@@ -12,6 +15,7 @@ If that doesn't help, check that the shell hook is installed:
 
 ```bash
 conda completion status
+conda completion install --dry-run
 ```
 
 ## "Completion data not found"
@@ -38,17 +42,18 @@ for the binary path.
 
 Corrupt manifest. Delete and regenerate:
 
-```bash
-rm "$(conda completion status 2>&1 | grep Manifest: | awk '{print $2}')"
-conda completion generate
-```
+Use the cache directory printed by `conda completion status`, remove
+`completion.msgpack`, and run `conda completion generate`. See
+{doc}`diagnose-and-repair` for platform-specific commands.
 
 ## "Shell 'X' is not supported"
 
 Unsupported shell name passed to `install` or `init`. Supported:
 
-- Tier 1 (CI-tested): `bash`, `zsh`, `powershell`
-- Tier 2 (community-tested): `fish`
+- `bash`
+- `zsh`
+- `powershell`
+- `fish`
 
 ## Completions are slow
 
@@ -66,8 +71,10 @@ If tab completion takes more than 200 ms:
 
 ## New plugin not showing up
 
-The manifest regenerates automatically for plugins installed via
-`conda install` (including `conda-pypi`). For `pip install`:
+After `conda install`, `conda remove`, or `conda update`,
+conda-completion regenerates the manifest when registered conda entry
+point names changed. For plugins installed outside conda's package
+manager, or plugin updates that only changed argparse metadata:
 
 ```bash
 conda completion generate
@@ -85,14 +92,28 @@ If you intentionally generated with `--no-repodata`, package name and
 version candidates are omitted until you run `conda completion generate`
 again without that flag.
 
+Package completion also requires a non-empty package prefix. Use
+`conda install num<TAB>`, not `conda install <TAB>`, when you want package
+name candidates.
+
 ## Completions work in one shell but not another
 
 Each shell needs its own hook:
 
 ```bash
-conda completion install bash
 conda completion install zsh
-conda completion install fish
 ```
 
+Run the command once for the shell that is missing completions. Use
+`bash`, `zsh`, `powershell`, or `fish` as the shell argument.
+
 Restart your shell or source the RC file afterward.
+
+## Completions work in a normal terminal but not in an IDE
+
+The IDE terminal is probably not reading the same startup file. Check the
+configured shell path in the IDE and install the hook for that shell, or
+add the manual hook to the file it loads.
+
+See {doc}`nonstandard-shell-startup` and
+{doc}`remote-and-automated-environments`.

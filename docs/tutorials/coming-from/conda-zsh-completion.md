@@ -47,13 +47,13 @@ conda completion install
 
 ### 4. Restart your shell
 
-Open a new terminal. Completions should work immediately.
+Open a new terminal and test `conda <TAB>`.
 
 ## What you gain
 
-- Plugin subcommands are completed automatically without waiting for
-  the completion script to be manually updated.
-- The completion data is always in sync with your installed conda
-  version because it is generated from the actual argparse tree.
+- Plugin subcommands come from the generated manifest instead of waiting
+  for the completion script to be manually updated.
+- The completion data is generated from your installed conda argparse
+  tree instead of a hand-written snapshot.
 - Contextual completions for environment names, task names, and
   channels from project files.

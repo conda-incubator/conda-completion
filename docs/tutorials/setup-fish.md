@@ -2,12 +2,6 @@
 
 This guide walks through setting up conda tab completion in fish.
 
-:::{note}
-Fish is a Tier 2 shell. It is community-tested and maintained on a
-best-effort basis. Please report issues on the
-[issue tracker](https://github.com/conda-incubator/conda-completion/issues).
-:::
-
 ## Prerequisites
 
 - conda 25.1 or later
@@ -27,8 +21,8 @@ conda install -c conda-forge conda-completion
 conda completion install
 ```
 
-This detects fish from your `$SHELL` variable and adds a delimited block
-to `~/.config/fish/config.fish`. Preview with:
+This detects the current shell and adds a delimited block to
+`~/.config/fish/completions/conda.fish`. Preview with:
 
 ```bash
 conda completion install --dry-run
@@ -36,7 +30,8 @@ conda completion install --dry-run
 
 ### Option B: manual setup
 
-Add this line to `~/.config/fish/config.fish`:
+Add this line to `~/.config/fish/config.fish` or
+`~/.config/fish/completions/conda.fish`:
 
 ```fish
 conda completion init fish | source
@@ -55,6 +50,11 @@ $ conda install --<TAB>
 
 Fish natively supports tab-separated descriptions, so help text appears
 alongside each candidate.
+
+:::{image} ../../demos/fish-completion.gif
+:alt: Fish completion with descriptions
+:width: 100%
+:::
 
 ## Replacing fish's built-in conda completions
 

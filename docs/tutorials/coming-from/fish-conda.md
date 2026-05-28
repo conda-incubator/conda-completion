@@ -6,7 +6,8 @@ Fish provides conda completions from two sources:
   community fish plugin (unmaintained)
 - Fish's built-in `conda.fish`: ships with fish, based on conda 4.4.11
 
-Both are stale and unaware of modern conda features and plugins.
+Both reflect older conda command trees and do not discover conda plugin
+subcommands.
 
 ## Migration steps
 
@@ -38,13 +39,14 @@ conda completion install
 
 ### 4. Restart your shell
 
-Open a new fish session. Completions should work immediately, including
-tab-separated descriptions for each candidate.
+Open a new fish session and test `conda <TAB>`. Fish renders the
+tab-separated descriptions provided by conda-completion in its native
+completion pager.
 
 ## What you gain
 
-- Completions that match your actual conda installation instead of a
+- Completions generated from your installed conda command tree instead of a
   frozen snapshot from conda 4.4.
-- Plugin subcommands (workspace, global, spawn, task) are completed
-  automatically.
+- Plugin subcommands (workspace, global, spawn, task) come from the
+  generated manifest when those plugins are installed.
 - Contextual completions from project files.

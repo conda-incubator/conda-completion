@@ -1,7 +1,7 @@
 # Performance
 
-Shell completion must feel instant. Users press TAB reflexively and any
-perceptible delay breaks flow.
+Shell completion has a tight latency budget. Users press TAB repeatedly,
+and visible delays interrupt command-line editing.
 
 ## Design for speed
 
@@ -9,8 +9,8 @@ conda-completion avoids the two main sources of latency in shell
 completion:
 
 1. **No Python on the hot path.** The Rust binary is the only thing that
-   runs on TAB press. Python startup alone takes 50-100 ms, which is
-   already perceptible.
+   runs on TAB press. Python startup can already be perceptible before
+   conda imports plugins or configuration.
 
 2. **No file re-parsing on repeat presses.** A stat-based file cache
    tracks which project and global files have changed. If nothing
@@ -43,8 +43,8 @@ versions for one lookup.
 
 Same as the common case, but instead of a simple prefix filter, runs
 normalized Damerau-Levenshtein similarity scoring over all package
-names. This is the slowest path, but only fires when the input is
-genuinely misspelled.
+names. This is the slowest path, and only runs after prefix and
+substring matching return no results.
 
 ## The stat cache
 
@@ -73,13 +73,13 @@ normalized Damerau-Levenshtein similarity. This handles common typos
 like transpositions ("nupmy" for "numpy") and near-misses ("numpie"
 for "numpy").
 
-The matching uses a three-tier strategy to avoid unnecessary work:
+The matching uses a three-stage strategy to avoid unnecessary work:
 
 1. **Prefix match**: return immediately if any candidates start with the
    query. This is the common case and is essentially free.
 2. **Substring match**: return if any candidates contain the query.
    Still fast, one pass over the candidate list.
-3. **Similarity**: only runs when tiers 1 and 2 return nothing. Scores
+3. **Similarity**: only runs when the first two stages return nothing. Scores
    are filtered at a 0.6 threshold and capped at 10 results.
 
 ## Comparison with existing tools
@@ -105,7 +105,7 @@ are kept minimal:
 | Dependency | Purpose |
 |---|---|
 | `serde` + `rmp-serde` | msgpack manifest and cache deserialization |
-| `serde` + `toml` | TOML project file parsing (conda.toml, pixi.toml) |
+| `serde` + `toml` | TOML workspace/project file parsing (conda.toml, pixi.toml) |
 | `serde-saphyr` | YAML parsing (environment.yml, .condarc, lockfiles) |
 | `fs-err` | Better I/O errors |
 

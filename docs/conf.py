@@ -10,6 +10,7 @@ copyright = "2025, Jannis Leidel"
 author = "Jannis Leidel"
 
 extensions = [
+    "sphinx.ext.intersphinx",
     "myst_parser",
     "sphinx_copybutton",
     "sphinx_design",
@@ -52,3 +53,8 @@ html_css_files = ["css/custom.css"]
 html_baseurl = "https://conda-incubator.github.io/conda-completion/"
 
 exclude_patterns = ["_build"]
+
+intersphinx_mapping = {
+    "conda": ("https://docs.conda.io/projects/conda/en/latest/", None),
+}
+intersphinx_timeout = 10

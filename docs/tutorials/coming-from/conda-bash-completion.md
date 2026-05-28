@@ -43,12 +43,12 @@ conda completion install
 
 ### 4. Restart your shell
 
-Open a new terminal. Completions should work immediately.
+Open a new terminal and test `conda <TAB>`.
 
 ## What you gain
 
 - Plugin subcommands like `conda workspace`, `conda global`, and
-  `conda task` are completed automatically.
-- Completions are 20x faster because the Rust binary reads a pre-built
-  manifest instead of running `conda --help`.
+  `conda task` are included in the generated manifest.
+- Completion avoids running `conda --help` on every TAB press. The Rust
+  binary reads a pre-built manifest instead.
 - If you later switch to zsh or another shell, the same tool works.

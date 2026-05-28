@@ -1,20 +1,17 @@
 # Shell support
 
-conda-completion uses a tiered support model.
+conda-completion supports bash, zsh, PowerShell, and fish.
 
-## Support tiers
+## Supported shells
 
-**Tier 1** shells are fully tested in CI on every push and actively
-maintained by the project.
-
-**Tier 2** shells are community-tested and maintained on a best-effort
-basis. Bug reports and contributions are welcome.
+All supported shells are covered by automated tests for script
+generation, CLI initialization, installation hooks, and shell detection.
+Bug reports and contributions are welcome for each shell.
 
 ## Feature matrix
 
 | Feature | bash | zsh | PowerShell | fish |
 |---|---|---|---|---|
-| **Tier** | 1 | 1 | 1 | 2 |
 | Command completion | Yes | Yes | Yes | Yes |
 | Flag completion | Yes | Yes | Yes | Yes |
 | Flag value completion | Yes | Yes | Yes | Yes |
@@ -64,7 +61,7 @@ descriptions, so the Rust binary omits them for bash output.
 | zsh | `~/.zshrc` |
 | PowerShell (Windows) | `~/Documents/PowerShell/Microsoft.PowerShell_profile.ps1` |
 | PowerShell (macOS/Linux) | `~/.config/powershell/Microsoft.PowerShell_profile.ps1` |
-| fish | `~/.config/fish/config.fish` |
+| fish | `~/.config/fish/completions/conda.fish` |
 
 `conda completion install` writes a delimited block to the first existing
 RC file (or creates the first one in the list if none exist).
@@ -79,16 +76,15 @@ directory names.
 Windows users who want conda tab completion should use PowerShell,
 which is installed by default on all modern Windows versions.
 
-## Future Tier 2 candidates
+## Future shell candidates
 
 The following shells have programmable completion APIs and are
-candidates for future Tier 2 support. Contributions are welcome.
+candidates for future support. Contributions are welcome.
 
 **xonsh**
 : A Python-powered shell with a `completes_for` decorator for
   registering custom completers. conda supports xonsh in `conda init`,
-  and mamba supports it in `shell completion`. xonsh is particularly
-  relevant to conda's audience given its Python roots.
+  and mamba supports it in `shell completion`.
 
 **Nushell**
 : A modern structured-data shell with an `extern` completion system.
@@ -102,11 +98,9 @@ candidates for future Tier 2 support. Contributions are welcome.
   default root shell on some BSDs, though usage is declining.
 
 If you are interested in adding support for one of these shells, the
-main work is writing a shell integration script (similar to the
-existing scripts in `conda_completion/shell/` and
-`conda_completion/contrib/`) and adding an output format to the Rust
-binary if the shell's completion protocol differs from the existing
-ones.
+main work is writing a shell integration script and adding an output
+format to the Rust binary if the shell's completion protocol differs
+from the existing ones.
 
 ## Shell detection
 

@@ -5,7 +5,8 @@ This guide walks through setting up conda tab completion in bash.
 ## Prerequisites
 
 - conda 25.1 or later
-- bash 4.0 or later (3.x works but lacks some features)
+- bash 4.0 or later. Bash 4.4 or later preserves completion ordering
+  more consistently because it supports `compopt -o nosort`.
 
 ## Install conda-completion
 
@@ -21,8 +22,8 @@ conda install -c conda-forge conda-completion
 conda completion install
 ```
 
-This detects bash from your `$SHELL` variable and adds a delimited block
-to your `~/.bashrc` (or `~/.bash_profile` if that exists). Preview with
+This detects the current shell and adds a delimited block to your
+`~/.bashrc` (or `~/.bash_profile` if that exists). Preview with
 `--dry-run`:
 
 ```bash
@@ -49,7 +50,7 @@ Open a new terminal (or run `source ~/.bashrc`) and try:
 ```text
 $ conda <TAB><TAB>
 activate     clean        config       create       ...
-install      list         remove       workspace    ...
+install      list         remove       update       ...
 
 $ conda inst<TAB>
 $ conda install

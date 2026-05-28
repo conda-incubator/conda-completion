@@ -10,8 +10,8 @@ The completion manifest (`completion.msgpack`) is a snapshot of conda's
 full command tree at generation time. It is created by
 `conda completion generate` and changes when:
 
-1. A conda plugin is installed, removed, or updated (detected via plugin
-   entry point hash comparison).
+1. A conda plugin entry point is added or removed (detected via plugin
+   entry point name hash comparison).
 2. The user explicitly runs `conda completion generate`.
 
 The `conda_post_commands` hook runs after every `conda install`,
@@ -20,11 +20,14 @@ registered conda entry point names and compares it against the hash
 stored in the manifest's `plugin_hash` field. If they differ, the
 manifest is regenerated automatically.
 
-The manifest stays consistent with the installed plugin set without
-user action. The one exception is plugins installed via `pip install`
-directly (not through `conda install` or `conda-pypi`), which bypass
-the conda hook system. See {doc}`/how-to/troubleshooting` for the
-workaround.
+The manifest stays consistent with plugins installed through conda. The
+exception is plugins installed outside conda's package manager, which
+bypass the conda hook system. See {doc}`/how-to/troubleshooting` for
+the workaround.
+
+The hash tracks entry point names, not parser contents. If a plugin
+update changes argparse metadata without adding or removing a conda entry
+point, run `conda completion generate` manually.
 
 Package metadata is refreshed by `generate` when missing or older than
 24 hours. If repodata refresh fails and existing package data is present,
@@ -33,7 +36,7 @@ package data exists, command and flag completions are still generated.
 
 ## Stat-based context cache
 
-The Rust completer reads project files (conda.toml, pixi.toml,
+The Rust completer checks project files (conda.toml, pixi.toml,
 pyproject.toml, environment.yml, lockfiles) on every TAB press for
 contextual completions (environment names, task names, channels).
 Parsing files on every keypress would be too slow, so the binary
@@ -83,7 +86,7 @@ deleted or moved files.
 
 Project context (from the working directory upward):
 
-- `conda.toml` / `pixi.toml`: environments, tasks, features, channels
+- `conda.toml` / `pixi.toml`: workspace environments, tasks, features, channels
 - `pyproject.toml`: `[tool.conda]` or `[tool.pixi]` sections
 - `anaconda-project.yml`: env_specs, commands
 - `conda-project.yml`: environments, commands
@@ -94,15 +97,24 @@ Global context (user home):
 
 - `~/.conda/environments.txt`: registered environment names
 - `~/.condarc` (and `$CONDARC`): configured channels
-- `~/.conda/global/global.toml`: globally installed tool names
+- `~/.conda/global/global.toml`: globally installed tool names for
+  arguments explicitly marked as `global_tool`
+
+Feature names may be retained in the context cache because workspace
+manifests contain them, but no current completion type exposes feature
+names directly.
 
 ### Parent directory walk
 
 The binary walks up from the current working directory, checking each
 level for project files. It stops at the first directory containing a
-conda/pixi project file (conda.toml, pixi.toml, pyproject.toml with
-`[tool.conda]` or `[tool.pixi]`, anaconda-project.yml, or
-conda-project.yml). Lockfiles in the same directory are also checked.
+workspace-style or project file (`conda.toml`, `pixi.toml`,
+`pyproject.toml` with `[tool.conda]` or `[tool.pixi]`,
+`anaconda-project.yml`, or `conda-project.yml`). Lockfiles in the same
+directory are also checked.
+
+`conda.toml` is treated as a conda-workspaces manifest, not a formal
+conda standard.
 
 The walk also stops at VCS boundaries (`.git`, `.hg`, `.svn`), since
 project files above a repository root are unlikely to be relevant.

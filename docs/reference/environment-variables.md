@@ -14,8 +14,10 @@
   a known shell. Defaults to `powershell` on Windows if not set.
 
 `CONDARC`
-: Path to a custom `.condarc` file. The Rust completer reads this
-  (in addition to `~/.condarc`) for channel name completion.
+: Path to a custom {external+conda:doc}`.condarc
+  <user-guide/configuration/use-condarc>` file. The Rust completer reads
+  this (in addition to `~/.condarc`) for channel name completion. On
+  Windows, `C:\ProgramData\conda\.condarc` is also checked when present.
 
 `HOME` (Unix) / `USERPROFILE` (Windows)
 : Locates user-level files: `~/.conda/environments.txt`,

@@ -11,23 +11,27 @@ conflict.
 ## Do I need to regenerate after installing a plugin?
 
 Usually not. conda-completion registers a post-command hook that
-checks whether the set of installed plugins has changed after
-`conda install`, `conda remove`, and `conda update`. If a plugin was
-added or removed, the manifest is regenerated automatically.
+checks whether the set of registered conda plugin entry point names has
+changed after `conda install`, `conda remove`, and `conda update`. If a
+plugin entry point was added or removed, the manifest is regenerated
+automatically.
 
-The one exception is plugins installed directly via pip (outside of
-conda's package manager). In that case, run:
+The one exception is plugins installed outside conda's package manager.
+In that case, run:
 
 ```bash
 conda completion generate
 ```
 
+Run the same command after updating a plugin if its command-line
+metadata changed but its conda entry point name did not.
+
 ## Which shells are supported?
 
-bash, zsh, PowerShell, and fish. bash, zsh, and PowerShell are
-Tier 1 (fully tested in CI). fish is Tier 2 (community-tested,
-best-effort). See {doc}`../reference/shell-support` for the full
-feature matrix.
+bash, zsh, PowerShell, and fish. All four shells are covered by
+automated tests for script generation, CLI initialization, installation
+hooks, and shell detection. See {doc}`../reference/shell-support` for
+the full feature matrix.
 
 ## Why does bash not show descriptions?
 
@@ -41,9 +45,10 @@ supports descriptions.
 
 ## How fast is it?
 
-Effectively instant for commands, flags, and package names. No Python
-process starts on TAB press. Version completion and fuzzy matching do
-more work but still feel responsive. See {doc}`performance` for details.
+Commands, flags, and package names are designed for interactive latency.
+No Python process starts on TAB press. Version completion and fuzzy
+matching do more work, so they are the slower paths. See
+{doc}`performance` for details.
 
 ## Where is the manifest stored?
 
@@ -73,8 +78,9 @@ from repodata for all configured channels unless you pass
 `--no-repodata`. After that, `conda install nump<TAB>` completes
 matching package names.
 
-Package names are stored in `completion.msgpack` alongside the command
-tree, so they are always available without extra file reads.
+When package metadata is generated, package names are stored in
+`completion.msgpack` alongside the command tree, so package-name
+completion does not need a separate package metadata file at runtime.
 
 Package metadata is reused for 24 hours. Use
 `conda completion refresh` to force a refresh.
@@ -94,21 +100,26 @@ common TAB press fast.
 
 ## What if I misspell a package name?
 
-The completer uses a three-tier matching strategy: prefix match first,
+The completer uses a three-stage matching strategy: prefix match first,
 then substring match, then fuzzy similarity via normalized
 Damerau-Levenshtein distance. Typos like `numpie`, `nupmy`, or
-`scikitlearn` (missing hyphen) will suggest the correct package.
+`scikitlearn` (missing hyphen) can suggest the intended package.
 
-The similarity threshold is 0.6 with a cap of 10 results, so you will
-not be flooded with irrelevant suggestions.
+The similarity threshold is 0.6 with a cap of 10 results to limit noisy
+matches.
 
 ## Does it complete environment names from my project?
 
 Yes. The Rust binary walks upward from your working directory looking
 for `conda.toml`, `pixi.toml`, or `pyproject.toml` (with
 `[tool.conda]` or `[tool.pixi]` sections). Environment names, task
-names, feature names, and channels defined in these files are available
-as completion candidates.
+names, and channels defined in these files are available as completion
+candidates.
+
+`conda.toml` support follows
+[conda-workspaces](https://github.com/conda-incubator/conda-workspaces).
+It is useful for current workspace experiments, but it is not a formal
+conda standard.
 
 It also reads `~/.conda/environments.txt` for all registered
 environments and `~/.condarc` for configured channels.
@@ -116,13 +127,13 @@ environments and `~/.condarc` for configured channels.
 ## What happens if the manifest is stale?
 
 If you install a new plugin and the automatic regeneration hook does
-not fire (for example, the plugin was installed via pip), completions
-for that plugin's subcommands will be missing. Running
-`conda completion generate` fixes this immediately.
+not fire (for example, the plugin was installed outside conda's package
+manager), completions for that plugin's subcommands will be missing.
+Run `conda completion generate` to rebuild the manifest.
 
-Contextual completions (environment names, task names, channels) are
-always fresh because they are read directly from project and global
-files on every TAB press, not from the manifest.
+Contextual completions (environment names, task names, channels) are not
+stored in the manifest. The Rust binary checks project and global files
+by mtime and size on each TAB press and re-parses changed files.
 
 ## What about cmd.exe on Windows?
 
@@ -132,7 +143,7 @@ key only cycles through file and directory names. This is a limitation
 of cmd.exe itself, not of conda-completion.
 
 Windows users who want tab completion should use PowerShell, which is
-installed by default on all modern Windows versions and has full
+installed by default on all modern Windows versions and has programmable
 completion support.
 
 ## Can conda packages ship their own completions?

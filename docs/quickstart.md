@@ -2,6 +2,16 @@
 
 Get conda tab completion working in under a minute.
 
+## Prerequisites
+
+- conda 25.1 or later
+- A supported shell: bash, zsh, PowerShell, or fish
+- `conda` available in new shell sessions
+
+If `conda` is not available in a fresh terminal, run
+{external+conda:doc}`conda init <commands/init>` for your shell first,
+restart the terminal, and continue.
+
 ## Install
 
 :::::{tab-set}
@@ -43,6 +53,13 @@ To target a specific shell, pass it explicitly:
 `conda completion install zsh`
 :::
 
+If you are building a container, working offline, or only need command
+and flag completion, skip package metadata during setup:
+
+```bash
+conda completion install --yes --no-repodata
+```
+
 ## Try it out
 
 Open a new shell (or source your RC file) and press TAB:
@@ -61,13 +78,25 @@ $ conda install --<TAB>
 --dry-run     -- Only display what would have been done
 --name        -- Name of environment
 ...
+```
 
+If a plugin such as `conda-workspaces` is installed, plugin subcommands
+come from the same generated manifest:
+
+```text
 $ conda workspace <TAB>
 activate  add  archive  clean  envs  export  import  info  init  install ...
 ```
 
+Check the generated files and runtime binary:
+
+```bash
+conda completion status
+```
+
 ## What's next?
 
-- {doc}`tutorials/index` for per-shell walkthroughs and migration guides
+- {doc}`tutorials/index` for per-shell walkthroughs, project-aware completion, and migration guides
+- {doc}`how-to/diagnose-and-repair` when completion does not behave as expected
 - {doc}`reference/index` for the CLI command reference and manifest format
-- {doc}`explanation/architecture` for how the hybrid Python/Rust design works
+- {doc}`explanation/scope-and-tradeoffs` for what is completed and what is intentionally out of scope

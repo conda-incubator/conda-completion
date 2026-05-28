@@ -41,7 +41,8 @@ here as equivalent JSON for readability:
           "short": "-n",
           "completion_type": "env_name",
           "description": "Name of environment",
-          "metavar": "ENVIRONMENT"
+          "metavar": "ENVIRONMENT",
+          "group": "Target Environment Specification"
         },
         "--channel": {
           "short": "-c",
@@ -118,6 +119,10 @@ default
 
 required
 : Whether the flag is required.
+
+group
+: Argparse action group title, when conda or a plugin provides one.
+  The zsh integration uses it to keep related candidates together.
 
 ### PositionalSpec
 

@@ -1,18 +1,25 @@
 # Configuration
 
-conda-completion works out of the box with sensible defaults. The settings
-below are available for advanced use cases.
+Most users only need `conda completion install`. The settings below are
+available for scripts, custom shell startup files, and cache inspection.
 
 ## Shell detection
 
 By default, `conda completion install` (without a shell argument) detects
-your shell from the `SHELL` environment variable. On Windows, it falls
-back to PowerShell.
+your shell from `CONDA_COMPLETION_SHELL`, the parent process tree, the
+`SHELL` environment variable, and finally a platform default. On Windows,
+the platform default is PowerShell.
 
 To override:
 
 ```bash
 conda completion install zsh
+```
+
+Or in scripts:
+
+```bash
+CONDA_COMPLETION_SHELL=zsh conda completion install --yes
 ```
 
 ## Manifest location
@@ -50,17 +57,18 @@ cost of re-parsing all project and global files on the next invocation.
 
 ## Manual regeneration
 
-If you install a conda plugin via pip (instead of conda), the automatic
-post-command hook will not trigger. Regenerate manually:
+If you install a conda plugin outside conda's package manager, or update
+a plugin without changing its conda entry point name, regenerate
+manually:
 
 ```bash
 conda completion generate
 ```
 
 By default, generation reuses package metadata if it is less than 24
-hours old. Use `conda completion refresh` to force a fresh repodata
-read, or `--no-repodata` to regenerate command and flag completions
-without package metadata.
+hours old. Use `conda completion refresh` to force conda-completion to
+rebuild package metadata from conda repodata, or `--no-repodata` to
+regenerate command and flag completions without package metadata.
 
 ## Eval-based setup
 
@@ -102,3 +110,7 @@ conda completion init fish | source
 ::::
 
 :::::
+
+The automatic fish installer writes to
+`~/.config/fish/completions/conda.fish`. The manual eval line can live
+there or in `~/.config/fish/config.fish`.

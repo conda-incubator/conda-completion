@@ -15,11 +15,10 @@ projects:
 | oh-my-bash / Bash-it plugins | bash | Minimal, basic |
 | `sigoden/argc-completions` | all | Generic, covers 1000+ commands |
 
-Every one of these tools is unaware of conda plugin subcommands. When
-you install `conda-workspaces`, `conda-global`, or `conda-spawn`, none
-of these tools complete the new subcommands. Users must wait for each
-tool to be manually updated, which may never happen for unmaintained
-projects.
+These tools do not generally discover conda plugin subcommands. When a
+user installs `conda-workspaces`, `conda-global`, or `conda-spawn`, the
+completion script needs plugin-specific updates unless it can read
+conda's command tree directly.
 
 ## What conda-completion solves
 
@@ -28,13 +27,14 @@ fish, and PowerShell completion scripts, conda-completion generates
 completions from the same source for all four shells.
 
 **Plugin-aware by default.** The manifest is generated from conda's
-actual argparse tree after all plugins have loaded. Any plugin that
-registers `conda_subcommands` is included automatically with no
-configuration or opt-in.
+argparse tree after plugins have loaded. Plugins that register
+{external+conda:doc}`conda_subcommands <dev-guide/plugins/subcommands>`
+are included when the manifest is generated, with no
+conda-completion-specific configuration.
 
-**Dynamic contextual completions.** Environment names, task names,
-channels, and feature names are completed from project files, not
-just from static definitions.
+**Dynamic contextual completions.** Environment names, task names, and
+channels are completed from project files, not just from static
+definitions.
 
 **Speed.** Existing tools either parse `conda --help` on every TAB
 press (slow due to Python startup) or use a hand-maintained static
@@ -43,6 +43,6 @@ to read it directly, with no Python process on the hot path.
 
 ## Scope
 
-conda-completion completes the `conda` command and all its Python
-plugins. It does not cover `mamba` or `micromamba`, which have their own
-built-in completion systems (written in C++).
+conda-completion completes the `conda` command and registered
+subcommands from Python plugins. It does not cover `mamba` or
+`micromamba`, which have their own built-in completion systems.

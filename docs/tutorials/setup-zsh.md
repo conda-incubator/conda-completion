@@ -21,8 +21,8 @@ conda install -c conda-forge conda-completion
 conda completion install
 ```
 
-This detects zsh from your `$SHELL` variable and adds a delimited block
-to your `~/.zshrc`. Preview with:
+This detects the current shell and adds a delimited block to your
+`~/.zshrc`. Preview with:
 
 ```bash
 conda completion install --dry-run
@@ -48,16 +48,16 @@ $ conda install --<TAB>
 ```
 
 :::{tip}
-In zsh, descriptions appear alongside each candidate. This is one of
-the advantages over bash completion.
+In zsh, descriptions appear alongside each candidate. Bash completion
+does not expose the same description field.
 :::
 
 ## How it works in zsh
 
 The generated script is a `#compdef conda` completion function. On each
 TAB press, zsh calls `_conda()` which invokes the Rust binary. Output
-uses `candidate:description` format, which zsh's `_describe` function
-renders with aligned descriptions.
+uses grouped `candidate:description` items, which zsh's `_describe`
+function renders with aligned descriptions.
 
 ## Uninstall
 
