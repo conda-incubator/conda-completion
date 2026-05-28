@@ -11,9 +11,9 @@
   on every TAB press.
 
 - CLI modules live under `conda_completion/cli/`. Shell script
-  generators are split by tier: `shell/` (Tier 1: bash, zsh,
-  PowerShell -- fully tested in CI) and `contrib/` (Tier 2: fish --
-  community-tested, best-effort).
+  generators live under `conda_completion/shell/` and
+  `conda_completion/contrib/`. Supported shells are bash, zsh,
+  PowerShell, and fish; all are covered by automated tests.
 
 - The Rust binary crate lives under `packages/conda-completer/`.
   Its Python wrapper (binary finder) is at

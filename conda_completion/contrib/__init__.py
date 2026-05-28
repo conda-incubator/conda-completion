@@ -1,3 +1,3 @@
-"""Tier 2 shell integration scripts (best-effort, community-tested)."""
+"""Additional shell integration modules."""
 
 from __future__ import annotations

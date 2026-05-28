@@ -1,4 +1,4 @@
-"""Fish completion script generator (Tier 2)."""
+"""Fish completion script generator."""
 
 from __future__ import annotations
 

@@ -1,8 +1,5 @@
 """Shell integration scripts for conda-completion.
 
-Tier 1 (``shell/``): bash, zsh, PowerShell -- fully tested in CI.
-Tier 2 (``contrib/``): fish -- community-tested, best-effort.
-
 Each shell module provides a Shell subclass with ``script()``,
 ``hook_line()``, and path quoting appropriate for that shell.
 """
@@ -129,7 +126,7 @@ class Shell:
 
 
 def get_shell_registry() -> dict[str, Shell]:
-    """Return a mapping of shell name to Shell instance (Tier 1 + Tier 2)."""
+    """Return a mapping of supported shell name to Shell instance."""
     from .bash import BashShell
     from .powershell import PowerShellShell
     from .zsh import ZshShell

@@ -73,15 +73,11 @@ def test_script_with_special_paths(shell_name):
     assert len(script) > 0
 
 
-def test_get_shell_registry_includes_tier_1():
+def test_get_shell_registry_includes_supported_shells():
     registry = get_shell_registry()
     assert "bash" in registry
     assert "zsh" in registry
     assert "powershell" in registry
-
-
-def test_get_shell_registry_includes_fish():
-    registry = get_shell_registry()
     assert "fish" in registry
 
 
