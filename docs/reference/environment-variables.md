@@ -9,6 +9,15 @@
   normalized to `powershell`. Useful when automatic detection fails or
   in scripted environments.
 
+`CONDA_COMPLETION_CACHE_DIR`
+: Overrides the directory that stores `completion.msgpack`,
+  `versions.index`, `versions.store`, and `context_cache.msgpack`. Use
+  this in CI, containers, or locked-down environments where the platform
+  user cache directory is not appropriate. Set it consistently when
+  running `generate`, `install`, `init`, and `status`. The
+  `conda completion --cache-dir PATH` command-line option takes
+  precedence over this environment variable.
+
 `SHELL`
 : Fallback for shell detection when process tree walking does not find
   a known shell. Defaults to `powershell` on Windows if not set.
@@ -28,10 +37,12 @@
 
 ## Rust completer
 
-The binary (`_conda_completer`) gets its configuration from
-command-line arguments (manifest path, shell name), not environment
-variables. It reads `HOME`/`USERPROFILE` and `CONDARC` for global
-context resolution.
+The binary (`_conda_completer`) gets its configuration from command-line
+arguments (manifest path, shell name), not conda-completion-specific
+environment variables. `CONDA_COMPLETION_CACHE_DIR` affects the manifest
+path passed to the binary by `conda completion init`; the binary does
+not read that variable directly. It reads `HOME`/`USERPROFILE` and
+`CONDARC` for global context resolution.
 
 ## Standard conda variables
 
@@ -43,7 +54,7 @@ Not specific to conda-completion, but relevant:
 
 ## Cache paths
 
-All data lives in the platform's user cache directory (via
+By default, all data lives in the platform's user cache directory (via
 `platformdirs`):
 
 | Platform | Path |
@@ -51,5 +62,8 @@ All data lives in the platform's user cache directory (via
 | Linux | `~/.cache/conda/completion/` |
 | macOS | `~/Library/Caches/conda/completion/` |
 | Windows | `%LOCALAPPDATA%\conda\cache\completion\` |
+
+Set `CONDA_COMPLETION_CACHE_DIR` to use a different directory, or pass
+`conda completion --cache-dir PATH` for a single command.
 
 See {doc}`/reference/manifest` for the files stored there.

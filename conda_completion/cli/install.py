@@ -33,7 +33,7 @@ def execute_install(args: argparse.Namespace) -> int:
         log.error("Cannot determine RC file for %s", shell_name)
         return 1
 
-    hook_line = shell.hook_line()
+    hook_line = shell.hook_line(getattr(args, "cache_dir", None))
     block = f"{_BLOCK_START}\n{hook_line}\n{_BLOCK_END}\n"
 
     if rc_path.exists():

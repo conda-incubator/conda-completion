@@ -9,12 +9,17 @@ silently for compatibility with global conda invocation patterns. They
 are hidden from the help output because the subcommand output is intended
 for humans and shell integration.
 
+`--cache-dir PATH`
+: Store completion cache files in `PATH` for this invocation. This
+  follows conda-style precedence: command-line option first, then
+  `CONDA_COMPLETION_CACHE_DIR`, then the platform user cache directory.
+
 ## `conda completion generate`
 
 Introspect conda's argparse tree and write the completion manifest.
 
 ```text
-conda completion generate [--no-repodata]
+conda completion [--cache-dir PATH] generate [--no-repodata]
 ```
 
 Writes to the platform's cache directory (e.g.,
@@ -38,7 +43,7 @@ Force conda-completion to rebuild package names and versions from conda
 repodata.
 
 ```text
-conda completion refresh
+conda completion [--cache-dir PATH] refresh
 ```
 
 Use this when a newly published package or version is missing from
@@ -52,7 +57,7 @@ Generate the manifest and add the completion hook to your shell's RC
 file.
 
 ```text
-conda completion install [shell] [--yes] [--dry-run] [--no-repodata]
+conda completion [--cache-dir PATH] install [shell] [--yes] [--dry-run] [--no-repodata]
 ```
 
 shell
@@ -73,6 +78,10 @@ shell
   files still work.
 
 Idempotent: running it twice does not duplicate the hook.
+
+When `--cache-dir` is passed to `install`, the installed startup hook
+keeps using that cache directory by passing the same option to
+`conda completion init <shell>`.
 
 ## `conda completion uninstall`
 
@@ -96,7 +105,7 @@ shell
 Print the shell completion script to stdout, for use in eval statements.
 
 ```text
-conda completion init <shell>
+conda completion [--cache-dir PATH] init <shell>
 ```
 
 shell (required)
@@ -121,7 +130,7 @@ Show diagnostics: manifest location, age, size, command/package counts,
 plugin hash, package-version cache files, and completer binary path.
 
 ```text
-conda completion status
+conda completion [--cache-dir PATH] status
 ```
 
 Example output:

@@ -31,6 +31,13 @@ def test_configure_parser_install_flags():
     assert args.shell == "zsh"
 
 
+def test_configure_parser_cache_dir_option():
+    parser = build_parser()
+    args = parser.parse_args(["--cache-dir", "/tmp/conda-completion-cache", "generate"])
+    assert args.cache_dir == "/tmp/conda-completion-cache"
+    assert args.subcmd == "generate"
+
+
 def test_configure_parser_generate_no_repodata_flag():
     parser = build_parser()
     args = parser.parse_args(["generate", "--no-repodata"])
@@ -104,18 +111,24 @@ def test_execute_handles_completion_error(monkeypatch):
     assert result == 1
 
 
-def test_execute_dispatches_status(tmp_path, monkeypatch, capsys):
+def test_execute_dispatches_status(tmp_path, capsys):
     manifest = tmp_path / "completion.msgpack"
     manifest.write_bytes(msgpack.packb({"version": 1, "commands": {}}))
-    monkeypatch.setattr("conda_completion.paths.manifest_path", lambda: manifest)
-    monkeypatch.setattr("conda_completion.paths.versions_index_path", lambda: tmp_path / "v.index")
-    monkeypatch.setattr("conda_completion.paths.versions_store_path", lambda: tmp_path / "v.store")
-    monkeypatch.setattr("conda_completion.paths.completion_cache_dir", lambda: tmp_path)
 
-    args = build_parser().parse_args(["status"])
+    args = build_parser().parse_args(["--cache-dir", str(tmp_path), "status"])
     result = execute(args)
     assert result == 0
     assert "Manifest:" in capsys.readouterr().out
+
+
+def test_execute_applies_cache_dir_override(tmp_path, capsys):
+    cache_dir = tmp_path / "custom-cache"
+    args = build_parser().parse_args(["--cache-dir", str(cache_dir), "status"])
+
+    result = execute(args)
+
+    assert result == 0
+    assert f"Cache directory: {cache_dir}" in capsys.readouterr().out
 
 
 def test_execute_dispatches_install(tmp_path, monkeypatch):

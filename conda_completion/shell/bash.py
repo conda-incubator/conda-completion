@@ -28,5 +28,8 @@ COMP_WORDBREAKS="${{COMP_WORDBREAKS//=/}}"
 complete -o default -F _conda_completion conda
 """
 
-    def hook_line(self) -> str:
-        return 'command -v conda &>/dev/null && eval "$(conda completion init bash)"'
+    def hook_line(self, cache_dir: Path | None = None) -> str:
+        command = "conda completion init bash"
+        if cache_dir is not None:
+            command = f"conda completion --cache-dir {self.posix_quote(cache_dir)} init bash"
+        return f'command -v conda &>/dev/null && eval "$({command})"'

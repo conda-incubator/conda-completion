@@ -29,7 +29,7 @@ class Shell:
     def script(self, completer_path: Path, manifest_path: Path) -> str:
         raise NotImplementedError
 
-    def hook_line(self) -> str:
+    def hook_line(self, cache_dir: Path | None = None) -> str:
         raise NotImplementedError
 
     def default_rc_path(self) -> Path | None:

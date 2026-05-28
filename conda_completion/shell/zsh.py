@@ -39,5 +39,8 @@ _conda() {{
 compdef _conda conda
 """
 
-    def hook_line(self) -> str:
-        return 'command -v conda &>/dev/null && eval "$(conda completion init zsh)"'
+    def hook_line(self, cache_dir: Path | None = None) -> str:
+        command = "conda completion init zsh"
+        if cache_dir is not None:
+            command = f"conda completion --cache-dir {self.posix_quote(cache_dir)} init zsh"
+        return f'command -v conda &>/dev/null && eval "$({command})"'

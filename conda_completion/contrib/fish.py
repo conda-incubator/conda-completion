@@ -28,5 +28,8 @@ end
 complete -c conda -a '(__conda_complete)' -k
 """
 
-    def hook_line(self) -> str:
-        return "command -q conda; and conda completion init fish | source"
+    def hook_line(self, cache_dir: Path | None = None) -> str:
+        command = "conda completion init fish"
+        if cache_dir is not None:
+            command = f"conda completion --cache-dir {self.posix_quote(cache_dir)} init fish"
+        return f"command -q conda; and {command} | source"

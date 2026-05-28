@@ -14,6 +14,10 @@ The manifest is stored in your platform's cache directory:
 | macOS | `~/Library/Caches/conda/completion/completion.msgpack` |
 | Windows | `%LOCALAPPDATA%\conda\cache\completion\completion.msgpack` |
 
+Pass `conda completion --cache-dir PATH` or set
+`CONDA_COMPLETION_CACHE_DIR` to override the directory that contains the
+manifest and related cache files.
+
 Package versions are stored in two files in the same directory:
 `versions.index` and `versions.store`. They are only loaded when `=` is
 detected in the current word (e.g., `numpy=<TAB>`).

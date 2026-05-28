@@ -39,12 +39,30 @@ the current word (e.g., `numpy=<TAB>`).
 This follows the same pattern as conda's own cache directories, using
 `platformdirs.user_cache_dir("conda")`.
 
+To store completion data somewhere else for one command, pass
+`--cache-dir` before the subcommand:
+
+```bash
+conda completion --cache-dir /path/to/conda-completion-cache generate
+conda completion --cache-dir /path/to/conda-completion-cache status
+```
+
+The option names the directory containing `completion.msgpack`,
+`versions.index`, `versions.store`, and `context_cache.msgpack`. For a
+persistent process-level override, set `CONDA_COMPLETION_CACHE_DIR`.
+Precedence follows conda's usual shape: command-line option, then
+environment variable, then default cache location.
+
+If `conda completion --cache-dir /path/to/cache install zsh` installs a
+shell startup hook, that hook keeps using `/path/to/cache` by passing the
+same option to `conda completion init zsh`.
+
 ## Context cache
 
 The stat-based context cache lives alongside the manifest:
 
 ```
-<cache_dir>/completion/context_cache.msgpack
+<completion_cache_dir>/context_cache.msgpack
 ```
 
 This file maps source file paths to their parsed data (environment names,

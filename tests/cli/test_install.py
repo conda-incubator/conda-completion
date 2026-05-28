@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 import pytest
 
@@ -45,6 +46,35 @@ def test_hook_line_per_shell(shell_name, expected_hook):
     if shell_name not in registry:
         pytest.skip(f"{shell_name} not available")
     assert registry[shell_name].hook_line() == expected_hook
+
+
+@pytest.mark.parametrize(
+    "shell_name,expected",
+    [
+        (
+            "bash",
+            "conda completion --cache-dir '/tmp/conda completion cache' init bash",
+        ),
+        (
+            "zsh",
+            "conda completion --cache-dir '/tmp/conda completion cache' init zsh",
+        ),
+        (
+            "powershell",
+            "conda completion --cache-dir '/tmp/conda completion cache' init powershell",
+        ),
+        (
+            "fish",
+            "conda completion --cache-dir '/tmp/conda completion cache' init fish",
+        ),
+    ],
+    ids=["bash", "zsh", "powershell", "fish"],
+)
+def test_hook_line_preserves_cache_dir(shell_name, expected):
+    registry = get_shell_registry()
+    if shell_name not in registry:
+        pytest.skip(f"{shell_name} not available")
+    assert expected in registry[shell_name].hook_line(Path("/tmp/conda completion cache"))
 
 
 def test_detect_shell_returns_string():
@@ -159,6 +189,30 @@ def test_execute_install_passes_no_repodata_flag(tmp_path, monkeypatch, stub_gen
     assert result == 0
     assert len(stub_generate) == 1
     assert stub_generate[0].no_repodata is True
+
+
+def test_execute_install_preserves_cache_dir_in_hook(tmp_path, monkeypatch, stub_generate):
+    rc_file = tmp_path / ".bashrc"
+    cache_dir = tmp_path / "completion-cache"
+    monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
+    monkeypatch.setattr(
+        "conda_completion.shell.bash.BashShell.default_rc_path",
+        lambda self: rc_file,
+    )
+
+    args = argparse.Namespace(
+        shell=None,
+        yes=True,
+        dry_run=False,
+        no_repodata=False,
+        cache_dir=cache_dir,
+    )
+    result = execute_install(args)
+
+    assert result == 0
+    assert f"conda completion --cache-dir '{cache_dir}' init bash" in rc_file.read_text(
+        encoding="utf-8"
+    )
 
 
 def test_source_command_for_powershell():

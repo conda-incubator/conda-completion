@@ -17,6 +17,12 @@ def configure_parser(parser: argparse.ArgumentParser) -> None:
         default=NULL,
         help=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "--cache-dir",
+        metavar="PATH",
+        default=None,
+        help="Store completion cache files in this directory",
+    )
 
     sub = parser.add_subparsers(dest="subcmd")
 
@@ -116,6 +122,11 @@ def build_parser() -> argparse.ArgumentParser:
 def execute(args: argparse.Namespace) -> int:
     """Dispatch to the appropriate subcommand handler."""
     from ..exceptions import CondaCompletionError
+    from ..paths import set_cache_dir_override
+
+    cache_dir = set_cache_dir_override(getattr(args, "cache_dir", None))
+    if cache_dir is not None:
+        args.cache_dir = cache_dir
 
     subcmd = getattr(args, "subcmd", None)
     if not subcmd:
