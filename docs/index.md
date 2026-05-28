@@ -13,124 +13,34 @@ conda install -c conda-forge conda-completion
 conda completion install
 ```
 
+## Example
+
 :::{image} ../demos/quickstart.gif
-:alt: conda-completion quickstart demo
-:width: 100%
+:alt: conda-completion completing conda commands and options
+:width: 720px
 :::
 
----
+## Start here
 
-::::::{grid} 1 1 2 3
-:gutter: 3
+- {doc}`quickstart` for installation and a first completion check.
+- {doc}`tutorials/index` for shell-specific setup, project-aware
+  completions, plugin completions, and migration guides.
+- {doc}`how-to/index` for troubleshooting, nonstandard shell startup,
+  remote environments, offline setup, package metadata, and plugin
+  authoring.
+- {doc}`reference/index` for command syntax, shell support, environment
+  variables, the manifest format, and the Rust completer interface.
+- {doc}`explanation/index` for architecture, caching, performance,
+  scope, security, and design tradeoffs.
 
-:::{grid-item-card} {octicon}`rocket` Quick start
-:link: quickstart
-:link-type: doc
+## What it covers
 
-Install and activate shell completion in under a minute.
-:::
-
-:::{grid-item-card} {octicon}`mortar-board` Tutorials
-:link: tutorials/index
-:link-type: doc
-
-Per-shell setup guides and migration from existing completion tools.
-:::
-
-:::{grid-item-card} {octicon}`book` Reference
-:link: reference/index
-:link-type: doc
-
-CLI commands, manifest format, shell support matrix, and binary interface.
-:::
-
-:::{grid-item-card} {octicon}`light-bulb` Explanation
-:link: explanation/index
-:link-type: doc
-
-Why conda-completion exists, how the hybrid architecture works, and performance details.
-:::
-
-:::{grid-item-card} {octicon}`gear` Configuration
-:link: configuration
-:link-type: doc
-
-Understanding shell detection, cache files, and package metadata.
-:::
-
-:::{grid-item-card} {octicon}`tools` Troubleshooting
-:link: how-to/troubleshooting
-:link-type: doc
-
-Common issues and how to fix them.
-:::
-
-:::{grid-item-card} {octicon}`zap` Features
-:link: features
-:link-type: doc
-
-Feature overview and shell behavior.
-:::
-
-::::::
-
-## Highlights
-
-::::{grid} 1 1 2 2
-:gutter: 3
-
-:::{grid-item}
-
-**Plugin-aware completions**
-
-Conda plugins that register subcommands are included when the manifest
-is generated. Install a plugin such as `conda-workspaces`, regenerate if
-needed, and `conda workspace <TAB>` offers its subcommands and flags.
-
-:::
-
-:::{grid-item}
-
-**Contextual completions**
-
-Environment names, task names, and channels are completed from your
-project and environment files: `environment.yml`, conda-workspaces
-manifests such as `conda.toml`, pixi manifests, `pyproject.toml`, and
-lockfiles.
-
-:::
-
-:::{grid-item}
-
-**Package name and version completion**
-
-`conda install nump<TAB>` completes package names from repodata.
-`conda install numpy=<TAB>` lists available versions. A three-stage
-matching strategy handles typos: prefix, substring, then fuzzy
-Damerau-Levenshtein similarity.
-
-:::
-
-:::{grid-item}
-
-**Descriptions alongside candidates**
-
-In zsh, fish, and PowerShell, each completion candidate can show the
-help text extracted from conda's argparse metadata.
-
-:::
-
-:::{grid-item}
-
-**Instant response**
-
-A tiny Rust binary handles every TAB press. A stat-based file cache
-avoids re-parsing files that have not changed. No Python runs on the
-hot path.
-
-:::
-
-::::
+- bash, zsh, PowerShell, and fish shell integration.
+- Registered conda plugin subcommands when the manifest is generated.
+- Environment names, task names, channels, package names, and package
+  versions from conda and project metadata.
+- Candidate descriptions in shells that support them.
+- A Rust completion path that avoids starting Python on each TAB press.
 
 ```{toctree}
 :hidden:
