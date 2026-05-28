@@ -53,19 +53,19 @@ def test_hook_line_per_shell(shell_name, expected_hook):
     [
         (
             "bash",
-            "conda completion --cache-dir '/tmp/conda completion cache' init bash",
+            "conda completion --cache-dir 'conda completion cache' init bash",
         ),
         (
             "zsh",
-            "conda completion --cache-dir '/tmp/conda completion cache' init zsh",
+            "conda completion --cache-dir 'conda completion cache' init zsh",
         ),
         (
             "powershell",
-            "conda completion --cache-dir '/tmp/conda completion cache' init powershell",
+            "conda completion --cache-dir 'conda completion cache' init powershell",
         ),
         (
             "fish",
-            "conda completion --cache-dir '/tmp/conda completion cache' init fish",
+            "conda completion --cache-dir 'conda completion cache' init fish",
         ),
     ],
     ids=["bash", "zsh", "powershell", "fish"],
@@ -74,7 +74,7 @@ def test_hook_line_preserves_cache_dir(shell_name, expected):
     registry = get_shell_registry()
     if shell_name not in registry:
         pytest.skip(f"{shell_name} not available")
-    assert expected in registry[shell_name].hook_line(Path("/tmp/conda completion cache"))
+    assert expected in registry[shell_name].hook_line(Path("conda completion cache"))
 
 
 def test_detect_shell_returns_string():
@@ -210,7 +210,7 @@ def test_execute_install_preserves_cache_dir_in_hook(tmp_path, monkeypatch, stub
     result = execute_install(args)
 
     assert result == 0
-    assert f"conda completion --cache-dir '{cache_dir}' init bash" in rc_file.read_text(
+    assert f"conda completion --cache-dir '{cache_dir.as_posix()}' init bash" in rc_file.read_text(
         encoding="utf-8"
     )
 
