@@ -73,6 +73,31 @@ def test_script_with_special_paths(shell_name):
     assert len(script) > 0
 
 
+@pytest.mark.parametrize(
+    "shell_name",
+    ["bash", "zsh", "powershell", "fish"],
+)
+def test_scripts_register_manifest_aliases(shell_name):
+    registry = get_shell_registry()
+    shell = registry[shell_name]
+
+    script = shell.script(
+        Path("/usr/local/bin/_conda_completer"),
+        Path("/home/user/.cache/conda/completion/completion.msgpack"),
+    )
+
+    assert "--aliases" in script
+    assert "--manifest" in script
+
+
+def test_zsh_script_handles_file_marker(tmp_path):
+    shell = ZshShell()
+    script = shell.script(tmp_path / "_conda_completer", tmp_path / "completion.msgpack")
+
+    assert "__file__" in script
+    assert "_path_files" in script
+
+
 def test_get_shell_registry_includes_supported_shells():
     registry = get_shell_registry()
     assert "bash" in registry

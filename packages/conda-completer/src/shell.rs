@@ -39,7 +39,7 @@ pub fn format_candidates(shell: &str, candidates: &[Candidate]) -> String {
 fn format_bash(candidates: &[Candidate], out: &mut String) {
     let mut first = true;
     for c in candidates {
-        if c.group == "directory" {
+        if c.group == "directory" || c.group == "file" {
             continue;
         }
         if !first {
@@ -75,6 +75,14 @@ fn format_zsh(candidates: &[Candidate], out: &mut String) {
             out.push_str("__dir__");
             continue;
         }
+        if c.group == "file" {
+            if !first {
+                out.push('\n');
+            }
+            first = false;
+            out.push_str("__file__");
+            continue;
+        }
         if !first {
             out.push('\n');
         }
@@ -92,7 +100,7 @@ fn format_zsh(candidates: &[Candidate], out: &mut String) {
 fn format_fish(candidates: &[Candidate], out: &mut String) {
     let mut first = true;
     for c in candidates {
-        if c.group == "directory" {
+        if c.group == "directory" || c.group == "file" {
             continue;
         }
         if !first {
@@ -111,7 +119,7 @@ fn format_fish(candidates: &[Candidate], out: &mut String) {
 fn format_powershell(candidates: &[Candidate], out: &mut String) {
     let mut first = true;
     for c in candidates {
-        if c.group == "directory" {
+        if c.group == "directory" || c.group == "file" {
             continue;
         }
         if !first {
@@ -186,6 +194,13 @@ mod tests {
         let items = vec![c("install", None, "subcommand"), c("", None, "directory")];
         let out = format_candidates("bash", &items);
         assert_eq!(out, "install");
+    }
+
+    #[test]
+    fn zsh_file_marker() {
+        let items = vec![c("", None, "file")];
+        let out = format_candidates("zsh", &items);
+        assert_eq!(out, "__file__");
     }
 
     #[test]

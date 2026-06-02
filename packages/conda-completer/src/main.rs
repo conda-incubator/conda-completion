@@ -7,11 +7,23 @@ mod shell;
 mod similarity;
 
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+
+    if let Some(manifest_path) = parse_alias_args(&args) {
+        let manifest = match manifest::load_manifest(&manifest_path) {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("Failed to load manifest: {}", e);
+                process::exit(1);
+            }
+        };
+        print_aliases(&manifest);
+        return;
+    }
 
     let parsed = match parse_args(&args) {
         Some(p) => p,
@@ -58,6 +70,36 @@ fn main() {
     let output = shell::format_candidates(&parsed.shell, &candidates);
     if !output.is_empty() {
         println!("{}", output);
+    }
+}
+
+fn parse_alias_args(args: &[String]) -> Option<PathBuf> {
+    let mut wants_aliases = false;
+    let mut manifest_path = None;
+
+    let mut i = 1;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--aliases" => wants_aliases = true,
+            "--manifest" => {
+                i += 1;
+                manifest_path = args.get(i).map(PathBuf::from);
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+
+    if wants_aliases {
+        manifest_path
+    } else {
+        None
+    }
+}
+
+fn print_aliases(manifest: &manifest::Manifest) {
+    for name in manifest.aliases.keys() {
+        println!("{}", name);
     }
 }
 
@@ -130,12 +172,15 @@ fn complete(
     words: &[String],
     cword: usize,
 ) -> Vec<Candidate> {
+    let (normalized_words, normalized_cword) = normalize_alias(manifest, words, cword);
+    let words = normalized_words.as_slice();
+    let cword = normalized_cword;
     let current_word = words.get(cword).map(|s| s.as_str()).unwrap_or("");
 
     let mut current_cmd: Option<&manifest::CommandSpec> = None;
     let mut expecting_value_for: Option<&manifest::OptionSpec> = None;
     let mut greedy_flag: bool = false;
-    let mut used_flags: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut used_flags: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for (i, word) in words.iter().enumerate().skip(1) {
         if i >= cword {
@@ -161,13 +206,9 @@ fn complete(
                 None => &manifest.root_options,
             };
             let flag_name = word.split('=').next().unwrap_or(word);
-            used_flags.insert(flag_name);
-            let opt = options.get(flag_name).or_else(|| {
-                options
-                    .values()
-                    .find(|o| o.short.as_deref() == Some(flag_name))
-            });
-            if let Some(opt) = opt {
+            used_flags.insert(flag_name.to_string());
+            if let Some((canonical_name, opt)) = find_option(options, flag_name) {
+                used_flags.insert(canonical_name.to_string());
                 if opt.takes_value() && !word.contains('=') {
                     if opt.is_greedy() {
                         greedy_flag = true;
@@ -245,16 +286,15 @@ fn complete(
         }
 
         for pos in &cmd.positionals {
-            if let Some(ref comp_type) = pos.completion_type {
-                candidates.extend(resolve_dynamic(
-                    comp_type,
-                    manifest,
-                    versions_path,
-                    ctx,
-                    global_ctx,
-                    current_word,
-                ));
-            }
+            candidates.extend(complete_positional(
+                pos,
+                manifest,
+                versions_path,
+                ctx,
+                global_ctx,
+                &used_flags,
+                current_word,
+            ));
             if let Some(ref choices) = pos.choices {
                 for choice in choices {
                     if matcher::matches(choice, current_word) {
@@ -280,6 +320,41 @@ fn complete(
     }
 
     candidates
+}
+
+fn normalize_alias(
+    manifest: &manifest::Manifest,
+    words: &[String],
+    cword: usize,
+) -> (Vec<String>, usize) {
+    let Some(first) = words.first() else {
+        return (Vec::new(), cword);
+    };
+    let Some(alias) = manifest.aliases.get(first) else {
+        return (words.to_vec(), cword);
+    };
+    if alias.target.is_empty() {
+        return (words.to_vec(), cword);
+    }
+
+    let mut normalized = Vec::with_capacity(words.len() + alias.target.len());
+    normalized.push("conda".to_string());
+    normalized.extend(alias.target.iter().cloned());
+    normalized.extend(words.iter().skip(1).cloned());
+    (normalized, cword.saturating_add(alias.target.len()))
+}
+
+fn find_option<'a>(
+    options: &'a std::collections::BTreeMap<String, manifest::OptionSpec>,
+    flag_name: &str,
+) -> Option<(&'a str, &'a manifest::OptionSpec)> {
+    if let Some((name, opt)) = options.get_key_value(flag_name) {
+        return Some((name.as_str(), opt));
+    }
+    options
+        .iter()
+        .find(|(_, opt)| opt.short.as_deref() == Some(flag_name))
+        .map(|(name, opt)| (name.as_str(), opt))
 }
 
 fn complete_flag_value(
@@ -316,15 +391,64 @@ fn complete_flag_value(
     Vec::new()
 }
 
-fn excluded_flags<'a>(
-    used: &std::collections::HashSet<&'a str>,
-    exclusive_groups: &'a [Vec<String>],
-) -> std::collections::HashSet<&'a str> {
-    let mut excluded: std::collections::HashSet<&'a str> = used.iter().copied().collect();
+fn complete_positional(
+    pos: &manifest::PositionalSpec,
+    manifest: &manifest::Manifest,
+    versions_path: &std::path::Path,
+    ctx: &context::ProjectContext,
+    global_ctx: &global::GlobalContext,
+    used_flags: &std::collections::HashSet<String>,
+    current_word: &str,
+) -> Vec<Candidate> {
+    let mut candidates = Vec::new();
+
+    if let Some(completion) = &pos.completion {
+        let sources = completion
+            .rules
+            .iter()
+            .find(|rule| {
+                rule.when_options
+                    .iter()
+                    .all(|option| used_flags.contains(option))
+            })
+            .map(|rule| rule.sources.as_slice())
+            .unwrap_or(completion.sources.as_slice());
+        for comp_type in sources {
+            candidates.extend(resolve_dynamic(
+                comp_type,
+                manifest,
+                versions_path,
+                ctx,
+                global_ctx,
+                current_word,
+            ));
+        }
+        return candidates;
+    }
+
+    if let Some(ref comp_type) = pos.completion_type {
+        candidates.extend(resolve_dynamic(
+            comp_type,
+            manifest,
+            versions_path,
+            ctx,
+            global_ctx,
+            current_word,
+        ));
+    }
+
+    candidates
+}
+
+fn excluded_flags(
+    used: &std::collections::HashSet<String>,
+    exclusive_groups: &[Vec<String>],
+) -> std::collections::HashSet<String> {
+    let mut excluded: std::collections::HashSet<String> = used.iter().cloned().collect();
     for group in exclusive_groups {
-        if group.iter().any(|f| used.contains(f.as_str())) {
+        if group.iter().any(|f| used.contains(f)) {
             for f in group {
-                excluded.insert(f.as_str());
+                excluded.insert(f.clone());
             }
         }
     }
@@ -430,10 +554,131 @@ fn resolve_dynamic(
                 group: "directory".into(),
             });
         }
-        _ => {}
+        "file" | "path" => {
+            candidates.push(Candidate {
+                name: String::new(),
+                description: None,
+                group: "file".into(),
+            });
+        }
+        _ => {
+            if let Some(source) = manifest.runtime_sources.get(comp_type) {
+                candidates.extend(resolve_runtime_source(
+                    comp_type,
+                    source,
+                    global_ctx,
+                    current_word,
+                ));
+            }
+        }
     }
 
     candidates
+}
+
+const DEFAULT_RUNTIME_SOURCE_LIMIT: usize = 10_000;
+
+fn resolve_runtime_source(
+    name: &str,
+    source: &manifest::RuntimeSourceSpec,
+    global_ctx: &global::GlobalContext,
+    current_word: &str,
+) -> Vec<Candidate> {
+    match source.kind.as_str() {
+        "directory_entries" => {
+            let Some(path) = runtime_source_dir(source, global_ctx.home.as_deref()) else {
+                return Vec::new();
+            };
+            complete_directory_entries(name, source, &path, current_word)
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn runtime_source_dir(
+    source: &manifest::RuntimeSourceSpec,
+    home: Option<&Path>,
+) -> Option<PathBuf> {
+    if let Some(env_var) = &source.env_var {
+        if let Some(value) = env::var_os(env_var).filter(|value| !value.is_empty()) {
+            return Some(append_segments(PathBuf::from(value), &source.env_suffix));
+        }
+    }
+    home.map(|path| append_segments(path.to_path_buf(), &source.home_suffix))
+}
+
+fn append_segments(mut path: PathBuf, segments: &[String]) -> PathBuf {
+    for segment in segments {
+        path.push(segment);
+    }
+    path
+}
+
+fn complete_directory_entries(
+    source_name: &str,
+    source: &manifest::RuntimeSourceSpec,
+    path: &Path,
+    current_word: &str,
+) -> Vec<Candidate> {
+    let Ok(entries) = fs_err::read_dir(path) else {
+        return Vec::new();
+    };
+
+    let group = source.group.as_deref().unwrap_or(source_name);
+    let description = source.description.as_deref().unwrap_or(group);
+    let limit = source
+        .max_entries
+        .unwrap_or(DEFAULT_RUNTIME_SOURCE_LIMIT)
+        .min(DEFAULT_RUNTIME_SOURCE_LIMIT);
+    let mut seen = std::collections::HashSet::new();
+    let mut candidates = Vec::new();
+
+    for entry in entries.flatten() {
+        if candidates.len() >= limit {
+            break;
+        }
+        if !entry_matches_type(&entry, source.entry_type.as_deref()) {
+            continue;
+        }
+        let Some(name) = runtime_entry_name(&entry.file_name(), source.strip_suffix.as_deref())
+        else {
+            continue;
+        };
+        if matcher::matches(&name, current_word) && seen.insert(name.clone()) {
+            candidates.push(Candidate {
+                name,
+                description: Some(description.to_string()),
+                group: group.to_string(),
+            });
+        }
+    }
+
+    candidates.sort_by(|a, b| a.name.cmp(&b.name));
+    candidates
+}
+
+fn entry_matches_type(entry: &fs_err::DirEntry, entry_type: Option<&str>) -> bool {
+    let Ok(file_type) = entry.file_type() else {
+        return false;
+    };
+    match entry_type {
+        Some("directory") => file_type.is_dir(),
+        Some("file") => file_type.is_file(),
+        Some("any") | None => true,
+        _ => false,
+    }
+}
+
+fn runtime_entry_name(name: &std::ffi::OsStr, strip_suffix: Option<&str>) -> Option<String> {
+    let name = name.to_str()?;
+    let Some(delimiter) = strip_suffix else {
+        return (!name.is_empty()).then(|| name.to_string());
+    };
+    let (candidate, suffix) = name.rsplit_once(delimiter)?;
+    if candidate.is_empty() || suffix.is_empty() {
+        return None;
+    }
+    Some(candidate.to_string())
 }
 
 #[cfg(test)]
@@ -585,6 +830,8 @@ mod tests {
                     },
                 ),
             ]),
+            aliases: std::collections::BTreeMap::new(),
+            runtime_sources: std::collections::BTreeMap::new(),
         }
     }
 
@@ -606,6 +853,111 @@ mod tests {
 
     fn no_versions() -> PathBuf {
         PathBuf::from("/nonexistent/versions")
+    }
+
+    fn conda_exec_manifest() -> manifest::Manifest {
+        manifest::Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec!["numpy".to_string(), "scipy".to_string()],
+            root_options: std::collections::BTreeMap::new(),
+            commands: std::collections::BTreeMap::from([(
+                "exec".to_string(),
+                manifest::CommandSpec {
+                    summary: Some("Run a tool".to_string()),
+                    options: std::collections::BTreeMap::from([
+                        (
+                            "--clean".to_string(),
+                            manifest::OptionSpec {
+                                short: None,
+                                choices: None,
+                                nargs: None,
+                                completion_type: None,
+                                description: Some("Clean cached tools".to_string()),
+                                metavar: None,
+                                default: None,
+                                required: false,
+                                group: None,
+                            },
+                        ),
+                        (
+                            "--lock".to_string(),
+                            manifest::OptionSpec {
+                                short: None,
+                                choices: None,
+                                nargs: None,
+                                completion_type: None,
+                                description: Some("Lock a script".to_string()),
+                                metavar: None,
+                                default: None,
+                                required: false,
+                                group: None,
+                            },
+                        ),
+                    ]),
+                    positionals: vec![manifest::PositionalSpec {
+                        name: "tool".to_string(),
+                        choices: None,
+                        nargs: None,
+                        completion_type: None,
+                        completion: Some(manifest::CompletionSpec {
+                            sources: vec!["cached_tool".to_string(), "package_spec".to_string()],
+                            rules: vec![
+                                manifest::CompletionRule {
+                                    sources: vec!["cached_tool".to_string()],
+                                    when_options: vec!["--clean".to_string()],
+                                },
+                                manifest::CompletionRule {
+                                    sources: vec!["file".to_string()],
+                                    when_options: vec!["--lock".to_string()],
+                                },
+                            ],
+                        }),
+                        description: None,
+                        metavar: None,
+                    }],
+                    subcommands: std::collections::BTreeMap::new(),
+                    exclusive_groups: vec![],
+                },
+            )]),
+            aliases: std::collections::BTreeMap::from([(
+                "ce".to_string(),
+                manifest::AliasSpec {
+                    target: vec!["exec".to_string()],
+                    description: None,
+                },
+            )]),
+            runtime_sources: std::collections::BTreeMap::from([(
+                "cached_tool".to_string(),
+                manifest::RuntimeSourceSpec {
+                    kind: "directory_entries".to_string(),
+                    description: Some("cached tool".to_string()),
+                    group: Some("tool".to_string()),
+                    env_var: None,
+                    env_suffix: vec![],
+                    home_suffix: vec!["exec-cache".to_string(), "envs".to_string()],
+                    entry_type: Some("directory".to_string()),
+                    strip_suffix: Some("--".to_string()),
+                    max_entries: Some(10_000),
+                },
+            )]),
+        }
+    }
+
+    fn cached_tool_global(tool_names: &[&str]) -> (tempfile::TempDir, global::GlobalContext) {
+        let dir = tempfile::tempdir().unwrap();
+        let envs = dir.path().join("exec-cache").join("envs");
+        fs_err::create_dir_all(&envs).unwrap();
+        for (index, tool_name) in tool_names.iter().enumerate() {
+            fs_err::create_dir_all(envs.join(format!("{tool_name}--hash{index}"))).unwrap();
+        }
+        fs_err::create_dir_all(envs.join("missing-delimiter")).unwrap();
+        fs_err::write(envs.join("not-a-dir--hash"), "").unwrap();
+
+        let mut global = empty_global();
+        global.home = Some(dir.path().to_path_buf());
+        (dir, global)
     }
 
     #[test]
@@ -640,6 +992,38 @@ mod tests {
             .map(String::from)
             .collect();
         assert!(parse_args(&args).is_none());
+    }
+
+    #[test]
+    fn parse_alias_args_valid() {
+        let args: Vec<String> = vec!["bin", "--aliases", "--manifest", "/path/m.msgpack"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+
+        assert_eq!(
+            parse_alias_args(&args).unwrap(),
+            PathBuf::from("/path/m.msgpack"),
+        );
+    }
+
+    #[test]
+    fn parse_alias_args_ignores_completion_mode() {
+        let args: Vec<String> = vec![
+            "bin",
+            "--shell",
+            "bash",
+            "--manifest",
+            "/path/m.msgpack",
+            "--",
+            "conda",
+            "1",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+
+        assert!(parse_alias_args(&args).is_none());
     }
 
     #[test]
@@ -897,6 +1281,8 @@ mod tests {
                     exclusive_groups: vec![],
                 },
             )]),
+            aliases: std::collections::BTreeMap::new(),
+            runtime_sources: std::collections::BTreeMap::new(),
         };
 
         let mut ctx = empty_ctx();
@@ -937,6 +1323,88 @@ mod tests {
     }
 
     #[test]
+    fn complete_conda_exec_tool_and_package_sources() {
+        let m = conda_exec_manifest();
+        let (_dir, global) = cached_tool_global(&["ruff", "pytest"]);
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &global,
+            &words("conda exec py"),
+            2,
+        );
+        let n = names(&result);
+        assert!(n.contains(&"pytest"));
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &global,
+            &words("conda exec num"),
+            2,
+        );
+        let n = names(&result);
+        assert!(n.contains(&"numpy"));
+    }
+
+    #[test]
+    fn complete_conda_exec_clean_uses_cached_tools_only() {
+        let m = conda_exec_manifest();
+        let (_dir, global) = cached_tool_global(&["ruff"]);
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &global,
+            &words("conda exec --clean num"),
+            3,
+        );
+        let n = names(&result);
+        assert!(!n.contains(&"numpy"));
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &global,
+            &words("conda exec --clean r"),
+            3,
+        );
+        let n = names(&result);
+        assert!(n.contains(&"ruff"));
+    }
+
+    #[test]
+    fn complete_conda_exec_lock_uses_file_completion() {
+        let m = conda_exec_manifest();
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda exec --lock "),
+            3,
+        );
+
+        assert_eq!(result[0].group, "file");
+    }
+
+    #[test]
+    fn complete_alias_uses_target_command_path() {
+        let m = conda_exec_manifest();
+        let (_dir, global) = cached_tool_global(&["ruff"]);
+
+        let result = complete(&m, &no_versions(), &empty_ctx(), &global, &words("ce r"), 1);
+        let n = names(&result);
+        assert!(n.contains(&"ruff"));
+    }
+
+    #[test]
     fn empty_prefix_skips_packages() {
         let m = manifest::Manifest {
             version: 1,
@@ -954,6 +1422,7 @@ mod tests {
                         choices: None,
                         nargs: Some("*".to_string()),
                         completion_type: Some("package_spec".to_string()),
+                        completion: None,
                         description: None,
                         metavar: None,
                     }],
@@ -961,6 +1430,8 @@ mod tests {
                     exclusive_groups: vec![],
                 },
             )]),
+            aliases: std::collections::BTreeMap::new(),
+            runtime_sources: std::collections::BTreeMap::new(),
         };
 
         let result = complete(
@@ -1029,6 +1500,8 @@ mod tests {
                     exclusive_groups: vec![],
                 },
             )]),
+            aliases: std::collections::BTreeMap::new(),
+            runtime_sources: std::collections::BTreeMap::new(),
         };
 
         let result = complete(

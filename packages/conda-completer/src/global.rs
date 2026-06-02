@@ -16,12 +16,16 @@ pub struct GlobalContext {
     pub env_names: Vec<String>,
     pub channels: Vec<String>,
     pub tool_names: Vec<String>,
+    pub home: Option<PathBuf>,
 }
 
 impl GlobalContext {
     pub fn load(cache: &mut StatCache) -> Self {
-        let mut ctx = Self::default();
         let home = dirs_home();
+        let mut ctx = Self {
+            home: home.clone(),
+            ..Self::default()
+        };
 
         if let Some(ref home) = home {
             load_environments_txt(home, &mut ctx, cache);

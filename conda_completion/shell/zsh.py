@@ -18,16 +18,21 @@ class ZshShell(Shell):
         cp = self.posix_quote(completer_path)
         mp = self.posix_quote(manifest_path)
         return f"""\
+_conda_completion_completer={cp}
+_conda_completion_manifest={mp}
 _conda() {{
-    local completer={cp}
-    local manifest={mp}
+    local completer=$_conda_completion_completer
+    local manifest=$_conda_completion_manifest
     local -a items
     local has_dir=0
+    local has_file=0
     local group rest
 
     while IFS=$'\\t' read -r group rest || [[ -n "$group" ]]; do
         if [[ "$group" == "__dir__" ]]; then
             has_dir=1
+        elif [[ "$group" == "__file__" ]]; then
+            has_file=1
         else
             items+=("$rest")
         fi
@@ -35,8 +40,11 @@ _conda() {{
 
     (( ${{#items}} )) && _describe 'conda' items
     (( has_dir )) && _path_files -/
+    (( has_file )) && _path_files
 }}
-compdef _conda conda
+typeset -ga _conda_completion_aliases
+_conda_completion_aliases=($("$_conda_completion_completer" --aliases --manifest "$_conda_completion_manifest" 2>/dev/null))
+compdef _conda conda $_conda_completion_aliases
 """
 
     def hook_line(self, cache_dir: Path | None = None) -> str:

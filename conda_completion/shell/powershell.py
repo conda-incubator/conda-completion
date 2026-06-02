@@ -17,10 +17,14 @@ class PowerShellShell(Shell):
         cp = self.powershell_quote(completer_path)
         mp = self.powershell_quote(manifest_path)
         return f"""\
-Register-ArgumentCompleter -Native -CommandName conda -ScriptBlock {{
+$CondaCompletionCompleter = {cp}
+$CondaCompletionManifest = {mp}
+$CondaCompletionCommands = @('conda')
+$CondaCompletionCommands += & $CondaCompletionCompleter --aliases --manifest $CondaCompletionManifest 2>$null
+Register-ArgumentCompleter -Native -CommandName $CondaCompletionCommands -ScriptBlock {{
     param($wordToComplete, $commandAst, $cursorPosition)
-    $completer = {cp}
-    $manifest = {mp}
+    $completer = $CondaCompletionCompleter
+    $manifest = $CondaCompletionManifest
     $words = @($commandAst.CommandElements | ForEach-Object {{ $_.Extent.Text }})
     $cword = $words.Length - 1
     & $completer --shell powershell --manifest $manifest -- $words $cword |
