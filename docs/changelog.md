@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added `--command-name` and `CONDA_COMPLETION_COMMAND_NAME` so shell hooks can target wrapper executables such as `cx`.
+
 ## 0.2.0 (2026-05-28)
 
 - Manifest and context cache files now use msgpack.

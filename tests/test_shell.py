@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from conda_completion.contrib.fish import FishShell
+from conda_completion.exceptions import CommandNameError
 from conda_completion.shell import Shell, get_shell_registry
 from conda_completion.shell.bash import BashShell
 from conda_completion.shell.powershell import PowerShellShell
@@ -90,6 +92,29 @@ def test_scripts_register_manifest_aliases(shell_name):
     assert "--manifest" in script
 
 
+@pytest.mark.parametrize(
+    "shell_name,expected",
+    [
+        ("bash", "_conda_completion_command='cx'"),
+        ("zsh", "_conda_completion_command='cx'"),
+        ("powershell", "$CondaCompletionCommands = @('cx')"),
+        ("fish", "set -g __conda_completion_command 'cx'"),
+    ],
+    ids=["bash", "zsh", "powershell", "fish"],
+)
+def test_scripts_register_command_name(shell_name, expected):
+    registry = get_shell_registry()
+    shell = registry[shell_name]
+
+    script = shell.script(
+        Path("/usr/local/bin/_conda_completer"),
+        Path("/home/user/.cache/conda/completion/completion.msgpack"),
+        command_name="cx",
+    )
+
+    assert expected in script
+
+
 def test_zsh_script_handles_file_marker(tmp_path):
     shell = ZshShell()
     script = shell.script(tmp_path / "_conda_completer", tmp_path / "completion.msgpack")
@@ -159,6 +184,27 @@ def test_detect_shell_override_takes_priority(monkeypatch):
     monkeypatch.setenv("CONDA_COMPLETION_SHELL", "fish")
     monkeypatch.setenv("SHELL", "/bin/zsh")
     assert Shell.detect_shell() == "fish"
+
+
+def test_resolve_command_name_defaults_to_conda(monkeypatch):
+    monkeypatch.delenv("CONDA_COMPLETION_COMMAND_NAME", raising=False)
+    assert Shell.resolve_command_name() == "conda"
+
+
+def test_resolve_command_name_reads_env(monkeypatch):
+    monkeypatch.setenv("CONDA_COMPLETION_COMMAND_NAME", "cx")
+    assert Shell.resolve_command_name() == "cx"
+
+
+def test_resolve_command_name_explicit_beats_env(monkeypatch):
+    monkeypatch.setenv("CONDA_COMPLETION_COMMAND_NAME", "cx")
+    assert Shell.resolve_command_name("conda") == "conda"
+
+
+@pytest.mark.parametrize("command_name", ["", "cx/conda", "cx conda", "cx;rm"])
+def test_parse_command_name_rejects_unsafe_names(command_name):
+    with pytest.raises(CommandNameError):
+        Shell.parse_command_name(command_name)
 
 
 @pytest.mark.parametrize(
@@ -247,6 +293,15 @@ def test_default_rc_path_empty_rc_files(tmp_path, monkeypatch):
     assert rc is None
 
 
+def test_fish_rc_path_uses_command_name(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+    shell = FishShell()
+    rc = shell.rc_path("cx")
+
+    assert rc == tmp_path / ".config" / "fish" / "completions" / "cx.fish"
+
+
 def test_powershell_default_rc_path_non_win(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.setattr("conda_completion.shell.powershell.sys.platform", "darwin")
@@ -287,7 +342,8 @@ def test_powershell_default_rc_path_existing(tmp_path, monkeypatch):
 def test_zsh_script_registers_compdef(tmp_path):
     shell = ZshShell()
     script = shell.script(tmp_path / "_conda_completer", tmp_path / "completion.msgpack")
-    assert "compdef _conda conda" in script
+    assert "_conda_completion_command='conda'" in script
+    assert "compdef _conda $_conda_completion_command" in script
 
 
 def test_powershell_script_contains_register(tmp_path):

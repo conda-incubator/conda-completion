@@ -61,3 +61,15 @@ class ShellNotSupportedError(CondaCompletionError):
         self.error_message = f"Shell '{shell}' is not supported"
         self.hints = [f"Supported shells: {', '.join(sorted(available))}"]
         super().__init__(self.error_message)
+
+
+class CommandNameError(CondaCompletionError):
+    """Raised when a shell command name is not safe to install."""
+
+    def __init__(self, command_name: str) -> None:
+        self.error_message = f"Command name '{command_name}' is not supported"
+        self.hints = [
+            "Use a command name made of ASCII letters, digits, dots, dashes, or underscores",
+            "Pass a command name such as 'conda', 'cx', or 'micromamba'",
+        ]
+        super().__init__(self.error_message)

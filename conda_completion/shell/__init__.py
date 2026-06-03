@@ -7,9 +7,16 @@ Each shell module provides a Shell subclass with ``script()``,
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
+
+from ..exceptions import CommandNameError
+
+COMMAND_NAME_ENV_VAR = "CONDA_COMPLETION_COMMAND_NAME"
+DEFAULT_COMMAND_NAME = "conda"
+COMMAND_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 SHELL_ALIASES = {
     "bash": "bash",
@@ -26,11 +33,23 @@ class Shell:
     name: str = ""
     rc_files: list[str] = []
 
-    def script(self, completer_path: Path, manifest_path: Path) -> str:
+    def script(
+        self,
+        completer_path: Path,
+        manifest_path: Path,
+        command_name: str = DEFAULT_COMMAND_NAME,
+    ) -> str:
         raise NotImplementedError
 
-    def hook_line(self, cache_dir: Path | None = None) -> str:
+    def hook_line(
+        self,
+        cache_dir: Path | None = None,
+        command_name: str = DEFAULT_COMMAND_NAME,
+    ) -> str:
         raise NotImplementedError
+
+    def rc_path(self, command_name: str = DEFAULT_COMMAND_NAME) -> Path | None:
+        return self.default_rc_path()
 
     def default_rc_path(self) -> Path | None:
         home = Path.home()
@@ -43,14 +62,33 @@ class Shell:
         return home / self.rc_files[0] if self.rc_files else None
 
     @staticmethod
-    def posix_quote(path: Path) -> str:
+    def posix_quote(value: Path | str) -> str:
         """Quote a path for safe use in POSIX shells (bash, zsh, fish)."""
-        return "'" + path.as_posix().replace("'", "'\\''") + "'"
+        text = value.as_posix() if isinstance(value, Path) else value
+        return "'" + text.replace("'", "'\\''") + "'"
 
     @staticmethod
-    def powershell_quote(path: Path) -> str:
+    def powershell_quote(value: Path | str) -> str:
         """Quote a path for safe use in PowerShell."""
-        return "'" + str(path).replace("'", "''") + "'"
+        return "'" + str(value).replace("'", "''") + "'"
+
+    @staticmethod
+    def parse_command_name(command_name: str) -> str:
+        """Validate and normalize the shell command name used for completion."""
+        value = command_name.strip()
+        if not COMMAND_NAME_PATTERN.fullmatch(value):
+            raise CommandNameError(command_name)
+        return value
+
+    @staticmethod
+    def resolve_command_name(explicit: str | None = None) -> str:
+        """Resolve command name precedence: CLI option, env var, then default."""
+        if explicit:
+            return Shell.parse_command_name(explicit)
+        override = os.environ.get(COMMAND_NAME_ENV_VAR, "")
+        if override:
+            return Shell.parse_command_name(override)
+        return DEFAULT_COMMAND_NAME
 
     @staticmethod
     def normalize_shell_name(name: str) -> str | None:

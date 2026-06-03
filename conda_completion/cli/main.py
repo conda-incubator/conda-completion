@@ -6,6 +6,29 @@ import argparse
 
 from conda.common.constants import NULL
 
+from ..exceptions import CommandNameError
+from ..shell import COMMAND_NAME_ENV_VAR, DEFAULT_COMMAND_NAME, Shell
+
+
+def command_name_arg(value: str) -> str:
+    try:
+        return Shell.parse_command_name(value)
+    except CommandNameError as exc:
+        raise argparse.ArgumentTypeError(exc.error_message) from exc
+
+
+def add_command_name_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--command-name",
+        metavar="NAME",
+        type=command_name_arg,
+        default=None,
+        help=(
+            f"Register completions for this executable name "
+            f"(default: {DEFAULT_COMMAND_NAME}; env: {COMMAND_NAME_ENV_VAR})"
+        ),
+    )
+
 
 def configure_parser(parser: argparse.ArgumentParser) -> None:
     """Configure the parser for ``conda completion``."""
@@ -70,6 +93,7 @@ def configure_parser(parser: argparse.ArgumentParser) -> None:
         default=False,
         help="Generate command completions without package metadata from repodata",
     )
+    add_command_name_option(install_parser)
 
     uninstall_parser = sub.add_parser(
         "uninstall",
@@ -93,6 +117,7 @@ def configure_parser(parser: argparse.ArgumentParser) -> None:
         default=False,
         help="Show what would be removed without modifying files",
     )
+    add_command_name_option(uninstall_parser)
 
     init_parser = sub.add_parser(
         "init",
@@ -102,6 +127,7 @@ def configure_parser(parser: argparse.ArgumentParser) -> None:
         "shell",
         help="Shell to generate the script for",
     )
+    add_command_name_option(init_parser)
 
     sub.add_parser(
         "status",

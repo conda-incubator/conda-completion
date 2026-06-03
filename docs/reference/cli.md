@@ -57,7 +57,7 @@ Generate the manifest and add the completion hook to your shell's RC
 file.
 
 ```text
-conda completion [--cache-dir PATH] install [shell] [--yes] [--dry-run] [--no-repodata]
+conda completion [--cache-dir PATH] install [shell] [--yes] [--dry-run] [--no-repodata] [--command-name NAME]
 ```
 
 shell
@@ -77,10 +77,21 @@ shell
   delegated generation step. Runtime contextual completions from project
   files still work.
 
+`--command-name NAME`
+: Register completions for `NAME` instead of `conda`. Use this when conda
+  is reached through a wrapper executable, for example
+  `cx completion install --command-name cx`. This follows conda-style
+  precedence: command-line option first, then
+  `CONDA_COMPLETION_COMMAND_NAME`, then `conda`.
+
 Idempotent: running it twice does not duplicate the hook.
 
 When `--cache-dir` is passed to `install`, the installed startup hook
 keeps using that cache directory by passing the same option to
+`conda completion init <shell>`.
+
+When `--command-name` is passed to `install`, the installed startup hook
+keeps using that command name by passing the same option to
 `conda completion init <shell>`.
 
 ## `conda completion uninstall`
@@ -88,7 +99,7 @@ keeps using that cache directory by passing the same option to
 Remove the completion hook from your shell's RC file.
 
 ```text
-conda completion uninstall [shell] [--yes] [--dry-run]
+conda completion uninstall [shell] [--yes] [--dry-run] [--command-name NAME]
 ```
 
 shell
@@ -100,16 +111,25 @@ shell
 `--dry-run`
 : Show what would be removed without modifying files.
 
+`--command-name NAME`
+: Remove the hook for a non-default command name. This matters for fish,
+  where `install --command-name cx` writes
+  `~/.config/fish/completions/cx.fish`.
+
 ## `conda completion init`
 
 Print the shell completion script to stdout, for use in eval statements.
 
 ```text
-conda completion [--cache-dir PATH] init <shell>
+conda completion [--cache-dir PATH] init <shell> [--command-name NAME]
 ```
 
 shell (required)
 : One of `bash`, `zsh`, `powershell`, `fish`.
+
+`--command-name NAME`
+: Print a shell script that registers completions for `NAME` instead of
+  `conda`.
 
 ### Examples
 

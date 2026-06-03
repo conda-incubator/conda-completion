@@ -61,10 +61,14 @@ descriptions, so the Rust binary omits them for bash output.
 | zsh | `~/.zshrc` |
 | PowerShell (Windows) | `~/Documents/PowerShell/Microsoft.PowerShell_profile.ps1` |
 | PowerShell (macOS/Linux) | `~/.config/powershell/Microsoft.PowerShell_profile.ps1` |
-| fish | `~/.config/fish/completions/conda.fish` |
+| fish | `~/.config/fish/completions/<command>.fish` (default: `conda.fish`) |
 
 `conda completion install` writes a delimited block to the first existing
 RC file (or creates the first one in the list if none exist).
+
+For fish, the autoload file follows the registered command name. For example,
+`conda completion install fish --command-name cx` writes
+`~/.config/fish/completions/cx.fish`.
 
 ## cmd.exe (Windows)
 

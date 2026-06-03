@@ -34,7 +34,7 @@ def completer_binary(tmp_path, monkeypatch):
     "shell,expected",
     [
         ("bash", "_conda_completion"),
-        ("zsh", "compdef _conda conda"),
+        ("zsh", "compdef _conda $_conda_completion_command"),
         ("powershell", "Register-ArgumentCompleter"),
         ("fish", "__conda_complete"),
     ],
@@ -59,6 +59,28 @@ def test_execute_init_embeds_manifest_path(manifest_file, completer_binary, caps
 
     captured = capsys.readouterr()
     assert manifest_file.as_posix() in captured.out
+
+
+def test_execute_init_registers_command_name(manifest_file, completer_binary, capsys):
+    args = argparse.Namespace(shell="bash", command_name="cx")
+    execute_init(args)
+
+    captured = capsys.readouterr()
+    assert "_conda_completion_command='cx'" in captured.out
+
+
+def test_execute_init_reads_command_name_from_env(
+    manifest_file,
+    completer_binary,
+    capsys,
+    monkeypatch,
+):
+    monkeypatch.setenv("CONDA_COMPLETION_COMMAND_NAME", "cx")
+    args = argparse.Namespace(shell="bash")
+    execute_init(args)
+
+    captured = capsys.readouterr()
+    assert "_conda_completion_command='cx'" in captured.out
 
 
 def test_execute_init_unsupported_shell(manifest_file, completer_binary):

@@ -13,7 +13,7 @@ from ..exceptions import (
     ShellNotSupportedError,
 )
 from ..paths import manifest_path
-from ..shell import get_shell_registry
+from ..shell import Shell, get_shell_registry
 
 if TYPE_CHECKING:
     import argparse
@@ -23,6 +23,7 @@ def execute_init(args: argparse.Namespace) -> int:
     """Print the shell completion script to stdout."""
     registry = get_shell_registry()
     shell_name = args.shell
+    command_name = Shell.resolve_command_name(getattr(args, "command_name", None))
 
     if shell_name not in registry:
         raise ShellNotSupportedError(shell_name, list(registry))
@@ -37,6 +38,6 @@ def execute_init(args: argparse.Namespace) -> int:
         raise CompleterBinaryNotFoundError()
 
     shell = registry[shell_name]
-    script = shell.script(completer_path, mpath)
+    script = shell.script(completer_path, mpath, command_name)
     sys.stdout.write(script)
     return 0

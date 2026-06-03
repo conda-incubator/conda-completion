@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from . import Shell
+from . import DEFAULT_COMMAND_NAME, Shell
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -14,12 +14,20 @@ class ZshShell(Shell):
     name = "zsh"
     rc_files = [".zshrc"]
 
-    def script(self, completer_path: Path, manifest_path: Path) -> str:
+    def script(
+        self,
+        completer_path: Path,
+        manifest_path: Path,
+        command_name: str = DEFAULT_COMMAND_NAME,
+    ) -> str:
+        command_name = self.parse_command_name(command_name)
         cp = self.posix_quote(completer_path)
         mp = self.posix_quote(manifest_path)
+        cn = self.posix_quote(command_name)
         return f"""\
 _conda_completion_completer={cp}
 _conda_completion_manifest={mp}
+_conda_completion_command={cn}
 _conda() {{
     local completer=$_conda_completion_completer
     local manifest=$_conda_completion_manifest
@@ -38,17 +46,25 @@ _conda() {{
         fi
     done < <("$completer" --shell zsh --manifest "$manifest" -- "${{words[@]}}" $((CURRENT - 1)) 2>/dev/null)
 
-    (( ${{#items}} )) && _describe 'conda' items
+    (( ${{#items}} )) && _describe "$_conda_completion_command" items
     (( has_dir )) && _path_files -/
     (( has_file )) && _path_files
 }}
 typeset -ga _conda_completion_aliases
 _conda_completion_aliases=($("$_conda_completion_completer" --aliases --manifest "$_conda_completion_manifest" 2>/dev/null))
-compdef _conda conda $_conda_completion_aliases
+compdef _conda $_conda_completion_command $_conda_completion_aliases
 """
 
-    def hook_line(self, cache_dir: Path | None = None) -> str:
-        command = "conda completion init zsh"
+    def hook_line(
+        self,
+        cache_dir: Path | None = None,
+        command_name: str = DEFAULT_COMMAND_NAME,
+    ) -> str:
+        command_name = self.parse_command_name(command_name)
+        command = f"{command_name} completion init zsh --command-name {command_name}"
         if cache_dir is not None:
-            command = f"conda completion --cache-dir {self.posix_quote(cache_dir)} init zsh"
-        return f'command -v conda &>/dev/null && eval "$({command})"'
+            command = (
+                f"{command_name} completion --cache-dir {self.posix_quote(cache_dir)}"
+                f" init zsh --command-name {command_name}"
+            )
+        return f'command -v {command_name} &>/dev/null && eval "$({command})"'

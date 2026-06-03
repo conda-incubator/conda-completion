@@ -22,6 +22,34 @@ Or in scripts:
 CONDA_COMPLETION_SHELL=zsh conda completion install --yes
 ```
 
+## Wrapper command names
+
+By default, conda-completion installs shell completion for the `conda`
+command. If a distribution exposes conda through another executable, install
+the hook for that executable name:
+
+```bash
+cx completion install --command-name cx
+```
+
+The generated startup hook keeps that setting and invokes:
+
+```bash
+cx completion init bash --command-name cx
+```
+
+For scripts, set `CONDA_COMPLETION_COMMAND_NAME` instead. Precedence follows
+conda's usual shape: command-line option, then environment variable, then
+`conda`.
+
+```bash
+CONDA_COMPLETION_COMMAND_NAME=cx cx completion install --yes
+```
+
+For fish, the command name also controls the autoload file. The default is
+`~/.config/fish/completions/conda.fish`; `--command-name cx` writes
+`~/.config/fish/completions/cx.fish`.
+
 ## Manifest location
 
 The completion manifest is stored in your platform's cache directory:
