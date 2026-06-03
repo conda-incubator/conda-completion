@@ -78,11 +78,12 @@ shell
   files still work.
 
 `--command-name NAME`
-: Register completions for `NAME` instead of `conda`. Use this when conda
-  is reached through a wrapper executable, for example
-  `cx completion install --command-name cx`. This follows conda-style
-  precedence: command-line option first, then
-  `CONDA_COMPLETION_COMMAND_NAME`, then `conda`.
+: Register completions for `NAME` instead of `conda`. Wrapper runtimes
+  that set `CONDA_COMPLETION_COMMAND_NAME`, such as conda-ship generated
+  runtimes, do not need this option. Use it for manual wrappers or to
+  override the environment. This follows conda-style precedence:
+  command-line option first, then `CONDA_COMPLETION_COMMAND_NAME`, then
+  `conda`.
 
 Idempotent: running it twice does not duplicate the hook.
 

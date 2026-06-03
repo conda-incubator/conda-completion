@@ -25,11 +25,12 @@ CONDA_COMPLETION_SHELL=zsh conda completion install --yes
 ## Wrapper command names
 
 By default, conda-completion installs shell completion for the `conda`
-command. If a distribution exposes conda through another executable, install
-the hook for that executable name:
+command. Wrapper runtimes can pass their executable name through
+`CONDA_COMPLETION_COMMAND_NAME` before they invoke conda; conda-ship
+generated runtimes do this automatically.
 
 ```bash
-cx completion install --command-name cx
+cx completion install
 ```
 
 The generated startup hook keeps that setting and invokes:
@@ -38,12 +39,12 @@ The generated startup hook keeps that setting and invokes:
 cx completion init bash --command-name cx
 ```
 
-For scripts, set `CONDA_COMPLETION_COMMAND_NAME` instead. Precedence follows
-conda's usual shape: command-line option, then environment variable, then
-`conda`.
+For a manual wrapper that does not set `CONDA_COMPLETION_COMMAND_NAME`, pass
+`--command-name`. Precedence follows conda's usual shape: command-line option,
+then environment variable, then `conda`.
 
 ```bash
-CONDA_COMPLETION_COMMAND_NAME=cx cx completion install --yes
+my-conda completion install --command-name my-conda
 ```
 
 For fish, the command name also controls the autoload file. The default is
