@@ -50,10 +50,6 @@ fn format_bash(candidates: &[Candidate], out: &mut String) {
     }
 }
 
-fn zsh_escape(s: &str) -> String {
-    sanitize(s).replace('\\', "\\\\").replace(':', "\\:")
-}
-
 fn truncate_at_word(s: &str, max: usize) -> &str {
     if s.len() <= max {
         return s;
@@ -88,9 +84,9 @@ fn format_zsh(candidates: &[Candidate], out: &mut String) {
         }
         first = false;
         let _ = write!(out, "{}\t", c.group);
-        let safe_name = zsh_escape(&c.name);
+        let safe_name = sanitize(&c.name);
         if let Some(ref d) = c.description {
-            let _ = write!(out, "{}:{}", safe_name, zsh_escape(truncate_at_word(d, 80)));
+            let _ = write!(out, "{}\t{}", safe_name, sanitize(truncate_at_word(d, 80)));
         } else {
             out.push_str(&safe_name);
         }
@@ -165,16 +161,16 @@ mod tests {
     fn zsh_grouped_with_descriptions() {
         let out = format_candidates("zsh", &candidates());
         let lines: Vec<&str> = out.lines().collect();
-        assert_eq!(lines[0], "subcommand\tinstall:Install packages");
-        assert_eq!(lines[1], "subcommand\tremove:Remove packages");
+        assert_eq!(lines[0], "subcommand\tinstall\tInstall packages");
+        assert_eq!(lines[1], "subcommand\tremove\tRemove packages");
         assert_eq!(lines[2], "subcommand\tlist");
     }
 
     #[test]
-    fn zsh_escapes_colons_in_descriptions() {
+    fn zsh_outputs_colons_in_descriptions() {
         let items = vec![c("flag", Some("Use format: json"), "option")];
         let out = format_candidates("zsh", &items);
-        assert_eq!(out, "option\tflag:Use format\\: json");
+        assert_eq!(out, "option\tflag\tUse format: json");
     }
 
     #[test]
@@ -185,7 +181,7 @@ mod tests {
         ];
         let out = format_candidates("zsh", &items);
         let lines: Vec<&str> = out.lines().collect();
-        assert_eq!(lines[0], "subcommand\tinstall:Install packages");
+        assert_eq!(lines[0], "subcommand\tinstall\tInstall packages");
         assert_eq!(lines[1], "__dir__");
     }
 
@@ -245,16 +241,16 @@ mod tests {
     }
 
     #[test]
-    fn zsh_escapes_colons_in_names() {
+    fn zsh_outputs_colons_in_names() {
         let items = vec![c("https://conda.anaconda.org", None, "channel")];
         let out = format_candidates("zsh", &items);
-        assert_eq!(out, "channel\thttps\\://conda.anaconda.org");
+        assert_eq!(out, "channel\thttps://conda.anaconda.org");
     }
 
     #[test]
-    fn zsh_escapes_backslashes() {
+    fn zsh_outputs_backslashes() {
         let items = vec![c("foo\\bar", Some("a\\b"), "subcommand")];
         let out = format_candidates("zsh", &items);
-        assert_eq!(out, "subcommand\tfoo\\\\bar:a\\\\b");
+        assert_eq!(out, "subcommand\tfoo\\bar\ta\\b");
     }
 }

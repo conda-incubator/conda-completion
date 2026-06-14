@@ -157,7 +157,7 @@ def test_prefix_filtering(sample_manifest):
 def test_zsh_format_includes_descriptions(sample_manifest):
     lines = _run_completer(sample_manifest, "zsh", ["conda", ""], 1)
 
-    found_desc = any(":" in line for line in lines)
+    found_desc = any(line.count("\t") == 2 for line in lines)
     assert found_desc, f"Expected zsh format with descriptions, got: {lines}"
 
 

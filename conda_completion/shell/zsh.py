@@ -31,22 +31,37 @@ _conda_completion_command={cn}
 _conda() {{
     local completer=$_conda_completion_completer
     local manifest=$_conda_completion_manifest
-    local -a items
+    local -a items descriptions displays expl
     local has_dir=0
     local has_file=0
-    local group rest
+    local group name description
+    local -i display_width=0 index
 
-    while IFS=$'\\t' read -r group rest || [[ -n "$group" ]]; do
+    while IFS=$'\\t' read -r group name description || [[ -n "$group" ]]; do
         if [[ "$group" == "__dir__" ]]; then
             has_dir=1
         elif [[ "$group" == "__file__" ]]; then
             has_file=1
         else
-            items+=("$rest")
+            items+=("$name")
+            descriptions+=("$description")
+            (( ${{#name}} > display_width )) && display_width=${{#name}}
         fi
     done < <("$completer" --shell zsh --manifest "$manifest" -- "${{words[@]}}" $((CURRENT - 1)) 2>/dev/null)
 
-    (( ${{#items}} )) && _describe "$_conda_completion_command" items
+    if (( ${{#items}} )); then
+        for (( index = 1; index <= ${{#items}}; index++ )); do
+            name=${{items[$index]}}
+            description=${{descriptions[$index]}}
+            if [[ -n "$description" ]]; then
+                displays+=("${{(r:${{display_width}}:: :)name}} -- $description")
+            else
+                displays+=("$name")
+            fi
+        done
+        _description values expl "$_conda_completion_command"
+        compadd -l -d displays "$expl[@]" -- "$items[@]"
+    fi
     (( has_dir )) && _path_files -/
     (( has_file )) && _path_files
 }}
