@@ -54,7 +54,9 @@ metadata reuse and rewrites `completion.msgpack`, `versions.index`, and
 ## `conda completion install`
 
 Generate the manifest and add the completion hook to your shell's RC
-file.
+file. For fish, this writes the generated completion script directly to
+fish's autoload completions directory so new shells do not start conda
+just to register completions.
 
 ```text
 conda completion [--cache-dir PATH] install [shell] [--yes] [--dry-run] [--no-repodata] [--command-name NAME]
@@ -85,15 +87,18 @@ shell
   command-line option first, then `CONDA_COMPLETION_COMMAND_NAME`, then
   `conda`.
 
-Idempotent: running it twice does not duplicate the hook.
+Idempotent: running it twice does not duplicate the hook. For fish,
+running it again refreshes the generated completion script in place.
 
-When `--cache-dir` is passed to `install`, the installed startup hook
-keeps using that cache directory by passing the same option to
-`conda completion init <shell>`.
+When `--cache-dir` is passed to `install`, bash, zsh, and PowerShell
+startup hooks keep using that cache directory by passing the same option
+to `conda completion init <shell>`. Fish writes the resolved manifest
+path into its generated completion script.
 
-When `--command-name` is passed to `install`, the installed startup hook
-keeps using that command name by passing the same option to
-`conda completion init <shell>`.
+When `--command-name` is passed to `install`, bash, zsh, and PowerShell
+startup hooks keep using that command name by passing the same option to
+`conda completion init <shell>`. Fish writes the command name into its
+generated completion script.
 
 ## `conda completion uninstall`
 
@@ -116,6 +121,9 @@ shell
 : Remove the hook for a non-default command name. This matters for fish,
   where `install --command-name cx` writes
   `~/.config/fish/completions/cx.fish`.
+
+For fish, uninstall removes the generated autoload completion file when
+the conda-completion block was the only content.
 
 ## `conda completion init`
 

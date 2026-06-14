@@ -158,6 +158,6 @@ conda completion init fish | source
 
 :::::
 
-The automatic fish installer writes to
+The automatic fish installer writes a generated completion script to
 `~/.config/fish/completions/conda.fish`. The manual eval line can live
-there or in `~/.config/fish/config.fish`.
+there or in `~/.config/fish/config.fish` if you prefer dynamic setup.

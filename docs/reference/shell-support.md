@@ -64,7 +64,9 @@ descriptions, so the Rust binary omits them for bash output.
 | fish | `~/.config/fish/completions/<command>.fish` (default: `conda.fish`) |
 
 `conda completion install` writes a delimited block to the first existing
-RC file (or creates the first one in the list if none exist).
+RC file (or creates the first one in the list if none exist). For fish,
+that block contains the generated completion script instead of a command
+that runs `conda completion init fish` on each shell startup.
 
 For fish, the autoload file follows the registered command name. For example,
 `conda completion install fish --command-name cx` writes

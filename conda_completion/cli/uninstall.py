@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 from ..exceptions import ShellNotSupportedError
 from ..manifest import atomic_write
 from ..shell import Shell, get_shell_registry
+from .install import _BLOCK_PATTERN
 
 if TYPE_CHECKING:
     import argparse
-
-_BLOCK_PATTERN = re.compile(
-    r"\n?# >>> conda-completion >>>\n(?:[^\n]*\n)*?# <<< conda-completion <<<\n?",
-)
 
 
 def execute_uninstall(args: argparse.Namespace) -> int:
@@ -52,6 +48,10 @@ def execute_uninstall(args: argparse.Namespace) -> int:
             print("Aborted.")
             return 1
 
-    atomic_write(rc_path, new_content.encode("utf-8"))
-    print(f"Completion hook removed from {rc_path}")
+    if shell.remove_empty_install_file and not new_content.strip():
+        rc_path.unlink()
+        print(f"Completion file removed from {rc_path}")
+    else:
+        atomic_write(rc_path, new_content.encode("utf-8"))
+        print(f"Completion hook removed from {rc_path}")
     return 0
