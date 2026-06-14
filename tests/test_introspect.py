@@ -300,6 +300,25 @@ def test_completion_type_heuristics(flag, expected_type):
     assert cmd.options[flag].completion_type == expected_type
 
 
+@pytest.mark.parametrize(
+    "name,expected_type",
+    [
+        ("package", "package_spec"),
+        ("packages", "package_spec"),
+        ("task_name", "task_name"),
+        ("environment", "environment"),
+    ],
+    ids=["package", "packages", "task-name", "environment"],
+)
+def test_positional_completion_type_heuristics(name, expected_type):
+    parser = argparse.ArgumentParser()
+    parser.add_argument(name, help="test")
+
+    cmd = walk_parser(parser)
+
+    assert cmd.positionals[0].completion_type == expected_type
+
+
 def test_explicit_completion_type_beats_heuristics():
     parser = argparse.ArgumentParser()
     action = parser.add_argument("--channel", help="test")

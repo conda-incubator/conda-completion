@@ -10,12 +10,16 @@ pub struct StatCache {
     dirty: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
 pub struct CachedFile {
     pub mtime_secs: u64,
     pub size: u64,
     #[serde(default)]
+    pub env_cache_format: u32,
+    #[serde(default)]
     pub env_names: Vec<String>,
+    #[serde(default)]
+    pub env_prefixes: Vec<String>,
     #[serde(default)]
     pub task_names: Vec<String>,
     #[serde(default)]
@@ -180,7 +184,9 @@ mod tests {
             CachedFile {
                 mtime_secs: 12345,
                 size: 100,
+                env_cache_format: 0,
                 env_names: vec!["myenv".to_string()],
+                env_prefixes: vec![],
                 task_names: vec![],
                 feature_names: vec![],
                 channels: vec!["conda-forge".to_string()],
@@ -218,7 +224,9 @@ mod tests {
         let entry = CachedFile {
             mtime_secs: 12345,
             size: 100,
+            env_cache_format: 0,
             env_names: vec!["myenv".to_string()],
+            env_prefixes: vec![],
             task_names: vec![],
             feature_names: vec![],
             channels: vec!["conda-forge".to_string()],
@@ -243,7 +251,9 @@ mod tests {
             CachedFile {
                 mtime_secs: 12345,
                 size: 100,
+                env_cache_format: 0,
                 env_names: vec!["myenv".to_string()],
+                env_prefixes: vec![],
                 task_names: vec![],
                 feature_names: vec![],
                 channels: vec!["conda-forge".to_string()],
@@ -267,7 +277,9 @@ mod tests {
             CachedFile {
                 mtime_secs: mtime,
                 size,
+                env_cache_format: 0,
                 env_names: vec!["cached".to_string()],
+                env_prefixes: vec![],
                 task_names: vec![],
                 feature_names: vec![],
                 channels: vec![],
@@ -293,7 +305,9 @@ mod tests {
             CachedFile {
                 mtime_secs: mtime,
                 size: 999,
+                env_cache_format: 0,
                 env_names: vec![],
+                env_prefixes: vec![],
                 task_names: vec![],
                 feature_names: vec![],
                 channels: vec![],

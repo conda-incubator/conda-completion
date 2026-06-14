@@ -64,12 +64,24 @@ fn main() {
         &parsed.words,
         parsed.cword,
     );
-    candidates.sort_by(|a, b| a.name.cmp(&b.name));
+    candidates.sort_by(|a, b| {
+        candidate_sort_rank(a)
+            .cmp(&candidate_sort_rank(b))
+            .then_with(|| a.name.cmp(&b.name))
+    });
     const MAX_CANDIDATES: usize = 500;
     candidates.truncate(MAX_CANDIDATES);
     let output = shell::format_candidates(&parsed.shell, &candidates);
     if !output.is_empty() {
         println!("{}", output);
+    }
+}
+
+fn candidate_sort_rank(candidate: &shell::Candidate) -> u8 {
+    if candidate.group == "environment_prefix" {
+        1
+    } else {
+        0
     }
 }
 
@@ -507,6 +519,22 @@ fn resolve_dynamic(
             current_word,
             &mut candidates,
         ),
+        "environment" => {
+            collect_matching(
+                &[&ctx.env_names, &global_ctx.env_names],
+                "environment",
+                "environment",
+                current_word,
+                &mut candidates,
+            );
+            collect_matching(
+                &[&global_ctx.env_prefixes],
+                "environment prefix",
+                "environment_prefix",
+                current_word,
+                &mut candidates,
+            );
+        }
         "channel" => collect_matching(
             &[&ctx.channels, &global_ctx.channels],
             "channel",
@@ -1576,6 +1604,7 @@ mod tests {
         let m = test_manifest();
         let mut global = empty_global();
         global.env_names = vec!["base".to_string(), "globalenv".to_string()];
+        global.env_prefixes = vec!["/tmp/conda-bld/debug/_h_env".to_string()];
 
         let result = complete(
             &m,
@@ -1588,6 +1617,54 @@ mod tests {
         let n = names(&result);
         assert!(n.contains(&"base"));
         assert!(n.contains(&"globalenv"));
+        assert!(!n.contains(&"/tmp/conda-bld/debug/_h_env"));
+    }
+
+    #[test]
+    fn complete_environment_includes_prefixes() {
+        let m = manifest::Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec![],
+            root_options: std::collections::BTreeMap::new(),
+            commands: std::collections::BTreeMap::from([(
+                "spawn".to_string(),
+                manifest::CommandSpec {
+                    summary: Some("Spawn a shell".to_string()),
+                    options: std::collections::BTreeMap::new(),
+                    positionals: vec![manifest::PositionalSpec {
+                        name: "environment".to_string(),
+                        choices: None,
+                        nargs: None,
+                        completion_type: Some("environment".to_string()),
+                        completion: None,
+                        description: None,
+                        metavar: None,
+                    }],
+                    subcommands: std::collections::BTreeMap::new(),
+                    exclusive_groups: vec![],
+                },
+            )]),
+            aliases: std::collections::BTreeMap::new(),
+            runtime_sources: std::collections::BTreeMap::new(),
+        };
+        let mut global = empty_global();
+        global.env_names = vec!["conda-build-dev".to_string()];
+        global.env_prefixes = vec!["/tmp/conda-bld/debug/_h_env".to_string()];
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &global,
+            &words("conda spawn "),
+            2,
+        );
+        let n = names(&result);
+
+        assert!(n.contains(&"conda-build-dev"));
+        assert!(n.contains(&"/tmp/conda-bld/debug/_h_env"));
     }
 
     #[test]
