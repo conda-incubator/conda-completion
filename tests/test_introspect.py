@@ -8,7 +8,7 @@ import logging
 import pytest
 
 from conda_completion.exceptions import IntrospectionError
-from conda_completion.introspect import collect_static_choices, generate_manifest, walk_parser
+from conda_completion.introspect import StaticChoiceResolver, generate_manifest, walk_parser
 
 
 def test_walk_simple_parser():
@@ -77,7 +77,9 @@ def test_walk_parser_adds_conda_config_parameter_choices(option_strings, kwargs)
 
     cmd = walk_parser(
         parser,
-        static_choices={"config_parameters": ["channels", "envs_dirs"]},
+        choice_resolver=StaticChoiceResolver(
+            {"config_parameters": ["channels", "envs_dirs"]},
+        ),
     )
 
     assert cmd.subcommands["config"].options[option_strings[0]].choices == [
@@ -94,7 +96,9 @@ def test_walk_parser_adds_conda_config_parameter_choices_to_aliases():
 
     cmd = walk_parser(
         parser,
-        static_choices={"config_parameters": ["channels", "envs_dirs"]},
+        choice_resolver=StaticChoiceResolver(
+            {"config_parameters": ["channels", "envs_dirs"]},
+        ),
     )
     options = cmd.subcommands["config"].options
 
@@ -122,7 +126,9 @@ def test_walk_parser_does_not_add_config_parameter_choices_to_other_values(
 
     cmd = walk_parser(
         parser,
-        static_choices={"config_parameters": ["channels", "envs_dirs"]},
+        choice_resolver=StaticChoiceResolver(
+            {"config_parameters": ["channels", "envs_dirs"]},
+        ),
     )
 
     assert cmd.subcommands["config"].options[option_strings[0]].choices is None
@@ -137,7 +143,9 @@ def test_walk_parser_adds_health_check_choices(subcommand):
 
     cmd = walk_parser(
         parser,
-        static_choices={"health_checks": ["altered-files", "pinned"]},
+        choice_resolver=StaticChoiceResolver(
+            {"health_checks": ["altered-files", "pinned"]},
+        ),
     )
 
     assert cmd.subcommands[subcommand].positionals[0].choices == [
@@ -156,11 +164,16 @@ def test_generate_manifest_adds_static_choices(monkeypatch):
 
     monkeypatch.setattr("conda_completion.introspect.generate_parser", lambda: parser)
     monkeypatch.setattr(
-        "conda_completion.introspect.collect_static_choices",
-        lambda: {
-            "config_parameters": ["channels", "pkgs_dirs"],
-            "health_checks": ["altered-files", "pinned"],
-        },
+        StaticChoiceResolver,
+        "from_conda",
+        classmethod(
+            lambda cls: cls(
+                {
+                    "config_parameters": ["channels", "pkgs_dirs"],
+                    "health_checks": ["altered-files", "pinned"],
+                },
+            ),
+        ),
     )
 
     manifest = generate_manifest("test")
@@ -175,12 +188,13 @@ def test_generate_manifest_adds_static_choices(monkeypatch):
     ]
 
 
-def test_collect_static_choices_preserves_other_providers(monkeypatch, caplog):
+def test_static_choice_resolver_preserves_other_providers(monkeypatch, caplog):
     def raise_failure():
         raise AttributeError("missing conda API")
 
     monkeypatch.setattr(
-        "conda_completion.introspect.STATIC_CHOICE_PROVIDERS",
+        StaticChoiceResolver,
+        "providers",
         {
             "config_parameters": raise_failure,
             "health_checks": lambda: ["pinned"],
@@ -188,9 +202,9 @@ def test_collect_static_choices_preserves_other_providers(monkeypatch, caplog):
     )
     caplog.set_level(logging.WARNING)
 
-    choices = collect_static_choices()
+    resolver = StaticChoiceResolver.from_conda()
 
-    assert choices == {"health_checks": ["pinned"]}
+    assert resolver.choices_by_source == {"health_checks": ["pinned"]}
     assert "Failed to collect config_parameters completion choices" in caplog.text
 
 
@@ -205,7 +219,8 @@ def test_generate_manifest_preserves_static_choice_provider_failure(monkeypatch)
 
     monkeypatch.setattr("conda_completion.introspect.generate_parser", lambda: parser)
     monkeypatch.setattr(
-        "conda_completion.introspect.STATIC_CHOICE_PROVIDERS",
+        StaticChoiceResolver,
+        "providers",
         {"config_parameters": raise_failure},
     )
 
