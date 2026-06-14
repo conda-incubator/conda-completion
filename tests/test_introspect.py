@@ -55,42 +55,42 @@ def test_walk_parser_with_choices():
 
 
 @pytest.mark.parametrize(
-    "flag",
+    ("option_strings", "kwargs"),
     [
-        "--show",
-        "--describe",
-        "--get",
-        "--append",
-        "--prepend",
-        "--add",
-        "--set",
-        "--remove",
-        "--remove-key",
+        (("--show",), {"nargs": "*", "help": "Display configuration values"}),
+        (("--describe",), {"nargs": "*", "help": "Describe configuration parameters"}),
+        (("--get",), {"nargs": "*", "metavar": "KEY"}),
+        (("--append",), {"nargs": 2, "metavar": ("KEY", "VALUE")}),
+        (("--prepend",), {"nargs": 2, "metavar": ("KEY", "VALUE")}),
+        (("--set",), {"nargs": 2, "metavar": ("KEY", "VALUE")}),
+        (("--remove",), {"nargs": 2, "metavar": ("KEY", "VALUE")}),
+        (("--remove-key",), {"metavar": "KEY"}),
+        (("--future-key",), {"metavar": "KEY"}),
+        (("--future-show",), {"nargs": "*", "help": "Show configuration parameters"}),
     ],
 )
-def test_walk_parser_adds_conda_config_parameter_choices(flag):
+def test_walk_parser_adds_conda_config_parameter_choices(option_strings, kwargs):
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd")
     p_config = sub.add_parser("config")
-    if flag == "--remove-key":
-        p_config.add_argument(flag)
-    else:
-        nargs = 2 if flag in {"--append", "--prepend", "--add", "--set", "--remove"} else "*"
-        p_config.add_argument(flag, nargs=nargs)
+    p_config.add_argument(*option_strings, **kwargs)
 
     cmd = walk_parser(
         parser,
         static_choices={"config_parameters": ["channels", "envs_dirs"]},
     )
 
-    assert cmd.subcommands["config"].options[flag].choices == ["channels", "envs_dirs"]
+    assert cmd.subcommands["config"].options[option_strings[0]].choices == [
+        "channels",
+        "envs_dirs",
+    ]
 
 
 def test_walk_parser_adds_conda_config_parameter_choices_to_aliases():
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd")
     p_config = sub.add_parser("config")
-    p_config.add_argument("--prepend", "--add", nargs=2)
+    p_config.add_argument("--prepend", "--add", nargs=2, metavar=("KEY", "VALUE"))
 
     cmd = walk_parser(
         parser,
@@ -100,6 +100,32 @@ def test_walk_parser_adds_conda_config_parameter_choices_to_aliases():
 
     assert options["--prepend"].choices == ["channels", "envs_dirs"]
     assert options["--add"].choices == ["channels", "envs_dirs"]
+
+
+@pytest.mark.parametrize(
+    ("option_strings", "kwargs"),
+    [
+        (("--file",), {"metavar": "FILE", "help": "Write to the given file"}),
+        (("--prefix",), {"metavar": "PATH", "help": "Full path to environment location"}),
+        (("--validate",), {"action": "store_true", "help": "Validate configuration sources"}),
+        (("--future",), {"nargs": "*", "help": "List matching environment names"}),
+    ],
+)
+def test_walk_parser_does_not_add_config_parameter_choices_to_other_values(
+    option_strings,
+    kwargs,
+):
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd")
+    p_config = sub.add_parser("config")
+    p_config.add_argument(*option_strings, **kwargs)
+
+    cmd = walk_parser(
+        parser,
+        static_choices={"config_parameters": ["channels", "envs_dirs"]},
+    )
+
+    assert cmd.subcommands["config"].options[option_strings[0]].choices is None
 
 
 @pytest.mark.parametrize("subcommand", ["check", "doctor"])
@@ -124,7 +150,7 @@ def test_generate_manifest_adds_static_choices(monkeypatch):
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd")
     p_config = sub.add_parser("config")
-    p_config.add_argument("--show", nargs="*")
+    p_config.add_argument("--show", nargs="*", help="Show configuration values")
     p_doctor = sub.add_parser("doctor")
     p_doctor.add_argument("checks", nargs="*", metavar="NAME")
 
@@ -172,7 +198,7 @@ def test_generate_manifest_preserves_static_choice_provider_failure(monkeypatch)
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd")
     p_config = sub.add_parser("config")
-    p_config.add_argument("--show", nargs="*")
+    p_config.add_argument("--show", nargs="*", help="Show configuration values")
 
     def raise_failure():
         raise AttributeError("missing conda API")

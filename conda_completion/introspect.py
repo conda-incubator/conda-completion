@@ -46,22 +46,7 @@ POSITIONAL_TYPE_HEURISTICS: dict[str, str] = {
     "environment": "env_name",
 }
 
-CONFIG_PARAMETER_FLAGS = frozenset(
-    {
-        "--show",
-        "--describe",
-        "--get",
-        "--append",
-        "--prepend",
-        "--add",
-        "--set",
-        "--remove",
-        "--remove-key",
-    }
-)
-
-STATIC_CHOICE_RULES: dict[tuple[tuple[str, ...], str], str] = {
-    **{(("config",), flag): "config_parameters" for flag in CONFIG_PARAMETER_FLAGS},
+STATIC_POSITIONAL_CHOICE_RULES: dict[tuple[tuple[str, ...], str], str] = {
     (("check",), "checks"): "health_checks",
     (("doctor",), "checks"): "health_checks",
 }
@@ -130,14 +115,56 @@ def static_choices_for_action(
     action: argparse.Action,
     static_choices: dict[str, list[str]],
 ) -> list[str] | None:
-    argument_names = action.option_strings or [action.dest]
-    for argument_name in argument_names:
-        source_name = STATIC_CHOICE_RULES.get((command_path, argument_name))
-        if not source_name:
-            continue
-        if choices := static_choices.get(source_name):
-            return list(choices)
+    source_name = static_choice_source_for_action(command_path, action)
+    if not source_name:
+        return None
+    if choices := static_choices.get(source_name):
+        return list(choices)
     return None
+
+
+def static_choice_source_for_action(
+    command_path: tuple[str, ...],
+    action: argparse.Action,
+) -> str | None:
+    if action.option_strings:
+        if is_config_parameter_action(command_path, action):
+            return "config_parameters"
+        return None
+    return STATIC_POSITIONAL_CHOICE_RULES.get((command_path, action.dest))
+
+
+def is_config_parameter_action(
+    command_path: tuple[str, ...],
+    action: argparse.Action,
+) -> bool:
+    if command_path != ("config",) or not action_takes_value(action):
+        return False
+    if "KEY" in action_metavars(action):
+        return True
+
+    help_text = action.help
+    if not isinstance(help_text, str):
+        return False
+    help_lower = help_text.lower()
+    if "configuration" not in help_lower:
+        return False
+    return "parameter" in help_lower or "value" in help_lower
+
+
+def action_takes_value(action: argparse.Action) -> bool:
+    if isinstance(action.nargs, int):
+        return action.nargs != 0
+    return action.nargs is None or action.nargs in ("?", "*", "+")
+
+
+def action_metavars(action: argparse.Action) -> set[str]:
+    metavar = action.metavar
+    if isinstance(metavar, str):
+        return {metavar}
+    if isinstance(metavar, tuple):
+        return {str(value) for value in metavar}
+    return set()
 
 
 def walk_parser(
@@ -239,8 +266,11 @@ def walk_parser(
             choices = None
             if action.choices:
                 choices = [str(c) for c in action.choices]
-            elif static_choices:
-                choices = static_choices_for_action(command_path, action, static_choices)
+            static_choice_source = None
+            if static_choices:
+                static_choice_source = static_choice_source_for_action(command_path, action)
+                if static_choice_source:
+                    choices = static_choices_for_action(command_path, action, static_choices)
 
             option = OptionSpec(
                 short=short_name,
@@ -254,10 +284,8 @@ def walk_parser(
                 group=action_groups.get(id(action)),
             )
             option_names = [long_name]
-            if static_choices:
-                option_names = [
-                    name for name in long_names if (command_path, name) in STATIC_CHOICE_RULES
-                ] or option_names
+            if static_choice_source:
+                option_names = long_names or option_names
             for option_name in option_names:
                 options[option_name] = option
         else:
