@@ -64,9 +64,6 @@ outputs:
         env:
           SETUPTOOLS_SCM_PRETEND_VERSION: ${{ version }}
         content: ${{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
-      python:
-        entry_points:
-          - cc = conda_completion.__main__:main
     requirements:
       build:
         - if: build_platform != target_platform
@@ -91,8 +88,6 @@ outputs:
             - conda_completion.plugin
           pip_check: false
           python_version: ${{ python_min }}.*
-      - script:
-          - cc --help
 
 about:
   homepage: https://github.com/conda-incubator/conda-completion
