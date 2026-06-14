@@ -39,7 +39,7 @@ POSITIONAL_TYPE_HEURISTICS: dict[str, str] = {
     "package": "package_spec",
     "packages": "package_spec",
     "task_name": "task_name",
-    "environment": "env_name",
+    "environment": "environment",
 }
 
 

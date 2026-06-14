@@ -69,6 +69,7 @@ fn cache_from_project(ctx: &ProjectContext, mtime: u64, size: u64) -> CachedFile
         feature_names: ctx.feature_names.clone(),
         channels: ctx.channels.clone(),
         tool_names: Vec::new(),
+        ..CachedFile::default()
     }
 }
 
@@ -105,6 +106,7 @@ fn try_read_toml_file(
                 feature_names: file_ctx.feature_names,
                 channels: file_ctx.channels,
                 tool_names: Vec::new(),
+                ..CachedFile::default()
             },
             ctx,
         );
@@ -175,6 +177,7 @@ fn try_read_yaml_file<T: serde::de::DeserializeOwned>(
                 feature_names: file_ctx.feature_names,
                 channels: file_ctx.channels,
                 tool_names: Vec::new(),
+                ..CachedFile::default()
             },
             ctx,
         );
