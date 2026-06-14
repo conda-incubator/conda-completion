@@ -123,6 +123,16 @@ def test_zsh_script_handles_file_marker(tmp_path):
     assert "_path_files" in script
 
 
+def test_zsh_script_uses_line_display_strings(tmp_path):
+    shell = ZshShell()
+    script = shell.script(tmp_path / "_conda_completer", tmp_path / "completion.msgpack")
+
+    assert "read -r group name description" in script
+    assert "_description values expl" in script
+    assert "compadd -l -d displays" in script
+    assert "_describe" not in script
+
+
 def test_get_shell_registry_includes_supported_shells():
     registry = get_shell_registry()
     assert "bash" in registry
