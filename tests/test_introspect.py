@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import logging
 
 import pytest
 
 from conda_completion.exceptions import IntrospectionError
-from conda_completion.introspect import generate_manifest, walk_parser
+from conda_completion.introspect import collect_static_choices, generate_manifest, walk_parser
 
 
 def test_walk_simple_parser():
@@ -146,6 +147,45 @@ def test_generate_manifest_adds_static_choices(monkeypatch):
         "altered-files",
         "pinned",
     ]
+
+
+def test_collect_static_choices_preserves_other_providers(monkeypatch, caplog):
+    def raise_failure():
+        raise AttributeError("missing conda API")
+
+    monkeypatch.setattr(
+        "conda_completion.introspect.STATIC_CHOICE_PROVIDERS",
+        {
+            "config_parameters": raise_failure,
+            "health_checks": lambda: ["pinned"],
+        },
+    )
+    caplog.set_level(logging.WARNING)
+
+    choices = collect_static_choices()
+
+    assert choices == {"health_checks": ["pinned"]}
+    assert "Failed to collect config_parameters completion choices" in caplog.text
+
+
+def test_generate_manifest_preserves_static_choice_provider_failure(monkeypatch):
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd")
+    p_config = sub.add_parser("config")
+    p_config.add_argument("--show", nargs="*")
+
+    def raise_failure():
+        raise AttributeError("missing conda API")
+
+    monkeypatch.setattr("conda_completion.introspect.generate_parser", lambda: parser)
+    monkeypatch.setattr(
+        "conda_completion.introspect.STATIC_CHOICE_PROVIDERS",
+        {"config_parameters": raise_failure},
+    )
+
+    manifest = generate_manifest("test")
+
+    assert manifest.commands["config"].options["--show"].choices is None
 
 
 def test_walk_parser_with_mutual_exclusion():

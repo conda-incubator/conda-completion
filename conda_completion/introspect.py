@@ -7,6 +7,7 @@ and produces a CompletionManifest suitable for the Rust completer.
 from __future__ import annotations
 
 import argparse
+import logging
 from collections.abc import Iterable
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -28,6 +29,8 @@ from .manifest import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+
+log = logging.getLogger(__name__)
 
 COMPLETION_TYPE_HEURISTICS: dict[str, str] = {
     "--name": "env_name",
@@ -104,11 +107,16 @@ def generate_parser() -> argparse.ArgumentParser:
 
 
 def collect_static_choices() -> dict[str, list[str]]:
-    return {
-        name: choices
-        for name, provider in STATIC_CHOICE_PROVIDERS.items()
-        if (choices := provider())
-    }
+    choices_by_name: dict[str, list[str]] = {}
+    for name, provider in STATIC_CHOICE_PROVIDERS.items():
+        try:
+            choices = provider()
+        except Exception:
+            log.warning("Failed to collect %s completion choices", name, exc_info=True)
+            continue
+        if choices:
+            choices_by_name[name] = choices
+    return choices_by_name
 
 
 def list_health_checks() -> list[str]:
