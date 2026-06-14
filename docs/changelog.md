@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Removed the in-repo conda recipe's `cc` console script metadata and test to avoid shipping a binary name that is easy to confuse with C compilers.
+
 ## 0.3.0 (2026-06-14)
 
 - Added `--command-name` and `CONDA_COMPLETION_COMMAND_NAME` so shell hooks can target wrapper executables such as `cx`.
