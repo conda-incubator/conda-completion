@@ -9221,7 +9221,7 @@ packages:
 - pypi: .
   name: conda-completion
   requires_dist:
-  - conda-completer>=0.2.0
+  - conda-completer>=0.3.0
   - conda>=25.1
   - msgpack>=1.0
   - platformdirs>=4.0
