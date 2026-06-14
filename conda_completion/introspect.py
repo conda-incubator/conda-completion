@@ -11,6 +11,7 @@ from collections.abc import Iterable
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from conda.base.context import context
 from conda.cli.conda_argparse import generate_parser as conda_generate_parser
 
 from .exceptions import IntrospectionError
@@ -26,7 +27,7 @@ from .manifest import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
 COMPLETION_TYPE_HEURISTICS: dict[str, str] = {
     "--name": "env_name",
@@ -42,11 +43,37 @@ POSITIONAL_TYPE_HEURISTICS: dict[str, str] = {
     "environment": "env_name",
 }
 
+CONFIG_PARAMETER_FLAGS = frozenset(
+    {
+        "--show",
+        "--describe",
+        "--get",
+        "--append",
+        "--prepend",
+        "--add",
+        "--set",
+        "--remove",
+        "--remove-key",
+    }
+)
+
+STATIC_CHOICE_RULES: dict[tuple[tuple[str, ...], str], str] = {
+    **{(("config",), flag): "config_parameters" for flag in CONFIG_PARAMETER_FLAGS},
+    (("check",), "checks"): "health_checks",
+    (("doctor",), "checks"): "health_checks",
+}
+
+STATIC_CHOICE_PROVIDERS: dict[str, Callable[[], list[str]]] = {
+    "config_parameters": lambda: [str(name) for name in context.list_parameters()],
+    "health_checks": lambda: sorted(list_health_checks()),
+}
+
 
 def generate_manifest(plugin_hash: str = "") -> CompletionManifest:
     """Build a CompletionManifest by introspecting conda's argparse tree."""
     try:
         parser = generate_parser()
+        static_choices = collect_static_choices()
     except (KeyboardInterrupt, SystemExit):
         raise
     except BaseException as exc:
@@ -54,7 +81,12 @@ def generate_manifest(plugin_hash: str = "") -> CompletionManifest:
 
     aliases: dict[str, AliasSpec] = {}
     runtime_sources: dict[str, RuntimeSourceSpec] = {}
-    root_cmd = walk_parser(parser, aliases=aliases, runtime_sources=runtime_sources)
+    root_cmd = walk_parser(
+        parser,
+        aliases=aliases,
+        runtime_sources=runtime_sources,
+        static_choices=static_choices,
+    )
 
     return CompletionManifest(
         version=1,
@@ -71,11 +103,41 @@ def generate_parser() -> argparse.ArgumentParser:
     return conda_generate_parser()
 
 
+def collect_static_choices() -> dict[str, list[str]]:
+    return {
+        name: choices
+        for name, provider in STATIC_CHOICE_PROVIDERS.items()
+        if (choices := provider())
+    }
+
+
+def list_health_checks() -> list[str]:
+    from conda.plugins.manager import get_plugin_manager
+
+    return list(get_plugin_manager().get_health_checks())
+
+
+def static_choices_for_action(
+    command_path: tuple[str, ...],
+    action: argparse.Action,
+    static_choices: dict[str, list[str]],
+) -> list[str] | None:
+    argument_names = action.option_strings or [action.dest]
+    for argument_name in argument_names:
+        source_name = STATIC_CHOICE_RULES.get((command_path, argument_name))
+        if not source_name:
+            continue
+        if choices := static_choices.get(source_name):
+            return list(choices)
+    return None
+
+
 def walk_parser(
     parser: argparse.ArgumentParser,
     command_path: tuple[str, ...] = (),
     aliases: dict[str, AliasSpec] | None = None,
     runtime_sources: dict[str, RuntimeSourceSpec] | None = None,
+    static_choices: dict[str, list[str]] | None = None,
 ) -> CommandSpec:
     """Recursively walk an argparse parser tree into a CommandSpec."""
     options: dict[str, OptionSpec] = {}
@@ -121,6 +183,7 @@ def walk_parser(
                     command_path=(*command_path, name),
                     aliases=aliases,
                     runtime_sources=runtime_sources,
+                    static_choices=static_choices,
                 )
                 subcommands[name] = CommandSpec(
                     summary=sub_help or sub_cmd.summary,
@@ -168,8 +231,10 @@ def walk_parser(
             choices = None
             if action.choices:
                 choices = [str(c) for c in action.choices]
+            elif static_choices:
+                choices = static_choices_for_action(command_path, action, static_choices)
 
-            options[long_name] = OptionSpec(
+            option = OptionSpec(
                 short=short_name,
                 choices=choices,
                 nargs=nargs,
@@ -180,6 +245,13 @@ def walk_parser(
                 required=action.required,
                 group=action_groups.get(id(action)),
             )
+            option_names = [long_name]
+            if static_choices:
+                option_names = [
+                    name for name in long_names if (command_path, name) in STATIC_CHOICE_RULES
+                ] or option_names
+            for option_name in option_names:
+                options[option_name] = option
         else:
             if action.dest in ("cmd", "subcmd", "_plugin_subcommand"):
                 continue
@@ -209,6 +281,8 @@ def walk_parser(
             choices = None
             if action.choices:
                 choices = [str(c) for c in action.choices]
+            elif static_choices:
+                choices = static_choices_for_action(command_path, action, static_choices)
 
             positionals.append(
                 PositionalSpec(

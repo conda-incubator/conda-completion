@@ -53,6 +53,101 @@ def test_walk_parser_with_choices():
     assert cmd.options["--format"].choices == ["json", "yaml", "toml"]
 
 
+@pytest.mark.parametrize(
+    "flag",
+    [
+        "--show",
+        "--describe",
+        "--get",
+        "--append",
+        "--prepend",
+        "--add",
+        "--set",
+        "--remove",
+        "--remove-key",
+    ],
+)
+def test_walk_parser_adds_conda_config_parameter_choices(flag):
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd")
+    p_config = sub.add_parser("config")
+    if flag == "--remove-key":
+        p_config.add_argument(flag)
+    else:
+        nargs = 2 if flag in {"--append", "--prepend", "--add", "--set", "--remove"} else "*"
+        p_config.add_argument(flag, nargs=nargs)
+
+    cmd = walk_parser(
+        parser,
+        static_choices={"config_parameters": ["channels", "envs_dirs"]},
+    )
+
+    assert cmd.subcommands["config"].options[flag].choices == ["channels", "envs_dirs"]
+
+
+def test_walk_parser_adds_conda_config_parameter_choices_to_aliases():
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd")
+    p_config = sub.add_parser("config")
+    p_config.add_argument("--prepend", "--add", nargs=2)
+
+    cmd = walk_parser(
+        parser,
+        static_choices={"config_parameters": ["channels", "envs_dirs"]},
+    )
+    options = cmd.subcommands["config"].options
+
+    assert options["--prepend"].choices == ["channels", "envs_dirs"]
+    assert options["--add"].choices == ["channels", "envs_dirs"]
+
+
+@pytest.mark.parametrize("subcommand", ["check", "doctor"])
+def test_walk_parser_adds_health_check_choices(subcommand):
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd")
+    p_check = sub.add_parser(subcommand)
+    p_check.add_argument("checks", nargs="*", metavar="NAME")
+
+    cmd = walk_parser(
+        parser,
+        static_choices={"health_checks": ["altered-files", "pinned"]},
+    )
+
+    assert cmd.subcommands[subcommand].positionals[0].choices == [
+        "altered-files",
+        "pinned",
+    ]
+
+
+def test_generate_manifest_adds_static_choices(monkeypatch):
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd")
+    p_config = sub.add_parser("config")
+    p_config.add_argument("--show", nargs="*")
+    p_doctor = sub.add_parser("doctor")
+    p_doctor.add_argument("checks", nargs="*", metavar="NAME")
+
+    monkeypatch.setattr("conda_completion.introspect.generate_parser", lambda: parser)
+    monkeypatch.setattr(
+        "conda_completion.introspect.collect_static_choices",
+        lambda: {
+            "config_parameters": ["channels", "pkgs_dirs"],
+            "health_checks": ["altered-files", "pinned"],
+        },
+    )
+
+    manifest = generate_manifest("test")
+
+    assert manifest.commands["config"].options["--show"].choices == [
+        "channels",
+        "pkgs_dirs",
+    ]
+    assert manifest.commands["doctor"].positionals[0].choices == [
+        "altered-files",
+        "pinned",
+    ]
+
+
 def test_walk_parser_with_mutual_exclusion():
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group()
