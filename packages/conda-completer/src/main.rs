@@ -80,6 +80,7 @@ fn parse_alias_args(args: &[String]) -> Option<PathBuf> {
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
+            "--" => break,
             "--aliases" => wants_aliases = true,
             "--manifest" => {
                 i += 1;
@@ -604,6 +605,9 @@ fn runtime_source_dir(
             return Some(append_segments(PathBuf::from(value), &source.env_suffix));
         }
     }
+    if source.home_suffix.is_empty() {
+        return None;
+    }
     home.map(|path| append_segments(path.to_path_buf(), &source.home_suffix))
 }
 
@@ -1027,6 +1031,27 @@ mod tests {
     }
 
     #[test]
+    fn parse_alias_args_ignores_user_words_after_separator() {
+        let args: Vec<String> = vec![
+            "bin",
+            "--shell",
+            "bash",
+            "--manifest",
+            "/path/m.msgpack",
+            "--",
+            "conda",
+            "exec",
+            "--aliases",
+            "3",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+
+        assert!(parse_alias_args(&args).is_none());
+    }
+
+    #[test]
     fn parse_args_missing_separator() {
         let args: Vec<String> = vec!["bin", "--shell", "bash", "--manifest", "/m.toml"]
             .into_iter()
@@ -1401,6 +1426,103 @@ mod tests {
 
         let result = complete(&m, &no_versions(), &empty_ctx(), &global, &words("ce r"), 1);
         let n = names(&result);
+        assert!(n.contains(&"ruff"));
+    }
+
+    #[test]
+    fn complete_user_alias_flag_stays_in_completion_mode() {
+        let m = test_manifest();
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &empty_global(),
+            &words("conda --aliases --"),
+            2,
+        );
+        let n = names(&result);
+        assert!(n.contains(&"--debug"));
+    }
+
+    #[test]
+    fn runtime_source_without_home_suffix_does_not_complete_home() {
+        let m = manifest::Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec![],
+            root_options: std::collections::BTreeMap::new(),
+            commands: std::collections::BTreeMap::from([(
+                "exec".to_string(),
+                manifest::CommandSpec {
+                    summary: None,
+                    options: std::collections::BTreeMap::new(),
+                    positionals: vec![manifest::PositionalSpec {
+                        name: "tool".to_string(),
+                        choices: None,
+                        nargs: None,
+                        completion_type: Some("cached_tool".to_string()),
+                        completion: None,
+                        description: None,
+                        metavar: None,
+                    }],
+                    subcommands: std::collections::BTreeMap::new(),
+                    exclusive_groups: vec![],
+                },
+            )]),
+            aliases: std::collections::BTreeMap::new(),
+            runtime_sources: std::collections::BTreeMap::from([(
+                "cached_tool".to_string(),
+                manifest::RuntimeSourceSpec {
+                    kind: "directory_entries".to_string(),
+                    description: Some("cached tool".to_string()),
+                    group: Some("tool".to_string()),
+                    env_var: Some("CONDA_COMPLETION_TEST_UNSET".to_string()),
+                    env_suffix: vec!["envs".to_string()],
+                    home_suffix: vec![],
+                    entry_type: Some("directory".to_string()),
+                    strip_suffix: Some("--".to_string()),
+                    max_entries: Some(10_000),
+                },
+            )]),
+        };
+        let dir = tempfile::tempdir().unwrap();
+        fs_err::create_dir_all(dir.path().join("ruff--hash")).unwrap();
+        let mut global = empty_global();
+        global.home = Some(dir.path().to_path_buf());
+        env::remove_var("CONDA_COMPLETION_TEST_UNSET");
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &global,
+            &words("conda exec r"),
+            2,
+        );
+
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn runtime_source_with_home_suffix_completes_home_path() {
+        let mut m = conda_exec_manifest();
+        m.runtime_sources.get_mut("cached_tool").unwrap().env_var =
+            Some("CONDA_COMPLETION_TEST_UNSET".to_string());
+        let (_dir, global) = cached_tool_global(&["ruff"]);
+        env::remove_var("CONDA_COMPLETION_TEST_UNSET");
+
+        let result = complete(
+            &m,
+            &no_versions(),
+            &empty_ctx(),
+            &global,
+            &words("conda exec r"),
+            2,
+        );
+        let n = names(&result);
+
         assert!(n.contains(&"ruff"));
     }
 
