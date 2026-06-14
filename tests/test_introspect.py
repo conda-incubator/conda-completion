@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import logging
 
 import pytest
 
 from conda_completion.exceptions import IntrospectionError
-from conda_completion.introspect import generate_manifest, walk_parser
+from conda_completion.introspect import StaticChoiceResolver, generate_manifest, walk_parser
 
 
 def test_walk_simple_parser():
@@ -51,6 +52,204 @@ def test_walk_parser_with_choices():
     cmd = walk_parser(parser)
 
     assert cmd.options["--format"].choices == ["json", "yaml", "toml"]
+
+
+@pytest.mark.parametrize(
+    ("option_strings", "kwargs"),
+    [
+        (("--show",), {"nargs": "*", "help": "Display configuration values"}),
+        (("--describe",), {"nargs": "*", "help": "Describe configuration parameters"}),
+        (("--get",), {"nargs": "*", "metavar": "KEY"}),
+        (("--append",), {"nargs": 2, "metavar": ("KEY", "VALUE")}),
+        (("--prepend",), {"nargs": 2, "metavar": ("KEY", "VALUE")}),
+        (("--set",), {"nargs": 2, "metavar": ("KEY", "VALUE")}),
+        (("--remove",), {"nargs": 2, "metavar": ("KEY", "VALUE")}),
+        (("--remove-key",), {"metavar": "KEY"}),
+        (("-K",), {"metavar": "KEY"}),
+        (("--future-key",), {"metavar": "KEY"}),
+        (("--future-show",), {"nargs": "*", "help": "Show configuration parameters"}),
+    ],
+)
+def test_walk_parser_adds_conda_config_parameter_choices(option_strings, kwargs):
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd")
+    p_config = sub.add_parser("config")
+    p_config.add_argument(*option_strings, **kwargs)
+
+    cmd = walk_parser(
+        parser,
+        choice_resolver=StaticChoiceResolver(
+            {"config_parameters": ["channels", "envs_dirs"]},
+        ),
+    )
+
+    assert cmd.subcommands["config"].options[option_strings[0]].choices == [
+        "channels",
+        "envs_dirs",
+    ]
+
+
+def test_walk_parser_adds_conda_config_parameter_choices_to_aliases():
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd")
+    p_config = sub.add_parser("config")
+    p_config.add_argument("--prepend", "--add", nargs=2, metavar=("KEY", "VALUE"))
+
+    cmd = walk_parser(
+        parser,
+        choice_resolver=StaticChoiceResolver(
+            {"config_parameters": ["channels", "envs_dirs"]},
+        ),
+    )
+    options = cmd.subcommands["config"].options
+
+    assert options["--prepend"].choices == ["channels", "envs_dirs"]
+    assert options["--add"].choices == ["channels", "envs_dirs"]
+
+
+@pytest.mark.parametrize(
+    ("option_strings", "kwargs"),
+    [
+        (("--file",), {"metavar": "FILE", "help": "Write to the given file"}),
+        (("--prefix",), {"metavar": "PATH", "help": "Full path to environment location"}),
+        (("--validate",), {"action": "store_true", "help": "Validate configuration sources"}),
+        (("--future",), {"nargs": "*", "help": "List matching environment names"}),
+        (("--unknown",), {"nargs": "*"}),
+    ],
+)
+def test_walk_parser_does_not_add_config_parameter_choices_to_other_values(
+    option_strings,
+    kwargs,
+):
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd")
+    p_config = sub.add_parser("config")
+    p_config.add_argument(*option_strings, **kwargs)
+
+    cmd = walk_parser(
+        parser,
+        choice_resolver=StaticChoiceResolver(
+            {"config_parameters": ["channels", "envs_dirs"]},
+        ),
+    )
+
+    assert cmd.subcommands["config"].options[option_strings[0]].choices is None
+
+
+@pytest.mark.parametrize("subcommand", ["check", "doctor"])
+def test_walk_parser_adds_health_check_choices(subcommand):
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd")
+    p_check = sub.add_parser(subcommand)
+    p_check.add_argument("checks", nargs="*", metavar="NAME")
+
+    cmd = walk_parser(
+        parser,
+        choice_resolver=StaticChoiceResolver(
+            {"health_checks": ["altered-files", "pinned"]},
+        ),
+    )
+
+    assert cmd.subcommands[subcommand].positionals[0].choices == [
+        "altered-files",
+        "pinned",
+    ]
+
+
+def test_generate_manifest_adds_static_choices(monkeypatch):
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd")
+    p_config = sub.add_parser("config")
+    p_config.add_argument("--show", nargs="*", help="Show configuration values")
+    p_doctor = sub.add_parser("doctor")
+    p_doctor.add_argument("checks", nargs="*", metavar="NAME")
+
+    monkeypatch.setattr("conda_completion.introspect.generate_parser", lambda: parser)
+    monkeypatch.setattr(
+        StaticChoiceResolver,
+        "from_conda",
+        classmethod(
+            lambda cls: cls(
+                {
+                    "config_parameters": ["channels", "pkgs_dirs"],
+                    "health_checks": ["altered-files", "pinned"],
+                },
+            ),
+        ),
+    )
+
+    manifest = generate_manifest("test")
+
+    assert manifest.commands["config"].options["--show"].choices == [
+        "channels",
+        "pkgs_dirs",
+    ]
+    assert manifest.commands["doctor"].positionals[0].choices == [
+        "altered-files",
+        "pinned",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("config_result", "expected_log"),
+    [
+        pytest.param(
+            AttributeError("missing conda API"),
+            "Failed to collect config_parameters completion choices",
+            id="provider-failure",
+        ),
+        pytest.param([], None, id="empty-result"),
+    ],
+)
+def test_static_choice_resolver_preserves_other_providers(
+    monkeypatch,
+    caplog,
+    config_result,
+    expected_log,
+):
+    def collect_config_parameters():
+        if isinstance(config_result, Exception):
+            raise config_result
+        return config_result
+
+    monkeypatch.setattr(
+        StaticChoiceResolver,
+        "providers",
+        {
+            "config_parameters": collect_config_parameters,
+            "health_checks": lambda: ["pinned"],
+        },
+    )
+    caplog.set_level(logging.WARNING)
+
+    resolver = StaticChoiceResolver.from_conda()
+
+    assert resolver.choices_by_source == {"health_checks": ["pinned"]}
+    if expected_log:
+        assert expected_log in caplog.text
+    else:
+        assert "Failed to collect" not in caplog.text
+
+
+def test_generate_manifest_preserves_static_choice_provider_failure(monkeypatch):
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd")
+    p_config = sub.add_parser("config")
+    p_config.add_argument("--show", nargs="*", help="Show configuration values")
+
+    def raise_failure():
+        raise AttributeError("missing conda API")
+
+    monkeypatch.setattr("conda_completion.introspect.generate_parser", lambda: parser)
+    monkeypatch.setattr(
+        StaticChoiceResolver,
+        "providers",
+        {"config_parameters": raise_failure},
+    )
+
+    manifest = generate_manifest("test")
+
+    assert manifest.commands["config"].options["--show"].choices is None
 
 
 def test_walk_parser_with_mutual_exclusion():

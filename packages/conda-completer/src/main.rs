@@ -180,7 +180,7 @@ fn complete(
 
     let mut current_cmd: Option<&manifest::CommandSpec> = None;
     let mut expecting_value_for: Option<&manifest::OptionSpec> = None;
-    let mut greedy_flag: bool = false;
+    let mut greedy_flag: Option<&manifest::OptionSpec> = None;
     let mut used_flags: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for (i, word) in words.iter().enumerate().skip(1) {
@@ -188,9 +188,9 @@ fn complete(
             break;
         }
 
-        if greedy_flag {
+        if greedy_flag.is_some() {
             if word.starts_with('-') {
-                greedy_flag = false;
+                greedy_flag = None;
             } else {
                 continue;
             }
@@ -212,7 +212,7 @@ fn complete(
                 used_flags.insert(canonical_name.to_string());
                 if opt.takes_value() && !word.contains('=') {
                     if opt.is_greedy() {
-                        greedy_flag = true;
+                        greedy_flag = Some(opt);
                     } else {
                         expecting_value_for = Some(opt);
                     }
@@ -234,6 +234,18 @@ fn complete(
 
     if let Some(opt) = expecting_value_for {
         return complete_flag_value(opt, manifest, versions_path, ctx, global_ctx, current_word);
+    }
+    if let Some(opt) = greedy_flag {
+        if !current_word.starts_with('-') {
+            return complete_flag_value(
+                opt,
+                manifest,
+                versions_path,
+                ctx,
+                global_ctx,
+                current_word,
+            );
+        }
     }
 
     let mut candidates = Vec::new();
@@ -859,6 +871,89 @@ mod tests {
         PathBuf::from("/nonexistent/versions")
     }
 
+    fn config_keys() -> Vec<String> {
+        vec![
+            "channels".to_string(),
+            "envs_dirs".to_string(),
+            "pkgs_dirs".to_string(),
+        ]
+    }
+
+    fn config_key_option(nargs: Option<&str>) -> manifest::OptionSpec {
+        manifest::OptionSpec {
+            short: None,
+            choices: Some(config_keys()),
+            nargs: nargs.map(str::to_string),
+            completion_type: None,
+            description: Some("Config key".to_string()),
+            metavar: Some("KEY".to_string()),
+            default: None,
+            required: false,
+            group: None,
+        }
+    }
+
+    fn config_manifest() -> manifest::Manifest {
+        manifest::Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec![],
+            root_options: std::collections::BTreeMap::new(),
+            commands: std::collections::BTreeMap::from([(
+                "config".to_string(),
+                manifest::CommandSpec {
+                    summary: Some("Modify configuration values".to_string()),
+                    options: std::collections::BTreeMap::from([
+                        ("--show".to_string(), config_key_option(Some("*"))),
+                        ("--add".to_string(), config_key_option(Some("2"))),
+                        ("--set".to_string(), config_key_option(Some("2"))),
+                        ("--remove-key".to_string(), config_key_option(None)),
+                    ]),
+                    positionals: vec![],
+                    subcommands: std::collections::BTreeMap::new(),
+                    exclusive_groups: vec![],
+                },
+            )]),
+            aliases: std::collections::BTreeMap::new(),
+            runtime_sources: std::collections::BTreeMap::new(),
+        }
+    }
+
+    fn health_manifest() -> manifest::Manifest {
+        manifest::Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec![],
+            root_options: std::collections::BTreeMap::new(),
+            commands: std::collections::BTreeMap::from([(
+                "doctor".to_string(),
+                manifest::CommandSpec {
+                    summary: Some("Run health checks".to_string()),
+                    options: std::collections::BTreeMap::new(),
+                    positionals: vec![manifest::PositionalSpec {
+                        name: "checks".to_string(),
+                        choices: Some(vec![
+                            "altered-files".to_string(),
+                            "base-protection".to_string(),
+                            "pinned".to_string(),
+                        ]),
+                        nargs: Some("*".to_string()),
+                        completion_type: None,
+                        completion: None,
+                        description: Some("Health checks".to_string()),
+                        metavar: Some("NAME".to_string()),
+                    }],
+                    subcommands: std::collections::BTreeMap::new(),
+                    exclusive_groups: vec![],
+                },
+            )]),
+            aliases: std::collections::BTreeMap::new(),
+            runtime_sources: std::collections::BTreeMap::new(),
+        }
+    }
+
     fn conda_exec_manifest() -> manifest::Manifest {
         manifest::Manifest {
             version: 1,
@@ -1326,6 +1421,154 @@ mod tests {
             n.contains(&"dev"),
             "should complete env name after greedy flag ends"
         );
+    }
+
+    #[test]
+    fn complete_config_key_flag_choices() {
+        struct Case {
+            label: &'static str,
+            input: &'static str,
+            cword: usize,
+            expected: &'static [&'static str],
+            unexpected: &'static [&'static str],
+            expect_empty: bool,
+        }
+
+        let cases = [
+            Case {
+                label: "greedy-prefix",
+                input: "conda config --show chan",
+                cword: 3,
+                expected: &["channels"],
+                unexpected: &["envs_dirs"],
+                expect_empty: false,
+            },
+            Case {
+                label: "greedy-after-existing-value",
+                input: "conda config --show channels pk",
+                cword: 4,
+                expected: &["pkgs_dirs"],
+                unexpected: &["channels"],
+                expect_empty: false,
+            },
+            Case {
+                label: "two-value-first-value",
+                input: "conda config --set chan",
+                cword: 3,
+                expected: &["channels"],
+                unexpected: &[],
+                expect_empty: false,
+            },
+            Case {
+                label: "two-value-second-value",
+                input: "conda config --set channels conda-forge",
+                cword: 4,
+                expected: &[],
+                unexpected: &[],
+                expect_empty: true,
+            },
+            Case {
+                label: "single-value",
+                input: "conda config --remove-key env",
+                cword: 3,
+                expected: &["envs_dirs"],
+                unexpected: &["channels"],
+                expect_empty: false,
+            },
+            Case {
+                label: "alias",
+                input: "conda config --add env",
+                cword: 3,
+                expected: &["envs_dirs"],
+                unexpected: &["channels"],
+                expect_empty: false,
+            },
+        ];
+        let m = config_manifest();
+
+        for case in cases {
+            let result = complete(
+                &m,
+                &no_versions(),
+                &empty_ctx(),
+                &empty_global(),
+                &words(case.input),
+                case.cword,
+            );
+            let n = names(&result);
+
+            if case.expect_empty {
+                assert!(result.is_empty(), "{} should not return choices", case.label);
+                continue;
+            }
+            for expected in case.expected {
+                assert!(
+                    n.contains(expected),
+                    "{} should include {}",
+                    case.label,
+                    expected
+                );
+            }
+            for unexpected in case.unexpected {
+                assert!(
+                    !n.contains(unexpected),
+                    "{} should not include {}",
+                    case.label,
+                    unexpected
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn complete_health_check_positional_choices() {
+        struct Case {
+            label: &'static str,
+            input: &'static str,
+            expected: &'static str,
+            unexpected: &'static str,
+        }
+
+        let cases = [
+            Case {
+                label: "pinned-prefix",
+                input: "conda doctor pin",
+                expected: "pinned",
+                unexpected: "altered-files",
+            },
+            Case {
+                label: "base-prefix",
+                input: "conda doctor base",
+                expected: "base-protection",
+                unexpected: "pinned",
+            },
+        ];
+        let m = health_manifest();
+
+        for case in cases {
+            let result = complete(
+                &m,
+                &no_versions(),
+                &empty_ctx(),
+                &empty_global(),
+                &words(case.input),
+                2,
+            );
+            let n = names(&result);
+
+            assert!(
+                n.contains(&case.expected),
+                "{} should include {}",
+                case.label,
+                case.expected
+            );
+            assert!(
+                !n.contains(&case.unexpected),
+                "{} should not include {}",
+                case.label,
+                case.unexpected
+            );
+        }
     }
 
     #[test]
