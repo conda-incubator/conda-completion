@@ -55,6 +55,19 @@ here as equivalent JSON for readability:
         }
       }
     }
+  },
+  "aliases": {
+    "cx": {"target": ["exec"]}
+  },
+  "runtime_sources": {
+    "cached_tool": {
+      "kind": "directory_entries",
+      "description": "cached tool",
+      "group": "tool",
+      "home_suffix": [".conda", "global", "tools"],
+      "entry_type": "directory",
+      "max_entries": 10000
+    }
   }
 }
 ```
@@ -78,6 +91,15 @@ package_names
   channels when repodata is included during `conda completion generate`.
   Used for package name completion in `conda install`, `conda remove`,
   etc. Omitted when generation runs with `--no-repodata`.
+
+aliases
+: Map of executable names to command paths. Shell integrations register
+  the same completion function for each alias, and the Rust completer
+  normalizes the alias back to the target command path before matching.
+
+runtime_sources
+: Map of plugin-defined runtime candidate sources. Runtime sources are
+  resolved by the Rust binary on TAB without importing Python.
 
 ### CommandSpec
 
@@ -109,8 +131,10 @@ nargs
 : Argument count (`"0"`, `"1"`, `"?"`, `"*"`, `"+"`).
 
 completion_type
-: Dynamic completion type. One of: `env_name`, `channel`, `directory`,
-  `package_spec`, `task_name`, `global_tool`.
+: Dynamic completion type. Built-in values are `env_name`,
+  `environment`, `channel`, `directory`, `file`, `path`, `package_spec`,
+  `task_name`, and `global_tool`. Plugin-defined values can reference
+  entries in `runtime_sources`.
 
 description
 : Help text for the flag.
@@ -142,11 +166,76 @@ nargs
 completion_type
 : Dynamic completion type (same values as OptionSpec).
 
+completion
+: Compound completion metadata with a default list of sources and
+  optional context-sensitive rules. Each rule can replace the source list
+  when all of its `when_options` flags have already been used.
+
 description
 : Help text.
 
 metavar
 : Display name for the value.
+
+### CompletionSpec
+
+sources
+: Dynamic completion source names used by default.
+
+rules
+: Ordered list of CompletionRule objects. The first rule whose
+  `when_options` are all present determines the sources for that
+  completion.
+
+### CompletionRule
+
+sources
+: Dynamic completion source names to use when the rule matches.
+
+when_options
+: Flag names that must have appeared earlier on the command line.
+
+### AliasSpec
+
+target
+: Command path to prepend when the executable alias is used. For
+  example, `{"target": ["exec"]}` lets `cx run` complete like
+  `conda exec run`.
+
+description
+: Optional human-readable description.
+
+### RuntimeSourceSpec
+
+kind
+: Runtime source implementation. Currently `directory_entries`.
+
+description
+: Description shown alongside candidates in shells that support it.
+
+group
+: Candidate group name used by shell integrations that support grouping.
+
+env_var
+: Environment variable that can point at the source root.
+
+env_suffix
+: Path segments appended to `env_var` when it is set.
+
+home_suffix
+: Path segments appended to the user's home directory when `env_var` is
+  not set.
+
+entry_type
+: Entry filter. One of `directory`, `file`, or `any`.
+
+strip_suffix
+: Optional delimiter used to strip encoded suffixes from directory entry
+  names.
+
+max_entries
+: Maximum number of entries read from the source directory, capped by the
+  Rust completer's internal limit.
 
 ## Version files
 

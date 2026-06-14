@@ -1,6 +1,26 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.3.0 (2026-06-14)
+
+### Features
+
+- Added context-aware completion metadata for conda plugins, including explicit completion types, rule-based positional completions, runtime directory sources, and manifest-provided command aliases.
+- Added `--command-name` and `CONDA_COMPLETION_COMMAND_NAME` so shell hooks can target wrapper executables such as `cx`.
+- Added static completions for conda configuration parameters and conda doctor health checks.
+- Fish installs now write a generated autoload completion file instead of running `conda completion init fish` on every new shell startup.
+- Environment positional completions now include both named environments and registered environment prefixes.
+
+### Fixes
+
+- Fixed zsh completion display so candidates and descriptions stay aligned without relying on `_describe`.
+- Fixed environment-name completion for positional arguments that should include prefix paths.
+- Improved failure handling when static completion sources cannot be collected from the installed conda runtime.
+
+### Documentation
+
+- Expanded wrapper-command, fish autoload, manifest, and completer binary documentation to match the current implementation.
+
+## 0.2.0 (2026-05-28)
 
 ### Breaking Changes
 
@@ -16,6 +36,7 @@
 - Three-tier fuzzy matching for package names: prefix > substring > normalized Damerau-Levenshtein similarity. Typos like `numpie` or `nupmy` suggest `numpy`. The similarity threshold is 0.6 with a cap of 10 results.
 - `conda completion refresh` to force-refresh package names and versions from repodata.
 - `--no-repodata` for `conda completion generate` and `conda completion install` to skip package metadata in offline or automated environments.
+- `--cache-dir` and `CONDA_COMPLETION_CACHE_DIR` for overriding the completion cache directory.
 - `--versions` CLI argument for the Rust binary to specify the versions index path (defaults to `versions.index` alongside the manifest).
 
 ### Performance

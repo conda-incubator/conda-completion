@@ -10,6 +10,9 @@ configuration is required.
 
 Installed plugin commands use the same manifest format as built-in
 commands: subcommands, flags, flag values, and help descriptions.
+Plugins can also attach completion metadata to argparse actions for
+runtime sources, command aliases, and context-sensitive positional
+completion rules.
 
 ## Contextual completions
 
@@ -23,8 +26,22 @@ it is not a formal conda standard.
 | What's completed | Source files |
 |---|---|
 | Environment names | `conda.toml`, `pixi.toml`, `pyproject.toml`, `environment.yml`, `conda.lock`, `pixi.lock`, `anaconda-project.yml`, `conda-project.yml`, `~/.conda/environments.txt` |
+| Environment prefixes | `~/.conda/environments.txt` |
 | Task names | `conda.toml`, `pixi.toml`, `pyproject.toml`, `anaconda-project.yml`, `conda-project.yml` |
 | Channel names | `conda.toml`, `pixi.toml`, `pyproject.toml`, `conda-lock.yml`, `conda.lock`, `pixi.lock`, `.condarc` |
+
+## Flag and argument value completion
+
+The manifest captures argparse `choices`, common dynamic argument types,
+and selected static values exposed by conda. For example:
+
+- `conda config --show <TAB>` completes known conda configuration keys.
+- `conda doctor <TAB>` completes installed health checks.
+- `--name`, `--environment`, `--channel`, and `--prefix` complete
+  environment names, channel names, or native directory paths.
+
+Plugin authors can provide explicit completion metadata when normal
+argparse names are not enough. See {doc}`how-to/custom-completions`.
 
 ## Descriptions alongside candidates
 
@@ -122,3 +139,7 @@ only need command, flag, plugin, and contextual completions.
 delimited block in your shell's RC file. The install command is
 idempotent (running it twice does not duplicate the block) and supports
 `--dry-run` to preview changes without writing.
+
+Fish uses the same delimited block, but stores it in fish's autoload
+completion directory as a generated completion script. That avoids
+starting conda just to register completions in every new fish session.

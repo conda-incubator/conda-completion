@@ -21,6 +21,7 @@ The generated manifest covers conda's argparse command tree:
 The runtime completer adds context that should stay live:
 
 - environment names from `~/.conda/environments.txt` and project files
+- registered environment prefixes for positional environment arguments
 - channel names from `.condarc`, `$CONDARC`, project files, and lockfiles
 - task names from supported project files
 - package names and versions from cached conda repodata
@@ -34,7 +35,8 @@ or query the network on TAB.
 It also does not complete:
 
 - `mamba` or `micromamba` commands
-- shell aliases that wrap `conda`
+- arbitrary shell aliases that wrap `conda` without `--command-name` or
+  manifest-provided alias metadata
 - PyPI package names
 - package build strings
 - package constraints produced by a solver

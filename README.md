@@ -15,9 +15,10 @@ via a tiny Rust binary.
 - Contextual completions: environment names, task names, channels from
   project files (`conda.toml`, `pixi.toml`, `pyproject.toml`, `environment.yml`,
   `anaconda-project.yml`, `conda-project.yml`, lockfiles)
+- Static value completion for conda configuration keys and health checks
 - Descriptions shown alongside candidates (zsh, fish, PowerShell)
 - Fast response time (stat-cached context, no Python on the hot path)
-- Shell support: bash, zsh, PowerShell (fully tested), fish (community-tested)
+- Shell support: bash, zsh, PowerShell, and fish (covered by automated tests)
 - Auto-regenerates the completion manifest when plugins are installed or removed
 
 ## Status
@@ -107,6 +108,10 @@ parsing and serves cached results directly.
 
 `generate` and `install` support `--no-repodata` to skip package
 metadata. Use `conda completion refresh` to force a repodata refresh.
+
+`install`, `init`, and `uninstall` support `--command-name` for wrapper
+executables, and `CONDA_COMPLETION_COMMAND_NAME` provides the same value
+from the environment.
 
 ## Development
 
