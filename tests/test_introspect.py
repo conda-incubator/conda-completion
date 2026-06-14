@@ -65,6 +65,7 @@ def test_walk_parser_with_choices():
         (("--set",), {"nargs": 2, "metavar": ("KEY", "VALUE")}),
         (("--remove",), {"nargs": 2, "metavar": ("KEY", "VALUE")}),
         (("--remove-key",), {"metavar": "KEY"}),
+        (("-K",), {"metavar": "KEY"}),
         (("--future-key",), {"metavar": "KEY"}),
         (("--future-show",), {"nargs": "*", "help": "Show configuration parameters"}),
     ],
@@ -113,6 +114,7 @@ def test_walk_parser_adds_conda_config_parameter_choices_to_aliases():
         (("--prefix",), {"metavar": "PATH", "help": "Full path to environment location"}),
         (("--validate",), {"action": "store_true", "help": "Validate configuration sources"}),
         (("--future",), {"nargs": "*", "help": "List matching environment names"}),
+        (("--unknown",), {"nargs": "*"}),
     ],
 )
 def test_walk_parser_does_not_add_config_parameter_choices_to_other_values(
@@ -206,6 +208,21 @@ def test_static_choice_resolver_preserves_other_providers(monkeypatch, caplog):
 
     assert resolver.choices_by_source == {"health_checks": ["pinned"]}
     assert "Failed to collect config_parameters completion choices" in caplog.text
+
+
+def test_static_choice_resolver_skips_empty_provider_results(monkeypatch):
+    monkeypatch.setattr(
+        StaticChoiceResolver,
+        "providers",
+        {
+            "config_parameters": lambda: [],
+            "health_checks": lambda: ["pinned"],
+        },
+    )
+
+    resolver = StaticChoiceResolver.from_conda()
+
+    assert resolver.choices_by_source == {"health_checks": ["pinned"]}
 
 
 def test_generate_manifest_preserves_static_choice_provider_failure(monkeypatch):
