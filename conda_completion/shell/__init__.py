@@ -32,6 +32,8 @@ class Shell:
 
     name: str = ""
     rc_files: list[str] = []
+    refresh_existing_install = False
+    remove_empty_install_file = False
 
     def script(
         self,
@@ -47,6 +49,13 @@ class Shell:
         command_name: str = DEFAULT_COMMAND_NAME,
     ) -> str:
         raise NotImplementedError
+
+    def install_body(
+        self,
+        cache_dir: Path | None = None,
+        command_name: str = DEFAULT_COMMAND_NAME,
+    ) -> str:
+        return f"{self.hook_line(cache_dir, command_name)}\n"
 
     def rc_path(self, command_name: str = DEFAULT_COMMAND_NAME) -> Path | None:
         return self.default_rc_path()

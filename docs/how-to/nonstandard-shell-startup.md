@@ -74,9 +74,11 @@ conda completion init fish | source
 
 :::::
 
-Put the hook after any {external+conda:doc}`conda init <commands/init>`
+Put manual hooks after any {external+conda:doc}`conda init <commands/init>`
 block or custom PATH setup so the `conda` command exists before the hook
-runs.
+runs. The automatic fish installer writes a generated completion script
+to fish's autoload completions directory instead of adding a startup
+command.
 
 ## Bash login shells on macOS
 
@@ -130,14 +132,14 @@ conda completion init powershell | Invoke-Expression
 
 ## Fish completions
 
-The installer writes a conda-completion block to:
+The installer writes a generated conda-completion block to:
 
 ```text
 ~/.config/fish/completions/conda.fish
 ```
 
-You can use `~/.config/fish/config.fish` instead if you prefer a single
-startup file:
+You can use `~/.config/fish/config.fish` instead if you prefer a dynamic
+manual startup hook:
 
 ```fish
 conda completion init fish | source

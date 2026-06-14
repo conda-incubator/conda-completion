@@ -120,3 +120,19 @@ def test_execute_uninstall_removes_hook(tmp_path, monkeypatch):
     assert _BLOCK_END not in content
     assert "# before" in content
     assert "# after" in content
+
+
+def test_execute_uninstall_fish_removes_empty_completion_file(tmp_path, monkeypatch):
+    rc_file = tmp_path / "fish" / "completions" / "conda.fish"
+    rc_file.parent.mkdir(parents=True)
+    rc_file.write_text(
+        f"{_BLOCK_START}\nfunction __conda_complete\nend\n{_BLOCK_END}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("conda_completion.contrib.fish.FishShell.rc_path", lambda self, _: rc_file)
+
+    args = argparse.Namespace(shell="fish", yes=True, dry_run=False)
+    result = execute_uninstall(args)
+
+    assert result == 0
+    assert not rc_file.exists()

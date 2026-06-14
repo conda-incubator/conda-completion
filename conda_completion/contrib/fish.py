@@ -4,12 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from conda_completer import find_completer_binary
+
+from ..exceptions import CompleterBinaryNotFoundError, ManifestNotFoundError
+from ..paths import manifest_path
 from ..shell import DEFAULT_COMMAND_NAME, Shell
 
 
 class FishShell(Shell):
     name = "fish"
     rc_files = [".config/fish/completions/conda.fish"]
+    refresh_existing_install = True
+    remove_empty_install_file = True
 
     def script(
         self,
@@ -37,6 +43,23 @@ for alias_name in ($__conda_completion_completer --aliases --manifest $__conda_c
     complete -c $alias_name -a '(__conda_complete)' -k
 end
 """
+
+    def install_body(
+        self,
+        cache_dir: Path | None = None,
+        command_name: str = DEFAULT_COMMAND_NAME,
+    ) -> str:
+        _ = cache_dir
+        mpath = manifest_path()
+        if not mpath.exists():
+            raise ManifestNotFoundError()
+
+        try:
+            completer_path = find_completer_binary()
+        except FileNotFoundError:
+            raise CompleterBinaryNotFoundError()
+
+        return self.script(completer_path, mpath, command_name)
 
     def hook_line(
         self,

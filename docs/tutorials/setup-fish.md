@@ -21,8 +21,8 @@ conda install -c conda-forge conda-completion
 conda completion install
 ```
 
-This detects the current shell and adds a delimited block to
-`~/.config/fish/completions/conda.fish`. Preview with:
+This detects the current shell and writes a generated completion script
+to `~/.config/fish/completions/conda.fish`. Preview with:
 
 ```bash
 conda completion install --dry-run
@@ -31,7 +31,8 @@ conda completion install --dry-run
 ### Option B: manual setup
 
 Add this line to `~/.config/fish/config.fish` or
-`~/.config/fish/completions/conda.fish`:
+`~/.config/fish/completions/conda.fish` if you prefer dynamic manual
+setup:
 
 ```fish
 conda completion init fish | source
@@ -77,3 +78,6 @@ rm (brew --prefix)/share/fish/vendor_completions.d/conda.fish
 ```bash
 conda completion uninstall
 ```
+
+If `conda.fish` only contains the generated conda-completion block,
+uninstall removes the file.
