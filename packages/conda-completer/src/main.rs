@@ -1424,119 +1424,151 @@ mod tests {
     }
 
     #[test]
-    fn complete_greedy_flag_value_choices() {
+    fn complete_config_key_flag_choices() {
+        struct Case {
+            label: &'static str,
+            input: &'static str,
+            cword: usize,
+            expected: &'static [&'static str],
+            unexpected: &'static [&'static str],
+            expect_empty: bool,
+        }
+
+        let cases = [
+            Case {
+                label: "greedy-prefix",
+                input: "conda config --show chan",
+                cword: 3,
+                expected: &["channels"],
+                unexpected: &["envs_dirs"],
+                expect_empty: false,
+            },
+            Case {
+                label: "greedy-after-existing-value",
+                input: "conda config --show channels pk",
+                cword: 4,
+                expected: &["pkgs_dirs"],
+                unexpected: &["channels"],
+                expect_empty: false,
+            },
+            Case {
+                label: "two-value-first-value",
+                input: "conda config --set chan",
+                cword: 3,
+                expected: &["channels"],
+                unexpected: &[],
+                expect_empty: false,
+            },
+            Case {
+                label: "two-value-second-value",
+                input: "conda config --set channels conda-forge",
+                cword: 4,
+                expected: &[],
+                unexpected: &[],
+                expect_empty: true,
+            },
+            Case {
+                label: "single-value",
+                input: "conda config --remove-key env",
+                cword: 3,
+                expected: &["envs_dirs"],
+                unexpected: &["channels"],
+                expect_empty: false,
+            },
+            Case {
+                label: "alias",
+                input: "conda config --add env",
+                cword: 3,
+                expected: &["envs_dirs"],
+                unexpected: &["channels"],
+                expect_empty: false,
+            },
+        ];
         let m = config_manifest();
 
-        let result = complete(
-            &m,
-            &no_versions(),
-            &empty_ctx(),
-            &empty_global(),
-            &words("conda config --show chan"),
-            3,
-        );
-        let n = names(&result);
+        for case in cases {
+            let result = complete(
+                &m,
+                &no_versions(),
+                &empty_ctx(),
+                &empty_global(),
+                &words(case.input),
+                case.cword,
+            );
+            let n = names(&result);
 
-        assert!(n.contains(&"channels"));
-        assert!(!n.contains(&"envs_dirs"));
-    }
-
-    #[test]
-    fn complete_greedy_flag_value_choices_after_existing_value() {
-        let m = config_manifest();
-
-        let result = complete(
-            &m,
-            &no_versions(),
-            &empty_ctx(),
-            &empty_global(),
-            &words("conda config --show channels pk"),
-            4,
-        );
-        let n = names(&result);
-
-        assert!(n.contains(&"pkgs_dirs"));
-        assert!(!n.contains(&"channels"));
-    }
-
-    #[test]
-    fn complete_two_value_flag_choices_only_first_value() {
-        let m = config_manifest();
-
-        let first_value = complete(
-            &m,
-            &no_versions(),
-            &empty_ctx(),
-            &empty_global(),
-            &words("conda config --set chan"),
-            3,
-        );
-        let first_names = names(&first_value);
-        assert!(first_names.contains(&"channels"));
-
-        let second_value = complete(
-            &m,
-            &no_versions(),
-            &empty_ctx(),
-            &empty_global(),
-            &words("conda config --set channels conda-forge"),
-            4,
-        );
-        assert!(second_value.is_empty());
-    }
-
-    #[test]
-    fn complete_single_value_config_key_flag_choices() {
-        let m = config_manifest();
-
-        let result = complete(
-            &m,
-            &no_versions(),
-            &empty_ctx(),
-            &empty_global(),
-            &words("conda config --remove-key env"),
-            3,
-        );
-        let n = names(&result);
-
-        assert!(n.contains(&"envs_dirs"));
-        assert!(!n.contains(&"channels"));
-    }
-
-    #[test]
-    fn complete_config_parameter_alias_flag_choices() {
-        let m = config_manifest();
-
-        let result = complete(
-            &m,
-            &no_versions(),
-            &empty_ctx(),
-            &empty_global(),
-            &words("conda config --add env"),
-            3,
-        );
-        let n = names(&result);
-
-        assert!(n.contains(&"envs_dirs"));
-        assert!(!n.contains(&"channels"));
+            if case.expect_empty {
+                assert!(result.is_empty(), "{} should not return choices", case.label);
+                continue;
+            }
+            for expected in case.expected {
+                assert!(
+                    n.contains(expected),
+                    "{} should include {}",
+                    case.label,
+                    expected
+                );
+            }
+            for unexpected in case.unexpected {
+                assert!(
+                    !n.contains(unexpected),
+                    "{} should not include {}",
+                    case.label,
+                    unexpected
+                );
+            }
+        }
     }
 
     #[test]
     fn complete_health_check_positional_choices() {
+        struct Case {
+            label: &'static str,
+            input: &'static str,
+            expected: &'static str,
+            unexpected: &'static str,
+        }
+
+        let cases = [
+            Case {
+                label: "pinned-prefix",
+                input: "conda doctor pin",
+                expected: "pinned",
+                unexpected: "altered-files",
+            },
+            Case {
+                label: "base-prefix",
+                input: "conda doctor base",
+                expected: "base-protection",
+                unexpected: "pinned",
+            },
+        ];
         let m = health_manifest();
 
-        let result = complete(
-            &m,
-            &no_versions(),
-            &empty_ctx(),
-            &empty_global(),
-            &words("conda doctor pin"),
-            2,
-        );
-        let n = names(&result);
+        for case in cases {
+            let result = complete(
+                &m,
+                &no_versions(),
+                &empty_ctx(),
+                &empty_global(),
+                &words(case.input),
+                2,
+            );
+            let n = names(&result);
 
-        assert!(n.contains(&"pinned"));
-        assert!(!n.contains(&"altered-files"));
+            assert!(
+                n.contains(&case.expected),
+                "{} should include {}",
+                case.label,
+                case.expected
+            );
+            assert!(
+                !n.contains(&case.unexpected),
+                "{} should not include {}",
+                case.label,
+                case.unexpected
+            );
+        }
     }
 
     #[test]

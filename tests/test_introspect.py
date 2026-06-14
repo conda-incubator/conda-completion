@@ -190,15 +190,33 @@ def test_generate_manifest_adds_static_choices(monkeypatch):
     ]
 
 
-def test_static_choice_resolver_preserves_other_providers(monkeypatch, caplog):
-    def raise_failure():
-        raise AttributeError("missing conda API")
+@pytest.mark.parametrize(
+    ("config_result", "expected_log"),
+    [
+        pytest.param(
+            AttributeError("missing conda API"),
+            "Failed to collect config_parameters completion choices",
+            id="provider-failure",
+        ),
+        pytest.param([], None, id="empty-result"),
+    ],
+)
+def test_static_choice_resolver_preserves_other_providers(
+    monkeypatch,
+    caplog,
+    config_result,
+    expected_log,
+):
+    def collect_config_parameters():
+        if isinstance(config_result, Exception):
+            raise config_result
+        return config_result
 
     monkeypatch.setattr(
         StaticChoiceResolver,
         "providers",
         {
-            "config_parameters": raise_failure,
+            "config_parameters": collect_config_parameters,
             "health_checks": lambda: ["pinned"],
         },
     )
@@ -207,22 +225,10 @@ def test_static_choice_resolver_preserves_other_providers(monkeypatch, caplog):
     resolver = StaticChoiceResolver.from_conda()
 
     assert resolver.choices_by_source == {"health_checks": ["pinned"]}
-    assert "Failed to collect config_parameters completion choices" in caplog.text
-
-
-def test_static_choice_resolver_skips_empty_provider_results(monkeypatch):
-    monkeypatch.setattr(
-        StaticChoiceResolver,
-        "providers",
-        {
-            "config_parameters": lambda: [],
-            "health_checks": lambda: ["pinned"],
-        },
-    )
-
-    resolver = StaticChoiceResolver.from_conda()
-
-    assert resolver.choices_by_source == {"health_checks": ["pinned"]}
+    if expected_log:
+        assert expected_log in caplog.text
+    else:
+        assert "Failed to collect" not in caplog.text
 
 
 def test_generate_manifest_preserves_static_choice_provider_failure(monkeypatch):
