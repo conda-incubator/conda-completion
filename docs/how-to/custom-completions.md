@@ -74,6 +74,11 @@ parser.add_argument(
 
 These are offered as candidates on `--format <TAB>`.
 
+conda-completion also fills selected conda-provided static choices that
+are not represented as argparse choices. Today that includes conda
+configuration parameter names for `conda config` and health check names
+for `conda doctor` / `conda check`.
+
 ### Mutually exclusive groups
 
 Wrap conflicting flags in a mutually exclusive group.
@@ -110,7 +115,7 @@ names:
 | `--prefix` | `directory` | Shell's native directory completion |
 | positional `package`, `packages` | `package_spec` | Package names and versions |
 | positional `task_name` | `task_name` | Project task names |
-| positional `environment` | `env_name` | Project + global environments |
+| positional `environment` | `environment` | Project + global environments and registered environment prefixes |
 
 Heuristics match on the long-form flag name. If your plugin uses
 `--name` for an environment argument, conda-completion infers
@@ -118,6 +123,65 @@ environment-name completion.
 
 Use conventional destination names when they match your command's
 meaning. Avoid clever aliases if a normal conda spelling exists.
+
+For arguments that need explicit metadata, attach attributes to the
+argparse action:
+
+```python
+action = parser.add_argument("tool")
+action.completion_type = "global_tool"
+```
+
+For positionals that may draw from more than one source, use a compound
+completion spec:
+
+```python
+action = parser.add_argument("target")
+action.completion = {
+    "sources": ["package_spec"],
+    "rules": [
+        {"when_options": ["--from-file"], "sources": ["file"]},
+    ],
+}
+```
+
+Completion sources can be built in (`env_name`, `environment`, `channel`,
+`directory`, `file`, `path`, `task_name`, `global_tool`, `package_spec`)
+or plugin-defined runtime sources.
+
+### Runtime sources and aliases
+
+Plugin-defined runtime sources let a plugin complete small local
+directories without importing Python on TAB. The currently supported
+runtime source kind is `directory_entries`:
+
+```python
+action = parser.add_argument("tool")
+action.completion_type = "cached_tool"
+action.completion_runtime_sources = {
+    "cached_tool": {
+        "kind": "directory_entries",
+        "description": "cached tool",
+        "group": "tool",
+        "home_suffix": [".conda", "global", "tools"],
+        "entry_type": "directory",
+        "max_entries": 10_000,
+    },
+}
+```
+
+The completer reads that directory at completion time, filters regular
+files or directories when requested, and never runs plugin code on TAB.
+
+If a plugin exposes a command through another executable, add parser
+aliases so the generated shell scripts register completion for those
+names too:
+
+```python
+parser.completion_aliases = {"cx": ["exec"]}
+```
+
+Aliases are stored in the manifest and resolved by the Rust completer.
 
 ## Authoring checklist
 
@@ -132,6 +196,8 @@ Good completion metadata usually comes from good argparse metadata:
 - Use mutually exclusive groups when flags cannot be combined.
 - Use conventional names such as `--environment`, `--channel`, and
   `task_name`.
+- Use explicit completion metadata for wrapper commands, plugin-owned
+  runtime sources, and context-sensitive positional values.
 - Keep parser construction cheap and reliable.
 
 ## When completions update

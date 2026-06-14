@@ -6,7 +6,8 @@ reads the completion manifest and project files to produce candidates.
 ## Interface
 
 ```text
-_conda_completer --shell <shell> --manifest <path> [--versions <path>] [--cwd <dir>] -- <words...> <cword>
+_conda_completer --shell <shell> --manifest <path> [--versions <path>] -- <words...> <cword>
+_conda_completer --aliases --manifest <path>
 ```
 
 `--shell`
@@ -20,10 +21,6 @@ _conda_completer --shell <shell> --manifest <path> [--versions <path>] [--cwd <d
   the same directory as the manifest. The matching `versions.store`
   file is expected next to the index.
 
-`--cwd`
-: Working directory to search for project files. Defaults to the current
-  directory.
-
 `<words>`
 : The current command line split into words by the shell integration.
   PowerShell uses command AST elements so quoted paths and arguments
@@ -31,6 +28,11 @@ _conda_completer --shell <shell> --manifest <path> [--versions <path>] [--cwd <d
 
 `<cword>`
 : Zero-based index of the word being completed.
+
+`--aliases`
+: Print manifest-provided executable aliases, one per line. Shell
+  integrations use this mode during startup so aliases and wrapper
+  commands can share the same completion function.
 
 ## Output formats
 
@@ -108,6 +110,11 @@ Regardless of project files, the binary checks these user-level files:
 - `~/.condarc` (and `$CONDARC`) for channel names
 - `~/.conda/global/global.toml` for globally installed tool names used
   by arguments explicitly marked as `global_tool`
+
+Registered environment prefixes from `~/.conda/environments.txt` are
+available for positional arguments marked as `environment`. Environment
+name flags such as `--name` and `--environment` intentionally complete
+names only.
 
 For channel names, `$CONDARC` is read in addition to `~/.condarc` when it
 points at a regular file. On Windows, the system-level
