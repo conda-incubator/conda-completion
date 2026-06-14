@@ -30,14 +30,22 @@ def test_install_idempotent(tmp_path):
 @pytest.mark.parametrize(
     "shell_name,expected_hook",
     [
-        ("bash", 'command -v conda &>/dev/null && eval "$(conda completion init bash)"'),
-        ("zsh", 'command -v conda &>/dev/null && eval "$(conda completion init zsh)"'),
+        (
+            "bash",
+            'command -v conda &>/dev/null && eval "$('
+            'conda completion init bash --command-name conda)"',
+        ),
+        (
+            "zsh",
+            'command -v conda &>/dev/null && eval "$('
+            'conda completion init zsh --command-name conda)"',
+        ),
         (
             "powershell",
             "if (Get-Command conda -ErrorAction SilentlyContinue)"
-            " { conda completion init powershell | Invoke-Expression }",
+            " { conda completion init powershell --command-name conda | Invoke-Expression }",
         ),
-        ("fish", "command -q conda; and conda completion init fish | source"),
+        ("fish", "command -q conda; and conda completion init fish --command-name conda | source"),
     ],
     ids=["bash", "zsh", "powershell", "fish"],
 )
@@ -46,6 +54,33 @@ def test_hook_line_per_shell(shell_name, expected_hook):
     if shell_name not in registry:
         pytest.skip(f"{shell_name} not available")
     assert registry[shell_name].hook_line() == expected_hook
+
+
+@pytest.mark.parametrize(
+    "shell_name,expected_hook",
+    [
+        (
+            "bash",
+            'command -v cx &>/dev/null && eval "$(cx completion init bash --command-name cx)"',
+        ),
+        (
+            "zsh",
+            'command -v cx &>/dev/null && eval "$(cx completion init zsh --command-name cx)"',
+        ),
+        (
+            "powershell",
+            "if (Get-Command cx -ErrorAction SilentlyContinue)"
+            " { cx completion init powershell --command-name cx | Invoke-Expression }",
+        ),
+        ("fish", "command -q cx; and cx completion init fish --command-name cx | source"),
+    ],
+    ids=["bash", "zsh", "powershell", "fish"],
+)
+def test_hook_line_uses_command_name(shell_name, expected_hook):
+    registry = get_shell_registry()
+    if shell_name not in registry:
+        pytest.skip(f"{shell_name} not available")
+    assert registry[shell_name].hook_line(command_name="cx") == expected_hook
 
 
 @pytest.mark.parametrize(
@@ -215,6 +250,48 @@ def test_execute_install_preserves_cache_dir_in_hook(tmp_path, monkeypatch, stub
     )
 
 
+def test_execute_install_preserves_command_name_in_hook(tmp_path, monkeypatch, stub_generate):
+    rc_file = tmp_path / ".bashrc"
+    monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
+    monkeypatch.setattr(
+        "conda_completion.shell.bash.BashShell.default_rc_path",
+        lambda self: rc_file,
+    )
+
+    args = argparse.Namespace(
+        shell=None,
+        yes=True,
+        dry_run=False,
+        no_repodata=False,
+        command_name="cx",
+    )
+    result = execute_install(args)
+
+    assert result == 0
+    assert "cx completion init bash --command-name cx" in rc_file.read_text(encoding="utf-8")
+
+
+def test_execute_install_reads_command_name_from_env(tmp_path, monkeypatch, stub_generate):
+    rc_file = tmp_path / ".bashrc"
+    monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
+    monkeypatch.setattr(
+        "conda_completion.shell.bash.BashShell.default_rc_path",
+        lambda self: rc_file,
+    )
+    monkeypatch.setenv("CONDA_COMPLETION_COMMAND_NAME", "cx")
+
+    args = argparse.Namespace(
+        shell=None,
+        yes=True,
+        dry_run=False,
+        no_repodata=False,
+    )
+    result = execute_install(args)
+
+    assert result == 0
+    assert "cx completion init bash --command-name cx" in rc_file.read_text(encoding="utf-8")
+
+
 def test_source_command_for_powershell():
     assert source_command("powershell", "ignored") == ". $PROFILE"
 
@@ -251,10 +328,10 @@ def test_execute_install_prompt_declined(tmp_path, monkeypatch, stub_generate):
 
 
 @pytest.mark.parametrize(
-    "which_result,expected_message",
+    "which_result,expected_message,expected_command",
     [
-        (None, "conda is not on PATH"),
-        ("/usr/bin/conda", None),
+        (None, "conda is not on PATH", "conda"),
+        ("/usr/bin/conda", None, "conda"),
     ],
     ids=["missing-conda", "conda-on-path"],
 )
@@ -265,6 +342,7 @@ def test_install_conda_path_warning(
     stub_generate,
     which_result,
     expected_message,
+    expected_command,
 ):
     rc_file = tmp_path / ".bashrc"
     monkeypatch.setattr("conda_completion.cli.install.Shell.detect_shell", lambda: "bash")
@@ -272,7 +350,13 @@ def test_install_conda_path_warning(
         "conda_completion.shell.bash.BashShell.default_rc_path",
         lambda self: rc_file,
     )
-    monkeypatch.setattr("conda_completion.cli.install.shutil.which", lambda _: which_result)
+    which_calls = []
+
+    def fake_which(command):
+        which_calls.append(command)
+        return which_result
+
+    monkeypatch.setattr("conda_completion.cli.install.shutil.which", fake_which)
 
     args = argparse.Namespace(shell=None, yes=True, dry_run=False)
     result = execute_install(args)
@@ -282,3 +366,4 @@ def test_install_conda_path_warning(
         assert "conda is not on PATH" not in captured.out
     else:
         assert expected_message in captured.out
+    assert which_calls == [expected_command]

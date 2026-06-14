@@ -31,6 +31,21 @@ def test_configure_parser_install_flags():
     assert args.shell == "zsh"
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["install", "--command-name", "cx"],
+        ["uninstall", "--command-name", "cx"],
+        ["init", "bash", "--command-name", "cx"],
+    ],
+    ids=["install", "uninstall", "init"],
+)
+def test_configure_parser_command_name_option(argv):
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    assert args.command_name == "cx"
+
+
 def test_configure_parser_cache_dir_option():
     parser = build_parser()
     args = parser.parse_args(["--cache-dir", "/tmp/conda-completion-cache", "generate"])

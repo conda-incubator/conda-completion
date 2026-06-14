@@ -21,12 +21,13 @@ def execute_uninstall(args: argparse.Namespace) -> int:
     """Remove the conda-completion hook from a shell RC file."""
     registry = get_shell_registry()
     shell_name = args.shell or Shell.detect_shell()
+    command_name = Shell.resolve_command_name(getattr(args, "command_name", None))
 
     if shell_name not in registry:
         raise ShellNotSupportedError(shell_name, list(registry))
 
     shell = registry[shell_name]
-    rc_path = shell.default_rc_path()
+    rc_path = shell.rc_path(command_name)
     if rc_path is None or not rc_path.exists():
         print(f"No RC file found for {shell_name}")
         return 0

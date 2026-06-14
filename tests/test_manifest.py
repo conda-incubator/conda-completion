@@ -7,10 +7,14 @@ import pytest
 
 from conda_completion.exceptions import ManifestError
 from conda_completion.manifest import (
+    AliasSpec,
     CommandSpec,
     CompletionManifest,
+    CompletionRule,
+    CompletionSpec,
     OptionSpec,
     PositionalSpec,
+    RuntimeSourceSpec,
     atomic_write,
     read_manifest,
     read_package_versions,
@@ -106,6 +110,64 @@ def test_round_trip_with_commands(tmp_path):
     workspace = loaded.commands["workspace"]
     assert "install" in workspace.subcommands
     assert "list" in workspace.subcommands
+
+
+def test_round_trip_with_completion_rules_and_aliases(tmp_path):
+    path = tmp_path / "completion.msgpack"
+    manifest = CompletionManifest(
+        version=1,
+        commands={
+            "exec": CommandSpec(
+                positionals=[
+                    PositionalSpec(
+                        name="tool",
+                        completion=CompletionSpec(
+                            sources=["cached_tool", "package_spec"],
+                            rules=[
+                                CompletionRule(
+                                    when_options=["--clean"],
+                                    sources=["cached_tool"],
+                                ),
+                                CompletionRule(
+                                    when_options=["--lock"],
+                                    sources=["file"],
+                                ),
+                            ],
+                        ),
+                    ),
+                ],
+            ),
+        },
+        aliases={"ce": AliasSpec(target=["exec"])},
+        runtime_sources={
+            "cached_tool": RuntimeSourceSpec(
+                kind="directory_entries",
+                description="cached tool",
+                group="tool",
+                env_var="TOOL_HOME",
+                env_suffix=["envs"],
+                home_suffix=[".tools", "envs"],
+                entry_type="directory",
+                strip_suffix="--",
+                max_entries=10_000,
+            ),
+        },
+    )
+    write_manifest(manifest, path)
+    loaded = read_manifest(path)
+
+    exec_cmd = loaded.commands["exec"]
+    completion = exec_cmd.positionals[0].completion
+
+    assert completion is not None
+    assert completion.sources == ["cached_tool", "package_spec"]
+    assert completion.rules[0].when_options == ["--clean"]
+    assert completion.rules[0].sources == ["cached_tool"]
+    assert completion.rules[1].when_options == ["--lock"]
+    assert completion.rules[1].sources == ["file"]
+    assert loaded.aliases["ce"].target == ["exec"]
+    assert loaded.runtime_sources["cached_tool"].kind == "directory_entries"
+    assert loaded.runtime_sources["cached_tool"].strip_suffix == "--"
 
 
 def test_round_trip_with_root_options(tmp_path):

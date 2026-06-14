@@ -100,8 +100,9 @@ For Oh My Zsh, Prezto, Antidote, or Zinit setups, put the hook in the
 file that runs after plugins and after the conda initialization block.
 That is commonly `~/.zshrc`.
 
-If another plugin defines a `conda` completion, load conda-completion
-after it so the final `compdef _conda conda` registration wins.
+If another plugin defines a completion for the same command, load
+conda-completion after it so the final `compdef _conda ...` registration
+wins for the configured command name and any manifest-provided aliases.
 
 ## PowerShell profiles
 

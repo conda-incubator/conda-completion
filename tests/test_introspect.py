@@ -101,6 +101,75 @@ def test_completion_type_heuristics(flag, expected_type):
     assert cmd.options[flag].completion_type == expected_type
 
 
+def test_explicit_completion_type_beats_heuristics():
+    parser = argparse.ArgumentParser()
+    action = parser.add_argument("--channel", help="test")
+    action.completion_type = "package_spec"
+
+    cmd = walk_parser(parser)
+
+    assert cmd.options["--channel"].completion_type == "package_spec"
+
+
+def test_walk_parser_extracts_completion_rules():
+    parser = argparse.ArgumentParser()
+    action = parser.add_argument("tool")
+    action.completion = {
+        "sources": ["cached_tool", "package_spec"],
+        "rules": [
+            {"when_options": ["--clean"], "sources": ["cached_tool"]},
+            {"when_options": ["--lock"], "sources": ["file"]},
+        ],
+    }
+
+    cmd = walk_parser(parser)
+    completion = cmd.positionals[0].completion
+
+    assert completion is not None
+    assert completion.sources == ["cached_tool", "package_spec"]
+    assert completion.rules[0].when_options == ["--clean"]
+    assert completion.rules[0].sources == ["cached_tool"]
+    assert completion.rules[1].when_options == ["--lock"]
+    assert completion.rules[1].sources == ["file"]
+
+
+def test_walk_parser_extracts_runtime_sources_from_actions():
+    parser = argparse.ArgumentParser()
+    action = parser.add_argument("tool")
+    action.completion_runtime_sources = {
+        "cached_tool": {
+            "kind": "directory_entries",
+            "description": "cached tool",
+            "group": "tool",
+            "env_var": "TOOL_HOME",
+            "env_suffix": ["envs"],
+            "home_suffix": [".tools", "envs"],
+            "entry_type": "directory",
+            "strip_suffix": "--",
+            "max_entries": 10_000,
+        },
+    }
+    runtime_sources = {}
+
+    walk_parser(parser, runtime_sources=runtime_sources)
+
+    assert runtime_sources["cached_tool"].kind == "directory_entries"
+    assert runtime_sources["cached_tool"].group == "tool"
+    assert runtime_sources["cached_tool"].strip_suffix == "--"
+
+
+def test_walk_parser_extracts_command_aliases():
+    parser = argparse.ArgumentParser()
+    aliases = {}
+    sub = parser.add_subparsers(dest="cmd")
+    p_exec = sub.add_parser("exec", help="Run a tool")
+    p_exec.completion_aliases = ["ce"]
+
+    walk_parser(parser, aliases=aliases)
+
+    assert aliases["ce"].target == ["exec"]
+
+
 @pytest.fixture()
 def parser_with_groups():
     parser = argparse.ArgumentParser()

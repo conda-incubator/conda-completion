@@ -21,6 +21,122 @@ MAX_VERSION_RECORD_SIZE = 1024 * 1024
 
 
 @dataclass(frozen=True)
+class RuntimeSourceSpec:
+    """Runtime candidate source resolved by the completer."""
+
+    kind: str
+    description: str | None = None
+    group: str | None = None
+    env_var: str | None = None
+    env_suffix: list[str] = field(default_factory=list)
+    home_suffix: list[str] = field(default_factory=list)
+    entry_type: str | None = None
+    strip_suffix: str | None = None
+    max_entries: int | None = None
+
+    def to_dict(self) -> dict:
+        result: dict = {"kind": self.kind}
+        if self.description:
+            result["description"] = self.description
+        if self.group:
+            result["group"] = self.group
+        if self.env_var:
+            result["env_var"] = self.env_var
+        if self.env_suffix:
+            result["env_suffix"] = self.env_suffix
+        if self.home_suffix:
+            result["home_suffix"] = self.home_suffix
+        if self.entry_type:
+            result["entry_type"] = self.entry_type
+        if self.strip_suffix:
+            result["strip_suffix"] = self.strip_suffix
+        if self.max_entries is not None:
+            result["max_entries"] = self.max_entries
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict) -> RuntimeSourceSpec:
+        return cls(
+            kind=data["kind"],
+            description=data.get("description"),
+            group=data.get("group"),
+            env_var=data.get("env_var"),
+            env_suffix=list(data.get("env_suffix", [])),
+            home_suffix=list(data.get("home_suffix", [])),
+            entry_type=data.get("entry_type"),
+            strip_suffix=data.get("strip_suffix"),
+            max_entries=data.get("max_entries"),
+        )
+
+
+@dataclass(frozen=True)
+class CompletionRule:
+    """Context-sensitive dynamic completion rule."""
+
+    sources: list[str] = field(default_factory=list)
+    when_options: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.sources:
+            result["sources"] = self.sources
+        if self.when_options:
+            result["when_options"] = self.when_options
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict) -> CompletionRule:
+        return cls(
+            sources=list(data.get("sources", [])),
+            when_options=list(data.get("when_options", [])),
+        )
+
+
+@dataclass(frozen=True)
+class CompletionSpec:
+    """Dynamic completion metadata for an argument."""
+
+    sources: list[str] = field(default_factory=list)
+    rules: list[CompletionRule] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.sources:
+            result["sources"] = self.sources
+        if self.rules:
+            result["rules"] = [rule.to_dict() for rule in self.rules]
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict) -> CompletionSpec:
+        return cls(
+            sources=list(data.get("sources", [])),
+            rules=[CompletionRule.from_dict(rule) for rule in data.get("rules", [])],
+        )
+
+
+@dataclass(frozen=True)
+class AliasSpec:
+    """Executable alias for a command path in the conda parser tree."""
+
+    target: list[str] = field(default_factory=list)
+    description: str | None = None
+
+    def to_dict(self) -> dict:
+        result: dict = {"target": self.target}
+        if self.description:
+            result["description"] = self.description
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict) -> AliasSpec:
+        return cls(
+            target=list(data.get("target", [])),
+            description=data.get("description"),
+        )
+
+
+@dataclass(frozen=True)
 class OptionSpec:
     """Metadata for a single CLI flag/option."""
 
@@ -79,6 +195,7 @@ class PositionalSpec:
     choices: list[str] | None = None
     nargs: str | int | None = None
     completion_type: str | None = None
+    completion: CompletionSpec | None = None
     description: str | None = None
     metavar: str | None = None
 
@@ -90,6 +207,8 @@ class PositionalSpec:
             result["nargs"] = str(self.nargs)
         if self.completion_type:
             result["completion_type"] = self.completion_type
+        if self.completion:
+            result["completion"] = self.completion.to_dict()
         if self.description:
             result["description"] = self.description
         if self.metavar:
@@ -103,6 +222,11 @@ class PositionalSpec:
             choices=data.get("choices"),
             nargs=data.get("nargs"),
             completion_type=data.get("completion_type"),
+            completion=(
+                CompletionSpec.from_dict(data["completion"])
+                if data.get("completion") is not None
+                else None
+            ),
             description=data.get("description"),
             metavar=data.get("metavar"),
         )
@@ -156,6 +280,8 @@ class CompletionManifest:
     root_options: dict[str, OptionSpec] = field(default_factory=dict)
     commands: dict[str, CommandSpec] = field(default_factory=dict)
     package_names: list[str] = field(default_factory=list)
+    aliases: dict[str, AliasSpec] = field(default_factory=dict)
+    runtime_sources: dict[str, RuntimeSourceSpec] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         result: dict = {
@@ -170,6 +296,12 @@ class CompletionManifest:
         result["commands"] = {name: cmd.to_dict() for name, cmd in self.commands.items()}
         if self.package_names:
             result["package_names"] = self.package_names
+        if self.aliases:
+            result["aliases"] = {name: alias.to_dict() for name, alias in self.aliases.items()}
+        if self.runtime_sources:
+            result["runtime_sources"] = {
+                name: source.to_dict() for name, source in self.runtime_sources.items()
+            }
         return result
 
     @classmethod
@@ -178,6 +310,11 @@ class CompletionManifest:
             name: OptionSpec.from_dict(d) for name, d in data.get("root_options", {}).items()
         }
         commands = {name: CommandSpec.from_dict(d) for name, d in data.get("commands", {}).items()}
+        aliases = {name: AliasSpec.from_dict(d) for name, d in data.get("aliases", {}).items()}
+        runtime_sources = {
+            name: RuntimeSourceSpec.from_dict(d)
+            for name, d in data.get("runtime_sources", {}).items()
+        }
         return cls(
             version=data.get("version", 1),
             generated_at=data.get("generated_at", ""),
@@ -185,6 +322,8 @@ class CompletionManifest:
             root_options=root_options,
             commands=commands,
             package_names=data.get("package_names", []),
+            aliases=aliases,
+            runtime_sources=runtime_sources,
         )
 
 

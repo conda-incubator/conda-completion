@@ -18,6 +18,12 @@
   `conda completion --cache-dir PATH` command-line option takes
   precedence over this environment variable.
 
+`CONDA_COMPLETION_COMMAND_NAME`
+: Overrides the executable name that `install`, `init`, and `uninstall`
+  use for shell registration. Use this when conda is exposed through a
+  wrapper command such as `cx`. The `--command-name NAME` command-line
+  option takes precedence over this environment variable.
+
 `SHELL`
 : Fallback for shell detection when process tree walking does not find
   a known shell. Defaults to `powershell` on Windows if not set.

@@ -17,6 +17,10 @@ pub struct Manifest {
     pub commands: BTreeMap<String, CommandSpec>,
     #[serde(default)]
     pub root_options: BTreeMap<String, OptionSpec>,
+    #[serde(default)]
+    pub aliases: BTreeMap<String, AliasSpec>,
+    #[serde(default)]
+    pub runtime_sources: BTreeMap<String, RuntimeSourceSpec>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -71,10 +75,51 @@ pub struct PositionalSpec {
     #[allow(dead_code)]
     pub nargs: Option<String>,
     pub completion_type: Option<String>,
+    pub completion: Option<CompletionSpec>,
     #[allow(dead_code)]
     pub description: Option<String>,
     #[allow(dead_code)]
     pub metavar: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CompletionSpec {
+    #[serde(default)]
+    pub sources: Vec<String>,
+    #[serde(default)]
+    pub rules: Vec<CompletionRule>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CompletionRule {
+    #[serde(default)]
+    pub sources: Vec<String>,
+    #[serde(default)]
+    pub when_options: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AliasSpec {
+    #[serde(default)]
+    pub target: Vec<String>,
+    #[allow(dead_code)]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RuntimeSourceSpec {
+    pub kind: String,
+    #[allow(dead_code)]
+    pub description: Option<String>,
+    pub group: Option<String>,
+    pub env_var: Option<String>,
+    #[serde(default)]
+    pub env_suffix: Vec<String>,
+    #[serde(default)]
+    pub home_suffix: Vec<String>,
+    pub entry_type: Option<String>,
+    pub strip_suffix: Option<String>,
+    pub max_entries: Option<usize>,
 }
 
 const MAX_PACKAGE_NAMES: usize = 2_000_000;
@@ -206,6 +251,8 @@ mod tests {
                     group: None,
                 },
             )]),
+            aliases: BTreeMap::new(),
+            runtime_sources: BTreeMap::new(),
         }
     }
 
@@ -239,6 +286,77 @@ mod tests {
         let bytes = minimal_manifest_bytes();
         let m: Manifest = rmp_serde::from_slice(&bytes).unwrap();
         assert!(m.root_options.contains_key("--debug"));
+    }
+
+    #[test]
+    fn parse_aliases_and_completion_rules() {
+        let manifest = Manifest {
+            version: 1,
+            generated_at: None,
+            plugin_hash: None,
+            package_names: vec![],
+            commands: BTreeMap::from([(
+                "exec".to_string(),
+                CommandSpec {
+                    summary: None,
+                    options: BTreeMap::new(),
+                    positionals: vec![PositionalSpec {
+                        name: "tool".to_string(),
+                        choices: None,
+                        nargs: None,
+                        completion_type: None,
+                        completion: Some(CompletionSpec {
+                            sources: vec!["cached_tool".to_string(), "package_spec".to_string()],
+                            rules: vec![CompletionRule {
+                                sources: vec!["cached_tool".to_string()],
+                                when_options: vec!["--clean".to_string()],
+                            }],
+                        }),
+                        description: None,
+                        metavar: None,
+                    }],
+                    subcommands: BTreeMap::new(),
+                    exclusive_groups: vec![],
+                },
+            )]),
+            root_options: BTreeMap::new(),
+            aliases: BTreeMap::from([(
+                "ce".to_string(),
+                AliasSpec {
+                    target: vec!["exec".to_string()],
+                    description: None,
+                },
+            )]),
+            runtime_sources: BTreeMap::from([(
+                "cached_tool".to_string(),
+                RuntimeSourceSpec {
+                    kind: "directory_entries".to_string(),
+                    description: Some("cached tool".to_string()),
+                    group: Some("tool".to_string()),
+                    env_var: Some("TOOL_HOME".to_string()),
+                    env_suffix: vec!["envs".to_string()],
+                    home_suffix: vec![".tools".to_string(), "envs".to_string()],
+                    entry_type: Some("directory".to_string()),
+                    strip_suffix: Some("--".to_string()),
+                    max_entries: Some(10_000),
+                },
+            )]),
+        };
+
+        let bytes = rmp_serde::to_vec(&manifest).unwrap();
+        let parsed: Manifest = rmp_serde::from_slice(&bytes).unwrap();
+        let completion = parsed.commands["exec"].positionals[0]
+            .completion
+            .as_ref()
+            .unwrap();
+
+        assert_eq!(parsed.aliases["ce"].target, vec!["exec"]);
+        assert_eq!(completion.sources, vec!["cached_tool", "package_spec"]);
+        assert_eq!(completion.rules[0].when_options, vec!["--clean"]);
+        assert_eq!(
+            parsed.runtime_sources["cached_tool"].kind,
+            "directory_entries"
+        );
     }
 
     #[test]
@@ -467,6 +585,8 @@ mod tests {
                 },
             )]),
             root_options: BTreeMap::new(),
+            aliases: BTreeMap::new(),
+            runtime_sources: BTreeMap::new(),
         };
         let bytes = rmp_serde::to_vec(&manifest).unwrap();
         let m: Manifest = rmp_serde::from_slice(&bytes).unwrap();

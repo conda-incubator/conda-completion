@@ -54,10 +54,11 @@ does not expose the same description field.
 
 ## How it works in zsh
 
-The generated script is a `#compdef conda` completion function. On each
-TAB press, zsh calls `_conda()` which invokes the Rust binary. Output
-uses grouped `candidate:description` items, which zsh's `_describe`
-function renders with aligned descriptions.
+The generated script registers `_conda()` with `compdef` for the configured
+command name and any manifest-provided aliases. On each TAB press, zsh
+calls `_conda()` which invokes the Rust binary. Output uses grouped
+`candidate:description` items, which zsh's `_describe` function renders
+with aligned descriptions.
 
 ## Uninstall
 

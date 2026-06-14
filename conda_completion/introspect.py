@@ -7,13 +7,23 @@ and produces a CompletionManifest suitable for the Rust completer.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from conda.cli.conda_argparse import generate_parser as conda_generate_parser
 
 from .exceptions import IntrospectionError
-from .manifest import CommandSpec, CompletionManifest, OptionSpec, PositionalSpec
+from .manifest import (
+    AliasSpec,
+    CommandSpec,
+    CompletionManifest,
+    CompletionRule,
+    CompletionSpec,
+    OptionSpec,
+    PositionalSpec,
+    RuntimeSourceSpec,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -42,7 +52,9 @@ def generate_manifest(plugin_hash: str = "") -> CompletionManifest:
     except BaseException as exc:
         raise IntrospectionError(str(exc)) from exc
 
-    root_cmd = walk_parser(parser)
+    aliases: dict[str, AliasSpec] = {}
+    runtime_sources: dict[str, RuntimeSourceSpec] = {}
+    root_cmd = walk_parser(parser, aliases=aliases, runtime_sources=runtime_sources)
 
     return CompletionManifest(
         version=1,
@@ -50,6 +62,8 @@ def generate_manifest(plugin_hash: str = "") -> CompletionManifest:
         plugin_hash=plugin_hash,
         root_options=root_cmd.options,
         commands=root_cmd.subcommands,
+        aliases=aliases,
+        runtime_sources=runtime_sources,
     )
 
 
@@ -57,12 +71,25 @@ def generate_parser() -> argparse.ArgumentParser:
     return conda_generate_parser()
 
 
-def walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
+def walk_parser(
+    parser: argparse.ArgumentParser,
+    command_path: tuple[str, ...] = (),
+    aliases: dict[str, AliasSpec] | None = None,
+    runtime_sources: dict[str, RuntimeSourceSpec] | None = None,
+) -> CommandSpec:
     """Recursively walk an argparse parser tree into a CommandSpec."""
     options: dict[str, OptionSpec] = {}
     positionals: list[PositionalSpec] = []
     subcommands: dict[str, CommandSpec] = {}
     exclusive_groups: list[list[str]] = []
+
+    if aliases is not None:
+        collect_parser_aliases(parser, command_path, aliases)
+    if runtime_sources is not None:
+        collect_runtime_sources(
+            getattr(parser, "completion_runtime_sources", None),
+            runtime_sources,
+        )
 
     for group in parser._mutually_exclusive_groups:
         group_names = []
@@ -89,7 +116,12 @@ def walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
                     (ca.help for ca in action._choices_actions if ca.dest == name),
                     None,
                 )
-                sub_cmd = walk_parser(subparser)
+                sub_cmd = walk_parser(
+                    subparser,
+                    command_path=(*command_path, name),
+                    aliases=aliases,
+                    runtime_sources=runtime_sources,
+                )
                 subcommands[name] = CommandSpec(
                     summary=sub_help or sub_cmd.summary,
                     options=sub_cmd.options,
@@ -100,6 +132,11 @@ def walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
             continue
 
         if action.option_strings:
+            if runtime_sources is not None:
+                collect_runtime_sources(
+                    getattr(action, "completion_runtime_sources", None),
+                    runtime_sources,
+                )
             long_names = [s for s in action.option_strings if s.startswith("--")]
             short_names = [
                 s for s in action.option_strings if s.startswith("-") and not s.startswith("--")
@@ -107,7 +144,9 @@ def walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
             long_name = long_names[0] if long_names else action.option_strings[-1]
             short_name = short_names[0] if short_names else None
 
-            completion_type = infer_completion_type(action.option_strings)
+            completion_type = explicit_completion_type(action) or infer_completion_type(
+                action.option_strings
+            )
 
             description = action.help if action.help != argparse.SUPPRESS else None
 
@@ -144,8 +183,16 @@ def walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
         else:
             if action.dest in ("cmd", "subcmd", "_plugin_subcommand"):
                 continue
+            if runtime_sources is not None:
+                collect_runtime_sources(
+                    getattr(action, "completion_runtime_sources", None),
+                    runtime_sources,
+                )
 
-            completion_type = POSITIONAL_TYPE_HEURISTICS.get(action.dest)
+            completion_type = explicit_completion_type(action) or POSITIONAL_TYPE_HEURISTICS.get(
+                action.dest
+            )
+            completion = explicit_completion_spec(action)
 
             description = action.help if action.help != argparse.SUPPRESS else None
 
@@ -169,6 +216,7 @@ def walk_parser(parser: argparse.ArgumentParser) -> CommandSpec:
                     choices=choices,
                     nargs=nargs,
                     completion_type=completion_type,
+                    completion=completion,
                     description=description,
                     metavar=action.metavar if isinstance(action.metavar, str) else None,
                 )
@@ -193,3 +241,75 @@ def infer_completion_type(option_strings: Sequence[str]) -> str | None:
         if opt in COMPLETION_TYPE_HEURISTICS:
             return COMPLETION_TYPE_HEURISTICS[opt]
     return None
+
+
+def explicit_completion_type(action: argparse.Action) -> str | None:
+    """Return plugin-provided scalar completion metadata when present."""
+    completion_type = getattr(action, "completion_type", None)
+    if isinstance(completion_type, str) and completion_type:
+        return completion_type
+    return None
+
+
+def explicit_completion_spec(action: argparse.Action) -> CompletionSpec | None:
+    """Return plugin-provided compound completion metadata when present."""
+    completion = getattr(action, "completion", None)
+    if isinstance(completion, CompletionSpec):
+        return completion
+    if isinstance(completion, dict):
+        return CompletionSpec.from_dict(completion)
+
+    sources = string_list(getattr(action, "completion_sources", None))
+    rules = [
+        CompletionRule.from_dict(rule)
+        for rule in getattr(action, "completion_rules", [])
+        if isinstance(rule, dict)
+    ]
+    if sources or rules:
+        return CompletionSpec(sources=sources, rules=rules)
+    return None
+
+
+def collect_parser_aliases(
+    parser: argparse.ArgumentParser,
+    command_path: tuple[str, ...],
+    aliases: dict[str, AliasSpec],
+) -> None:
+    """Collect plugin-provided executable aliases for this parser node."""
+    configured = getattr(parser, "completion_aliases", None)
+    if isinstance(configured, dict):
+        for name, target in configured.items():
+            if isinstance(name, str) and name and target:
+                aliases[name] = AliasSpec(target=string_list(target))
+        return
+
+    for name in string_list(configured):
+        if command_path:
+            aliases[name] = AliasSpec(target=list(command_path))
+
+
+def collect_runtime_sources(
+    configured: object,
+    runtime_sources: dict[str, RuntimeSourceSpec],
+) -> None:
+    """Collect plugin-provided runtime candidate source definitions."""
+    if not isinstance(configured, dict):
+        return
+
+    for name, source in configured.items():
+        if not isinstance(name, str) or not name:
+            continue
+        if isinstance(source, RuntimeSourceSpec):
+            runtime_sources[name] = source
+        elif isinstance(source, dict):
+            runtime_sources[name] = RuntimeSourceSpec.from_dict(source)
+
+
+def string_list(value: object) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, Iterable):
+        return [str(item) for item in value if str(item)]
+    return []
