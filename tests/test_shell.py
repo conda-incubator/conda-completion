@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from conda_completion.contrib.fish import FishShell
 from conda_completion.exceptions import CommandNameError
 from conda_completion.shell import Shell, get_shell_registry
 from conda_completion.shell.bash import BashShell
+from conda_completion.shell.fish import FishShell
 from conda_completion.shell.powershell import PowerShellShell
 from conda_completion.shell.zsh import ZshShell
 

@@ -1,7 +1,6 @@
 Source demos/_settings.tape
 
 Output demos/dynamic-completion.gif
-Output demos/dynamic-completion.mp4
 
 Hide
 Type `eval "$(pixi shell-hook -s bash -e dev)"`

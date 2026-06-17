@@ -1,7 +1,6 @@
 Source demos/_settings.tape
 
 Output demos/fuzzy-matching.gif
-Output demos/fuzzy-matching.mp4
 
 Hide
 Type `eval "$(pixi shell-hook -s bash -e dev)"`

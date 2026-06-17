@@ -34,10 +34,6 @@ criteria = "safe-to-deploy"
 version = "2.4.1"
 criteria = "safe-to-deploy"
 
-[[exemptions.fs-err]]
-version = "3.3.0"
-criteria = "safe-to-deploy"
-
 [[exemptions.getrandom]]
 version = "0.2.2"
 criteria = "safe-to-deploy"

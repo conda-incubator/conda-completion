@@ -304,9 +304,9 @@ def test_execute_install_fish_writes_static_completion_script(
     manifest.write_bytes(b"\x81\xa7version\x01")
     binary = tmp_path / "_conda_completer"
     binary.touch()
-    monkeypatch.setattr("conda_completion.contrib.fish.FishShell.rc_path", lambda self, _: rc_file)
-    monkeypatch.setattr("conda_completion.contrib.fish.manifest_path", lambda: manifest)
-    monkeypatch.setattr("conda_completion.contrib.fish.find_completer_binary", lambda: binary)
+    monkeypatch.setattr("conda_completion.shell.fish.FishShell.rc_path", lambda self, _: rc_file)
+    monkeypatch.setattr("conda_completion.shell.fish.manifest_path", lambda: manifest)
+    monkeypatch.setattr("conda_completion.shell.fish.find_completer_binary", lambda: binary)
 
     args = argparse.Namespace(
         shell="fish",
@@ -343,9 +343,9 @@ def test_execute_install_fish_replaces_existing_completion_block(
     manifest.write_bytes(b"\x81\xa7version\x01")
     binary = tmp_path / "_conda_completer"
     binary.touch()
-    monkeypatch.setattr("conda_completion.contrib.fish.FishShell.rc_path", lambda self, _: rc_file)
-    monkeypatch.setattr("conda_completion.contrib.fish.manifest_path", lambda: manifest)
-    monkeypatch.setattr("conda_completion.contrib.fish.find_completer_binary", lambda: binary)
+    monkeypatch.setattr("conda_completion.shell.fish.FishShell.rc_path", lambda self, _: rc_file)
+    monkeypatch.setattr("conda_completion.shell.fish.manifest_path", lambda: manifest)
+    monkeypatch.setattr("conda_completion.shell.fish.find_completer_binary", lambda: binary)
 
     args = argparse.Namespace(
         shell="fish",
@@ -367,7 +367,7 @@ def test_execute_install_fish_replaces_existing_completion_block(
 
 def test_execute_install_fish_dry_run_does_not_generate(tmp_path, monkeypatch, stub_generate):
     rc_file = tmp_path / "fish" / "completions" / "conda.fish"
-    monkeypatch.setattr("conda_completion.contrib.fish.FishShell.rc_path", lambda self, _: rc_file)
+    monkeypatch.setattr("conda_completion.shell.fish.FishShell.rc_path", lambda self, _: rc_file)
 
     args = argparse.Namespace(
         shell="fish",
@@ -404,8 +404,8 @@ def test_execute_install_fish_static_install_errors(
     binary.touch()
     if manifest_exists:
         manifest.write_bytes(b"\x81\xa7version\x01")
-    monkeypatch.setattr("conda_completion.contrib.fish.FishShell.rc_path", lambda self, _: rc_file)
-    monkeypatch.setattr("conda_completion.contrib.fish.manifest_path", lambda: manifest)
+    monkeypatch.setattr("conda_completion.shell.fish.FishShell.rc_path", lambda self, _: rc_file)
+    monkeypatch.setattr("conda_completion.shell.fish.manifest_path", lambda: manifest)
 
     if missing_completer:
 
@@ -417,7 +417,7 @@ def test_execute_install_fish_static_install_errors(
             return binary
 
     monkeypatch.setattr(
-        "conda_completion.contrib.fish.find_completer_binary",
+        "conda_completion.shell.fish.find_completer_binary",
         find_completer_binary,
     )
 

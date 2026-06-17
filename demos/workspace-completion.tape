@@ -1,7 +1,6 @@
 Source demos/_settings.tape
 
 Output demos/workspace-completion.gif
-Output demos/workspace-completion.mp4
 
 Hide
 Type `eval "$(pixi shell-hook -s bash -e dev)"`

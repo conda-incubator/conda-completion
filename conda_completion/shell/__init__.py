@@ -175,20 +175,13 @@ class Shell:
 def get_shell_registry() -> dict[str, Shell]:
     """Return a mapping of supported shell name to Shell instance."""
     from .bash import BashShell
+    from .fish import FishShell
     from .powershell import PowerShellShell
     from .zsh import ZshShell
 
-    registry: dict[str, Shell] = {
+    return {
         "bash": BashShell(),
         "zsh": ZshShell(),
         "powershell": PowerShellShell(),
+        "fish": FishShell(),
     }
-
-    try:
-        from ..contrib.fish import FishShell
-
-        registry["fish"] = FishShell()
-    except ImportError:
-        pass
-
-    return registry

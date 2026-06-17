@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Removed generated demo videos from the repository.
 - Removed the in-repo conda recipe's `cc` console script metadata and test to avoid shipping a binary name that is easy to confuse with C compilers.
 
 ## 0.3.0 (2026-06-14)

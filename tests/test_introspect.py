@@ -427,13 +427,43 @@ def test_suppressed_help_excluded():
     assert cmd.options["--visible"].description == "Visible flag"
 
 
-def test_generate_manifest_includes_plugin_subcommands():
+@pytest.fixture()
+def parser_with_plugin_subcommands():
+    parser = argparse.ArgumentParser()
+    subcommands = parser.add_subparsers(dest="cmd")
+
+    workspace = subcommands.add_parser("workspace", help="Manage workspaces")
+    workspace_subcommands = workspace.add_subparsers(dest="workspace_cmd")
+    workspace_subcommands.add_parser("install", help="Install workspace")
+    workspace_subcommands.add_parser("init", help="Initialize workspace")
+
+    task = subcommands.add_parser("task", help="Manage tasks")
+    task_subcommands = task.add_subparsers(dest="task_cmd")
+    task_subcommands.add_parser("run", help="Run task")
+
+    return parser
+
+
+def test_generate_manifest_includes_plugin_subcommands(
+    monkeypatch, parser_with_plugin_subcommands
+):
+    monkeypatch.setattr(
+        "conda_completion.introspect.generate_parser",
+        lambda: parser_with_plugin_subcommands,
+    )
+
     m = generate_manifest("test")
+
     assert "workspace" in m.commands
     assert "task" in m.commands
 
 
-def test_generate_manifest_plugin_subcommand_depth():
+def test_generate_manifest_plugin_subcommand_depth(monkeypatch, parser_with_plugin_subcommands):
+    monkeypatch.setattr(
+        "conda_completion.introspect.generate_parser",
+        lambda: parser_with_plugin_subcommands,
+    )
+
     m = generate_manifest("test")
     ws = m.commands["workspace"]
     assert "install" in ws.subcommands

@@ -11,7 +11,6 @@ name = "_conda_completer"
 path = "src/main.rs"
 
 [dependencies]
-fs-err = "3.1"
 rmp-serde = "1"
 serde = { version = "1.0", features = ["derive"] }
 tempfile = "3"

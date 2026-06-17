@@ -6,33 +6,11 @@ TAB press.
 
 ## The two-phase design
 
-```{mermaid}
-flowchart TD
-    subgraph python ["Phase 1: Python (manifest generation)"]
-        direction TB
-        A["conda completion generate"] --> B["Call generate_parser()"]
-        B --> C["Walk argparse tree"]
-        C --> D["Include plugin commands"]
-        D --> D2["Resolve package metadata"]
-        D2 --> E["Write completion.msgpack\n+ versions.index/store"]
-    end
-
-    E --> F[("completion.msgpack\nversions.index/store\n(cache directory)")]
-
-    subgraph rust ["Phase 2: Rust (runs on every TAB)"]
-        direction TB
-        G["_conda_completer"] --> H["Read completion.msgpack"]
-        H --> I["Walk cwd for project context"]
-        I --> J["Read global state"]
-        J --> K["Prefix/substring/fuzzy match"]
-    end
-
-    F --> G
-
-    style python fill:#306998,color:#fff
-    style rust fill:#dea584,color:#000
-    style F fill:#f5f5f5,stroke:#333
-```
+1. Python: `conda completion generate` calls `generate_parser()`, walks
+   the argparse tree, includes plugin commands, resolves package
+   metadata, and writes msgpack cache files.
+2. Rust: `_conda_completer` reads those files, scans project and global
+   state, then returns prefix/substring/fuzzy matches.
 
 **Phase 1: Generation (Python).** `conda completion generate` calls
 conda's `generate_parser()` function, which loads all registered plugin
@@ -162,7 +140,6 @@ The Rust binary uses a minimal set of dependencies:
 - `serde` + `rmp-serde` for the msgpack manifest and caches
 - `toml` for project files (conda.toml, pixi.toml, pyproject.toml)
 - `serde-saphyr` for YAML files (environment.yml, .condarc, lockfiles; pure Rust, no unsafe)
-- `fs-err` for better I/O error messages
 
 This keeps the binary small and startup fast. Heavier frameworks like
 `clap_complete` or full conda type libraries (rattler) were deliberately

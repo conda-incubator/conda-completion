@@ -1,7 +1,6 @@
 Source demos/_settings.tape
 
 Output demos/option-completion.gif
-Output demos/option-completion.mp4
 
 Hide
 Type `eval "$(pixi shell-hook -s bash -e dev)"`
