@@ -14,9 +14,7 @@ extensions = [
     "myst_parser",
     "sphinx_copybutton",
     "sphinx_design",
-    "sphinx_reredirects",
     "sphinx_sitemap",
-    "sphinxcontrib.mermaid",
 ]
 
 myst_enable_extensions = [
@@ -46,9 +44,7 @@ html_context = {
     "doc_path": "docs",
 }
 
-html_static_path = ["_static"]
 html_extra_path = ["robots.txt"]
-html_css_files = ["css/custom.css"]
 
 html_baseurl = "https://conda-incubator.github.io/conda-completion/"
 

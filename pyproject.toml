@@ -65,7 +65,6 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "conda_completion/shell/*.py" = ["E501"]
-"conda_completion/contrib/*.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -111,7 +110,6 @@ pre-commit = ">=4.0"
 cargo-deny = ">=0.16"
 cargo-audit = ">=0.21"
 cargo-vet = ">=0.10"
-conda-workspaces = ">=0.4"
 
 [tool.pixi.feature.test.dependencies]
 pytest = ">=8.0"
@@ -119,7 +117,6 @@ pytest-benchmark = ">=5.0"
 pytest-cov = ">=4.0"
 platformdirs = ">=4.0"
 msgpack-python = ">=1.0"
-conda-workspaces = ">=0.4"
 
 [tool.pixi.feature.docs.dependencies]
 sphinx = ">=7.0"
@@ -127,9 +124,7 @@ conda-sphinx-theme = ">=0.2"
 myst-parser = ">=3.0"
 sphinx-design = ">=0.6"
 sphinx-copybutton = ">=0.5"
-sphinx-reredirects = ">=0.1"
 sphinx-sitemap = ">=2.0"
-sphinxcontrib-mermaid = ">=2.0"
 
 [tool.pixi.environments]
 dev = { features = ["dev"], solve-group = "default" }

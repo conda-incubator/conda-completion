@@ -1,8 +1,7 @@
 """Performance benchmarks for conda-completion.
 
 Focuses on operations that run on the hot path (manifest I/O,
-introspection, version lookups) and could regress as the project
-evolves.
+introspection) and could regress as the project evolves.
 """
 
 from __future__ import annotations
@@ -19,9 +18,7 @@ from conda_completion.manifest import (
     OptionSpec,
     PositionalSpec,
     read_manifest,
-    read_versions,
     write_manifest,
-    write_versions,
 )
 
 if TYPE_CHECKING:
@@ -141,34 +138,6 @@ def test_bench_manifest_round_trip(benchmark: BenchmarkFixture, tmp_path: Path) 
         return read_manifest(path)
 
     benchmark(round_trip)
-
-
-def build_realistic_versions(
-    n_packages: int = 28000, n_versions: int = 20
-) -> dict[str, list[str]]:
-    """Build version data at conda-forge scale."""
-    return {
-        f"package-{i}": [f"{j}.{i % 10}.0" for j in range(n_versions)] for i in range(n_packages)
-    }
-
-
-def test_bench_versions_write(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
-    """Write version data for 28000 packages (conda-forge scale)."""
-    versions = build_realistic_versions()
-    index_path = tmp_path / "versions.index"
-    store_path = tmp_path / "versions.store"
-
-    benchmark(write_versions, versions, index_path, store_path)
-
-
-def test_bench_versions_read_all(benchmark: BenchmarkFixture, tmp_path: Path) -> None:
-    """Deserialize all indexed package version data."""
-    versions = build_realistic_versions()
-    index_path = tmp_path / "versions.index"
-    store_path = tmp_path / "versions.store"
-    write_versions(versions, index_path, store_path)
-
-    benchmark(read_versions, index_path, store_path)
 
 
 def test_bench_walk_parser(benchmark: BenchmarkFixture) -> None:

@@ -72,7 +72,6 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 name = "conda-completer"
 version = "0.3.0"
 dependencies = [
- "fs-err",
  "rmp-serde",
  "serde",
  "serde-saphyr",
@@ -120,15 +119,6 @@ name = "fastrand"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
-
-[[package]]
-name = "fs-err"
-version = "3.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73fde052dbfc920003cfd2c8e2c6e6d4cc7c1091538c3a24226cec0665ab08c0"
-dependencies = [
- "autocfg",
-]
 
 [[package]]
 name = "getrandom"

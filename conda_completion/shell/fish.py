@@ -8,7 +8,7 @@ from conda_completer import find_completer_binary
 
 from ..exceptions import CompleterBinaryNotFoundError, ManifestNotFoundError
 from ..paths import manifest_path
-from ..shell import DEFAULT_COMMAND_NAME, Shell
+from . import DEFAULT_COMMAND_NAME, Shell
 
 
 class FishShell(Shell):

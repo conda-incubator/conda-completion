@@ -664,7 +664,7 @@ fn complete_directory_entries(
     path: &Path,
     current_word: &str,
 ) -> Vec<Candidate> {
-    let Ok(entries) = fs_err::read_dir(path) else {
+    let Ok(entries) = std::fs::read_dir(path) else {
         return Vec::new();
     };
 
@@ -701,7 +701,7 @@ fn complete_directory_entries(
     candidates
 }
 
-fn entry_matches_type(entry: &fs_err::DirEntry, entry_type: Option<&str>) -> bool {
+fn entry_matches_type(entry: &std::fs::DirEntry, entry_type: Option<&str>) -> bool {
     let Ok(file_type) = entry.file_type() else {
         return false;
     };
@@ -1075,12 +1075,12 @@ mod tests {
     fn cached_tool_global(tool_names: &[&str]) -> (tempfile::TempDir, global::GlobalContext) {
         let dir = tempfile::tempdir().unwrap();
         let envs = dir.path().join("exec-cache").join("envs");
-        fs_err::create_dir_all(&envs).unwrap();
+        std::fs::create_dir_all(&envs).unwrap();
         for (index, tool_name) in tool_names.iter().enumerate() {
-            fs_err::create_dir_all(envs.join(format!("{tool_name}--hash{index}"))).unwrap();
+            std::fs::create_dir_all(envs.join(format!("{tool_name}--hash{index}"))).unwrap();
         }
-        fs_err::create_dir_all(envs.join("missing-delimiter")).unwrap();
-        fs_err::write(envs.join("not-a-dir--hash"), "").unwrap();
+        std::fs::create_dir_all(envs.join("missing-delimiter")).unwrap();
+        std::fs::write(envs.join("not-a-dir--hash"), "").unwrap();
 
         let mut global = empty_global();
         global.home = Some(dir.path().to_path_buf());
@@ -1526,7 +1526,11 @@ mod tests {
             let n = names(&result);
 
             if case.expect_empty {
-                assert!(result.is_empty(), "{} should not return choices", case.label);
+                assert!(
+                    result.is_empty(),
+                    "{} should not return choices",
+                    case.label
+                );
                 continue;
             }
             for expected in case.expected {
@@ -1808,7 +1812,7 @@ mod tests {
             )]),
         };
         let dir = tempfile::tempdir().unwrap();
-        fs_err::create_dir_all(dir.path().join("ruff--hash")).unwrap();
+        std::fs::create_dir_all(dir.path().join("ruff--hash")).unwrap();
         let mut global = empty_global();
         global.home = Some(dir.path().to_path_buf());
         env::remove_var("CONDA_COMPLETION_TEST_UNSET");

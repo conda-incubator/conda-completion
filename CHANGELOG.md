@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+
+- Removed generated demo videos from the repository.
+
 ## 0.3.0 (2026-06-14)
 
 ### Features

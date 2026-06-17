@@ -1,7 +1,6 @@
 Source demos/_settings.tape
 
 Output demos/subcommand-completion.gif
-Output demos/subcommand-completion.mp4
 
 Hide
 Type `eval "$(pixi shell-hook -s bash -e dev)"`

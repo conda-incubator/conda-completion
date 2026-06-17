@@ -15,7 +15,6 @@ Env BAT_THEME "Visual Studio Dark+"
 Env PYTHONWARNINGS "ignore::SyntaxWarning"
 
 Output demos/fish-completion.gif
-Output demos/fish-completion.mp4
 
 Hide
 Type "pixi shell-hook -s fish -e dev | source"

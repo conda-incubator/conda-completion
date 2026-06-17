@@ -448,13 +448,13 @@ mod tests {
         let named_env = envs_dir.join("conda-build-dev");
         let build_env = named_env.join("conda-bld").join("debug").join("_h_env");
         let conda_dir = home.path().join(".conda");
-        fs_err::create_dir_all(&conda_dir).unwrap();
-        fs_err::write(
+        std::fs::create_dir_all(&conda_dir).unwrap();
+        std::fs::write(
             home.path().join(".condarc"),
             format!("envs_dirs:\n  - {}\n", envs_dir.display()),
         )
         .unwrap();
-        fs_err::write(
+        std::fs::write(
             conda_dir.join("environments.txt"),
             format!("{}\n{}\n", named_env.display(), build_env.display()),
         )

@@ -11,8 +11,7 @@
   on every TAB press.
 
 - CLI modules live under `conda_completion/cli/`. Shell script
-  generators live under `conda_completion/shell/` and
-  `conda_completion/contrib/`. Supported shells are bash, zsh,
+  generators live under `conda_completion/shell/`. Supported shells are bash, zsh,
   PowerShell, and fish; all are covered by automated tests.
 
 - The Rust binary crate lives under `packages/conda-completer/`.
@@ -47,7 +46,7 @@
 - Minimize the dependency graph. The Python side depends on `conda`,
   `conda-completer`, `platformdirs`, and `msgpack`.
 - The Rust binary uses minimal crates: `serde`, `rmp-serde`, `toml`,
-  `serde-saphyr`, `fs-err`. No rattler crates or heavy frameworks.
+  and `serde-saphyr`. No rattler crates or heavy frameworks.
 - Pin minimum versions in `pyproject.toml` (e.g., `"conda >=25.1"`),
   not exact versions.
 - All packaging and dependency management goes through pixi. Never use

@@ -1,7 +1,6 @@
 Source demos/_settings.tape
 
 Output demos/repodata-controls.gif
-Output demos/repodata-controls.mp4
 
 Hide
 Type `eval "$(pixi shell-hook -s bash -e dev)"`

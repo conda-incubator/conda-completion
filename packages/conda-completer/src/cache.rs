@@ -148,7 +148,7 @@ pub fn read_to_string_limited(path: &Path) -> Option<String> {
     if !metadata.file_type().is_file() || metadata.len() > MAX_FILE_SIZE {
         return None;
     }
-    fs_err::read_to_string(path).ok()
+    std::fs::read_to_string(path).ok()
 }
 
 pub fn read_to_bytes_limited(path: &Path) -> Option<Vec<u8>> {
@@ -156,7 +156,7 @@ pub fn read_to_bytes_limited(path: &Path) -> Option<Vec<u8>> {
     if !metadata.file_type().is_file() || metadata.len() > MAX_FILE_SIZE {
         return None;
     }
-    fs_err::read(path).ok()
+    std::fs::read(path).ok()
 }
 
 #[cfg(test)]
