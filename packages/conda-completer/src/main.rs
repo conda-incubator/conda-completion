@@ -1632,24 +1632,29 @@ mod tests {
             plugin_hash: None,
             package_names: vec![],
             root_options: std::collections::BTreeMap::new(),
-            commands: std::collections::BTreeMap::from([(
-                "spawn".to_string(),
-                manifest::CommandSpec {
-                    summary: Some("Spawn a shell".to_string()),
-                    options: std::collections::BTreeMap::new(),
-                    positionals: vec![manifest::PositionalSpec {
-                        name: "environment".to_string(),
-                        choices: None,
-                        nargs: None,
-                        completion_type: Some("environment".to_string()),
-                        completion: None,
-                        description: None,
-                        metavar: None,
-                    }],
-                    subcommands: std::collections::BTreeMap::new(),
-                    exclusive_groups: vec![],
-                },
-            )]),
+            commands: ["activate", "spawn", "shell"]
+                .into_iter()
+                .map(|name| {
+                    (
+                        name.to_string(),
+                        manifest::CommandSpec {
+                            summary: Some("Spawn a shell".to_string()),
+                            options: std::collections::BTreeMap::new(),
+                            positionals: vec![manifest::PositionalSpec {
+                                name: "environment".to_string(),
+                                choices: None,
+                                nargs: None,
+                                completion_type: Some("environment".to_string()),
+                                completion: None,
+                                description: None,
+                                metavar: None,
+                            }],
+                            subcommands: std::collections::BTreeMap::new(),
+                            exclusive_groups: vec![],
+                        },
+                    )
+                })
+                .collect(),
             aliases: std::collections::BTreeMap::new(),
             runtime_sources: std::collections::BTreeMap::new(),
         };
@@ -1657,18 +1662,24 @@ mod tests {
         global.env_names = vec!["conda-build-dev".to_string()];
         global.env_prefixes = vec!["/tmp/conda-bld/debug/_h_env".to_string()];
 
-        let result = complete(
-            &m,
-            &no_versions(),
-            &empty_ctx(),
-            &global,
-            &words("conda spawn "),
-            2,
-        );
-        let n = names(&result);
+        for command in ["activate", "spawn", "shell"] {
+            for (prefix, expected) in [
+                ("", vec!["conda-build-dev", "/tmp/conda-bld/debug/_h_env"]),
+                ("conda-build", vec!["conda-build-dev"]),
+                ("/tmp/conda-bld", vec!["/tmp/conda-bld/debug/_h_env"]),
+            ] {
+                let result = complete(
+                    &m,
+                    &no_versions(),
+                    &empty_ctx(),
+                    &global,
+                    &words(&format!("conda {command} {prefix}")),
+                    2,
+                );
 
-        assert!(n.contains(&"conda-build-dev"));
-        assert!(n.contains(&"/tmp/conda-bld/debug/_h_env"));
+                assert_eq!(names(&result), expected, "conda {command} {prefix}");
+            }
+        }
     }
 
     #[test]

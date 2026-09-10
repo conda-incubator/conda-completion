@@ -319,6 +319,46 @@ def test_positional_completion_type_heuristics(name, expected_type):
     assert cmd.positionals[0].completion_type == expected_type
 
 
+def test_generate_manifest_completes_activate_environments():
+    manifest = generate_manifest()
+
+    assert manifest.commands["activate"].positionals[0].completion_type == "environment"
+
+
+@pytest.mark.parametrize("command", ["spawn", "shell"])
+def test_spawn_environment_completion_type(command):
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers()
+    spawn = sub.add_parser("spawn", aliases=["shell"])
+    spawn.add_argument("environment")
+
+    cmd = walk_parser(parser)
+
+    assert cmd.subcommands[command].positionals[0].completion_type == "environment"
+
+
+@pytest.mark.parametrize(
+    ("command_path", "explicit_type", "expected_type"),
+    [
+        (("activate",), None, "environment"),
+        (("activate",), "directory", "directory"),
+        (("deactivate",), None, None),
+        (("run",), None, None),
+        (("plugin", "activate"), None, None),
+        ((), None, None),
+    ],
+)
+def test_generic_args_completion_type(command_path, explicit_type, expected_type):
+    parser = argparse.ArgumentParser()
+    action = parser.add_argument("args", nargs="*", help=argparse.SUPPRESS)
+    if explicit_type:
+        action.completion_type = explicit_type
+
+    cmd = walk_parser(parser, command_path=command_path)
+
+    assert cmd.positionals[0].completion_type == expected_type
+
+
 def test_explicit_completion_type_beats_heuristics():
     parser = argparse.ArgumentParser()
     action = parser.add_argument("--channel", help="test")

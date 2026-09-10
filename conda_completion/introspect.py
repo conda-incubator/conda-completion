@@ -330,6 +330,9 @@ def walk_parser(
             completion_type = explicit_completion_type(action) or POSITIONAL_TYPE_HEURISTICS.get(
                 action.dest
             )
+            # Conda's shell activation placeholder exposes a generic args positional.
+            if completion_type is None and command_path == ("activate",) and action.dest == "args":
+                completion_type = "environment"
             completion = explicit_completion_spec(action)
 
             description = action.help if action.help != argparse.SUPPRESS else None
