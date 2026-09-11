@@ -118,6 +118,10 @@ pytest-cov = ">=4.0"
 platformdirs = ">=4.0"
 msgpack-python = ">=1.0"
 
+[tool.pixi.feature.test.target.unix.dependencies]
+bash = ">=4.4"
+fish = ">=3.2"
+
 [tool.pixi.feature.docs.dependencies]
 sphinx = ">=7.0"
 conda-sphinx-theme = ">=0.2"
