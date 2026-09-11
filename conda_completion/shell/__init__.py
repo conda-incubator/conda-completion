@@ -72,9 +72,15 @@ class Shell:
 
     @staticmethod
     def posix_quote(value: Path | str) -> str:
-        """Quote a path for safe use in POSIX shells (bash, zsh, fish)."""
+        """Quote a path for safe use in POSIX shells (bash, zsh)."""
         text = value.as_posix() if isinstance(value, Path) else value
         return "'" + text.replace("'", "'\\''") + "'"
+
+    @staticmethod
+    def fish_quote(value: Path | str) -> str:
+        """Quote a literal path using Fish's single-quote escape rules."""
+        text = value.as_posix() if isinstance(value, Path) else value
+        return "'" + text.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
     @staticmethod
     def powershell_quote(value: Path | str) -> str:

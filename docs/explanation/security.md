@@ -41,11 +41,12 @@ already clean (the common case).
 
 After sanitization, shell-specific escaping is applied:
 
-- Zsh: colons and backslashes are escaped (`\:`, `\\`) because zsh
-  uses colons as delimiters in `_describe`.
-- Fish and PowerShell: tab-separated `candidate\tdescription` format.
-- Bash: one candidate per line, no descriptions (`compgen`/`complete`
-  does not support them).
+- Bash quotes each insertion with `printf %q` so spaces, backslashes, and tildes remain literal. Words containing shell quotes use Bash's filename fallback because the completion engine does not decode those quotes.
+- PowerShell uses single-quoted `CompletionText` and keeps the original candidate as the display text. Parsed string values are passed back to the engine for subsequent completions.
+- Zsh uses `compadd` with its normal insertion quoting and `--` before candidate values.
+- Fish receives tab-separated candidates and descriptions and handles completion insertion itself.
+
+Generated scripts also quote executable and cache paths. Fish uses its own single-quote escape rules for backslashes and apostrophes, including paths resolved through a cache-directory symlink.
 
 ## Symlink protection
 

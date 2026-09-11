@@ -32,17 +32,29 @@ Register-ArgumentCompleter -Native -CommandName $CondaCompletionCommands -Script
     param($wordToComplete, $commandAst, $cursorPosition)
     $completer = $CondaCompletionCompleter
     $manifest = $CondaCompletionManifest
-    $words = @($commandAst.CommandElements | ForEach-Object {{ $_.Extent.Text }})
-    $cword = $words.Length - 1
+    $words = @($commandAst.CommandElements | ForEach-Object {{
+        if ($_ -is [System.Management.Automation.Language.StringConstantExpressionAst]) {{
+            $_.Value
+        }} else {{
+            $_.Extent.Text
+        }}
+    }})
+    if ($wordToComplete) {{
+        $cword = $words.Length - 1
+    }} else {{
+        $cword = $words.Length
+        $words += ''
+    }}
     & $completer --shell powershell --manifest $manifest -- $words $cword |
         ForEach-Object {{
             $parts = $_ -split "`t", 2
+            $completionText = "'" + $parts[0].Replace("'", "''") + "'"
             if ($parts.Length -eq 2) {{
                 [System.Management.Automation.CompletionResult]::new(
-                    $parts[0], $parts[0], 'ParameterValue', $parts[1])
+                    $completionText, $parts[0], 'ParameterValue', $parts[1])
             }} else {{
                 [System.Management.Automation.CompletionResult]::new(
-                    $_, $_, 'ParameterValue', $_)
+                    $completionText, $_, 'ParameterValue', $_)
             }}
         }}
 }}

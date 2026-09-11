@@ -49,6 +49,8 @@ removes `=` from that variable. Other shells do not split on `=`.
 whitespace. This preserves quoted paths and arguments before passing
 words to the Rust completer.
 
+**Bash quoted words.** Dynamic completion does not decode shell quotes. When the current word contains a quote, completion falls back to Bash's filename completion. Suggested values containing spaces or backslashes are escaped for insertion as one argument.
+
 **Descriptions.** Zsh, fish, and PowerShell display descriptions
 alongside completion candidates. Bash's COMPREPLY does not support
 descriptions, so the Rust binary omits them for bash output.
