@@ -2,14 +2,24 @@
 
 ## Unreleased
 
+## 0.3.1 (2026-09-16)
+
+After upgrading, run `conda completion generate` and restart your shell. Fish users should also run `conda completion install fish` to refresh the installed completion file before restarting.
+
+### Security
+
+- Quote Bash and PowerShell completion values so spaces and backslashes remain part of a single literal argument.
+- Use Fish-specific escaping for executable and cache paths containing backslashes or apostrophes.
+- Use private temporary directories with cleanup on exit when recording demos.
+
 ### Fixes
 
-- Quote Bash and PowerShell completion values as literal arguments and use Fish-specific escaping for generated paths.
-- Use private temporary directories when recording demos.
+- Restore completion of environment names and registered prefixes after `conda activate`.
+- Remove the unintended `cc` console script from the conda recipe.
 
-### Documentation
+### Maintenance
 
-- Removed generated demo videos from the repository.
+- Remove unused Rust and development dependencies and generated demo videos.
 
 ## 0.3.0 (2026-06-14)
 
