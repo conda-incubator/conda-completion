@@ -123,6 +123,8 @@ pixi run test        # run Python + Rust integration tests
 pixi run check       # lint + format + typecheck + clippy
 ```
 
+See [RELEASING.md](RELEASING.md) for the release process.
+
 ## License
 
 BSD-3-Clause

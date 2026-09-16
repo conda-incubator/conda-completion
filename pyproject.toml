@@ -113,6 +113,7 @@ cargo-vet = ">=0.10"
 
 [tool.pixi.feature.test.dependencies]
 pytest = ">=8.0"
+"ruamel.yaml" = ">=0.18"
 pytest-benchmark = ">=5.0"
 pytest-cov = ">=4.0"
 platformdirs = ">=4.0"
@@ -130,10 +131,18 @@ sphinx-design = ">=0.6"
 sphinx-copybutton = ">=0.5"
 sphinx-sitemap = ">=2.0"
 
+[tool.pixi.feature.release.dependencies]
+python = "3.13.*"
+python-build = ">=1.5"
+hatchling = ">=1.12.2"
+hatch-vcs = ">=0.2.0"
+twine = ">=7.0"
+
 [tool.pixi.environments]
 dev = { features = ["dev"], solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
 docs = { features = ["docs"], solve-group = "default" }
+release = { features = ["release"], no-default-feature = true }
 
 [tool.pixi.tasks]
 build = "cargo build --release --manifest-path packages/conda-completer/Cargo.toml"
@@ -152,6 +161,10 @@ cargo-vet = { cmd = "cargo vet --manifest-path packages/conda-completer/Cargo.to
 
 [tool.pixi.feature.docs.tasks]
 docs = { cmd = "sphinx-build -b dirhtml docs docs/_build/dirhtml", description = "Build documentation" }
+
+[tool.pixi.feature.release.tasks]
+build-dist = { cmd = "python -m build --no-isolation", description = "Build the Python wheel and source archive" }
+check-dist = { cmd = "twine check --strict dist/*.whl dist/*.tar.gz", description = "Check release package metadata" }
 
 [tool.pixi.tasks.security]
 depends-on = ["cargo-audit", "cargo-deny", "cargo-vet"]

@@ -1,26 +1,28 @@
 name: Release
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      run_id:
-        description: Release workflow run whose artifacts should be published
-        type: number
-        required: true
+  push:
+    tags:
+      - '*.*.*'
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - 'pyproject.toml'
+      - 'pixi.lock'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'packages/**'
 
 permissions:
   contents: read # checkout and read source code
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-completer-wheels:
     name: Completer wheel (${{ matrix.target }})
-    if: github.event_name == 'release'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -63,7 +65,6 @@ jobs:
 
   build-completer-sdist:
     name: Completer sdist
-    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -83,7 +84,6 @@ jobs:
 
   build-python:
     name: Python package
-    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -91,11 +91,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: prefix-dev/setup-pixi@1b2de7f3351f171c8b4dfeb558c639cb58ed4ec0 # v0.9.5
         with:
-          python-version: "3.13"
+          environments: release
 
-      - run: pipx run build
+      - run: pixi run --locked -e release build-dist
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -103,47 +103,87 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
-  publish-completer:
-    name: Publish conda-completer to PyPI
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || success()) }}
+  check-distributions:
+    name: Check all release distributions
     runs-on: ubuntu-latest
-    needs: [build-completer-wheels, build-completer-sdist]
-    environment: pypi-completer
-    outputs:
-      tag: ${{ steps.source.outputs.tag }}
-
-    permissions:
-      actions: read # download artifacts from a previous release run
-      contents: read # verify the release tag
-      id-token: write # OIDC trusted publishing to PyPI
-
+    needs: [build-completer-wheels, build-completer-sdist, build-python]
     steps:
-      - name: Verify the source release run
-        if: github.event_name == 'workflow_dispatch'
-        id: source
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RUN_ID: ${{ inputs.run_id }}
-        run: |
-          source_run=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID")
-          jq -e --arg repo "$GH_REPO" '
-            .event == "release" and
-            .path == ".github/workflows/release.yml" and
-            .head_repository.full_name == $repo and
-            .status == "completed"
-          ' <<< "$source_run"
-          tag=$(jq -r .head_branch <<< "$source_run")
-          source_sha=$(jq -r .head_sha <<< "$source_run")
-          tag_sha=$(gh api "repos/$GH_REPO/commits/$tag" --jq .sha)
-          test "$source_sha" = "$tag_sha"
-          test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = false
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: prefix-dev/setup-pixi@1b2de7f3351f171c8b4dfeb558c639cb58ed4ec0 # v0.9.5
+        with:
+          environments: release
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          run-id: ${{ inputs.run_id || github.run_id }}
-          github-token: ${{ github.token }}
+          path: dist
+          pattern: "{completer-*,python-dist}"
+          merge-multiple: true
+
+      - run: pixi run --locked -e release check-dist
+
+  create-draft-release:
+    name: Attach distributions to a draft release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: [check-distributions]
+    permissions:
+      contents: write # create the draft release and upload its assets
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: dist
+          pattern: "{completer-*,python-dist}"
+          merge-multiple: true
+
+      - name: Create draft release and upload distributions
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/*)
+          completer_wheels=(dist/conda_completer-"$RELEASE_TAG"-*.whl)
+          if [[ "${#files[@]}" -ne 8 || "${#completer_wheels[@]}" -ne 5 ||
+                ! -f "dist/conda_completer-${RELEASE_TAG}.tar.gz" ||
+                ! -f "dist/conda_completion-${RELEASE_TAG}.tar.gz" ||
+                ! -f "dist/conda_completion-${RELEASE_TAG}-py3-none-any.whl" ]]; then
+            echo "Expected five completer wheels, one completion wheel, and two source archives for $RELEASE_TAG." >&2
+            exit 1
+          fi
+
+          if gh release view "$RELEASE_TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists. Rerun failed jobs from its original workflow run." >&2
+            exit 1
+          fi
+
+          gh release create "$RELEASE_TAG" \
+            --draft --verify-tag --title "$RELEASE_TAG" --generate-notes --repo "$GH_REPO"
+
+          cleanup_draft() {
+            gh release delete "$RELEASE_TAG" --repo "$GH_REPO" --yes >/dev/null 2>&1 || true
+          }
+          trap cleanup_draft ERR
+          gh release upload "$RELEASE_TAG" "${files[@]}" --repo "$GH_REPO"
+          trap - ERR
+
+  publish-completer:
+    name: Publish conda-completer to PyPI
+    runs-on: ubuntu-latest
+    needs: [create-draft-release]
+    environment: pypi-completer
+
+    permissions:
+      id-token: write # OIDC trusted publishing to PyPI
+
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
           path: dist
           pattern: "completer-*"
           merge-multiple: true
@@ -151,24 +191,21 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           packages-dir: dist/
-          skip-existing: ${{ github.event_name == 'workflow_dispatch' }}
+          skip-existing: true
+          attestations: true
 
   publish-python:
     name: Publish conda-completion to PyPI
-    if: ${{ !cancelled() && needs.publish-completer.result == 'success' && (github.event_name == 'workflow_dispatch' || success()) }}
     runs-on: ubuntu-latest
-    needs: [build-python, publish-completer]
+    needs: [publish-completer]
     environment: pypi-completion
 
     permissions:
-      actions: read # download artifacts from a previous release run
       id-token: write # OIDC trusted publishing to PyPI
 
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          run-id: ${{ inputs.run_id || github.run_id }}
-          github-token: ${{ github.token }}
           path: dist
           pattern: "python-dist"
           merge-multiple: true
@@ -176,30 +213,21 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           packages-dir: dist/
-          skip-existing: ${{ github.event_name == 'workflow_dispatch' }}
+          skip-existing: true
+          attestations: true
 
-  upload-release-assets:
-    name: Upload release assets
-    if: ${{ !cancelled() && needs.publish-completer.result == 'success' && needs.publish-python.result == 'success' }}
+  publish-github-release:
+    name: Publish GitHub release
     runs-on: ubuntu-latest
     needs: [publish-completer, publish-python]
 
     permissions:
-      actions: read # download artifacts from a previous release run
-      contents: write # upload assets to GitHub release
+      contents: write # publish the draft after both PyPI uploads succeed
 
     steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          run-id: ${{ inputs.run_id || github.run_id }}
-          github-token: ${{ github.token }}
-          path: dist
-          pattern: "{completer-*,python-dist}"
-          merge-multiple: true
-
-      - name: Upload assets to GitHub Release
+      - name: Publish draft release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG_NAME: ${{ github.event.release.tag_name || needs.publish-completer.outputs.tag }}
-        run: gh release upload "$TAG_NAME" dist/* --repo "$GH_REPO"
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release edit "$RELEASE_TAG" --repo "$GH_REPO" --draft=false
