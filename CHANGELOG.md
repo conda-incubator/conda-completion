@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.3.2 (2026-09-16)
+
+This release changes packaging and release automation. Completion behavior is unchanged from 0.3.1.
+
+### Maintenance
+
+- Publish GitHub releases only after all eight package files are attached and both PyPI uploads succeed.
+- Check package metadata before publication and reuse the original build files when retrying failed jobs.
+- Document release preparation, publication, and recovery.
+
 ## 0.3.1 (2026-09-16)
 
 After upgrading, run `conda completion generate` and restart your shell. Fish users should also run `conda completion install fish` to refresh the installed completion file before restarting.
