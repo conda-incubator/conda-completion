@@ -31,8 +31,17 @@ _conda_completion_command={cn}
 _conda_completion() {{
     local completer=$_conda_completion_completer
     local manifest=$_conda_completion_manifest
+    local word=${{COMP_WORDS[COMP_CWORD]}} index
+    COMPREPLY=()
+    # The engine does not decode shell quotes. Keep Bash's filename fallback for these words.
+    [[ "$word" == *\\'* || "$word" == *\\\"* ]] && return
     mapfile -t COMPREPLY < <("$completer" --shell bash --manifest "$manifest" -- "${{COMP_WORDS[@]}}" "$COMP_CWORD" 2>/dev/null)
-    compopt -o nosort 2>/dev/null
+    for index in "${{!COMPREPLY[@]}}"; do
+        printf -v "COMPREPLY[$index]" '%q' "${{COMPREPLY[$index]}}"
+    done
+    if (( ${{#COMPREPLY[@]}} )); then
+        compopt -o noquote -o nosort 2>/dev/null
+    fi
 }}
 COMP_WORDBREAKS="${{COMP_WORDBREAKS//=/}}"
 complete -o default -F _conda_completion "$_conda_completion_command"

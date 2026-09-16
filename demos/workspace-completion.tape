@@ -12,13 +12,19 @@ Wait /\$/
 Type `export PS1="$DEMO_PS1" && eval "$(conda completion init bash)"`
 Enter
 Wait /\$/
-Type "rm -rf /tmp/.demo-project && mkdir -p /tmp/.demo-project && cp demos/fixtures/conda.toml /tmp/.demo-project/"
+Type `DEMO_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/conda-completion-demo.XXXXXX") || exit 1`
 Enter
 Wait /\$/
-Type "mkdir -p /tmp/.demo-home/.conda && printf '/opt/conda/envs/base\n/opt/conda/envs/data-science\n/opt/conda/envs/web-dev\n' > /tmp/.demo-home/.conda/environments.txt && export HOME=/tmp/.demo-home"
+Type `trap 'rm -rf -- "$DEMO_TMPDIR"' EXIT`
 Enter
 Wait /\$/
-Type "cd /tmp/.demo-project"
+Type `mkdir "$DEMO_TMPDIR/project" && cp demos/fixtures/conda.toml "$DEMO_TMPDIR/project/"`
+Enter
+Wait /\$/
+Type `mkdir -p "$DEMO_TMPDIR/home/.conda" && printf '/opt/conda/envs/base\n/opt/conda/envs/data-science\n/opt/conda/envs/web-dev\n' > "$DEMO_TMPDIR/home/.conda/environments.txt" && export HOME="$DEMO_TMPDIR/home"`
+Enter
+Wait /\$/
+Type `cd "$DEMO_TMPDIR/project"`
 Enter
 Wait /\$/
 Type "clear"

@@ -24,9 +24,9 @@ class FishShell(Shell):
         command_name: str = DEFAULT_COMMAND_NAME,
     ) -> str:
         command_name = self.parse_command_name(command_name)
-        cp = self.posix_quote(completer_path)
-        mp = self.posix_quote(manifest_path)
-        cn = self.posix_quote(command_name)
+        cp = self.fish_quote(completer_path)
+        mp = self.fish_quote(manifest_path)
+        cn = self.fish_quote(command_name)
         return f"""\
 set -g __conda_completion_completer {cp}
 set -g __conda_completion_manifest {mp}
@@ -70,7 +70,7 @@ end
         command = f"{command_name} completion init fish --command-name {command_name}"
         if cache_dir is not None:
             command = (
-                f"{command_name} completion --cache-dir {self.posix_quote(cache_dir)}"
+                f"{command_name} completion --cache-dir {self.fish_quote(cache_dir)}"
                 f" init fish --command-name {command_name}"
             )
         return f"command -q {command_name}; and {command} | source"

@@ -6,7 +6,16 @@ Hide
 Type `eval "$(pixi shell-hook -s bash -e dev)"`
 Enter
 Wait /\)/
-Type `export PS1="$DEMO_PS1" && export SHELL=/bin/bash && rm -rf /tmp/.demo-home && mkdir -p /tmp/.demo-home && touch /tmp/.demo-home/.bashrc && export HOME=/tmp/.demo-home`
+Type `export PS1="$DEMO_PS1" && export SHELL=/bin/bash`
+Enter
+Wait /\$/
+Type `DEMO_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/conda-completion-demo.XXXXXX") || exit 1`
+Enter
+Wait /\$/
+Type `trap 'rm -rf -- "$DEMO_TMPDIR"' EXIT`
+Enter
+Wait /\$/
+Type `mkdir "$DEMO_TMPDIR/home" && touch "$DEMO_TMPDIR/home/.bashrc" && export HOME="$DEMO_TMPDIR/home"`
 Enter
 Wait /\$/
 Type "conda completion generate > /dev/null 2>&1"

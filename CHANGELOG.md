@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixes
+
+- Quote Bash and PowerShell completion values as literal arguments and use Fish-specific escaping for generated paths.
+- Use private temporary directories when recording demos.
+
 ### Documentation
 
 - Removed generated demo videos from the repository.
