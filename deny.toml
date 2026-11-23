@@ -14,12 +14,7 @@ targets = [
 
 # Advisory database checks (RustSec)
 [advisories]
-ignore = [
-    # serde_yml and libyml are flagged as unmaintained. We only use serde_yml
-    # for reading .condarc and environment.yml during completion -- no untrusted
-    # input, minimal attack surface.
-    "RUSTSEC-2025-0068",
-]
+ignore = []
 
 # License policy -- allow only permissive licenses compatible with BSD-3-Clause
 [licenses]
